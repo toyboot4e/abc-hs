@@ -1,0 +1,10 @@
+#!/usr/bin/env bash -euE
+
+cd "$(dirname "$0")"
+
+dir="$1"
+cp -r _template "$dir"
+
+cd "$dir"
+cat package.yaml | sed "s/template/$1/" | tee package.yaml > /dev/null
+
