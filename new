@@ -16,6 +16,7 @@ cd "$dir"
 cat package.yaml | sed "s/template/$1/" | tee package.yaml > /dev/null
 
 mv 'app/template.hs' 'app/P01.hs'
+: > 'app/P01-input'
 
 nums() {
     seq 1 10 | xargs -I{} printf '%02d\n' '{}'
@@ -23,9 +24,6 @@ nums() {
 
 for n in $(nums | sed 1d) ; do
     cp 'app/P01.hs' "app/P$n.hs"
-done
-
-for n in $(nums) ; do
     : > "app/P$n-input"
 done
 
