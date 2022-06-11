@@ -24,6 +24,6 @@ nums() {
 
 for n in $(nums | sed 1d) ; do
     cp 'app/P01.hs' "app/P$n.hs"
-    : > "app/P$n-input"
+    cp 'app/P01-input' "app/P$n-input"
 done
 
