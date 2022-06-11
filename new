@@ -15,17 +15,17 @@ cd "$dir"
 
 cat package.yaml | sed "s/template/$1/" | tee package.yaml > /dev/null
 
-mv 'app/template.hs' 'app/01.hs'
+mv 'app/template.hs' 'app/P01.hs'
 
 nums() {
     seq 1 10 | xargs -I{} printf '%02d\n' '{}'
 }
 
 for n in $(nums | sed 1d) ; do
-    cp 'app/01.hs' "app/$n.hs"
+    cp 'app/P01.hs' "app/P$n.hs"
 done
 
 for n in $(nums) ; do
-    : > "app/$n-input"
+    : > "app/P$n-input"
 done
 
