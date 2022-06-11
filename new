@@ -6,5 +6,29 @@ dir="$1"
 cp -r _template "$dir"
 
 cd "$dir"
+
 cat package.yaml | sed "s/template/$1/" | tee package.yaml > /dev/null
+
+mv 'app/template.hs' 'app/01.hs'
+
+cp 'app/01.hs' 'app/02.hs'
+cp 'app/01.hs' 'app/03.hs'
+cp 'app/01.hs' 'app/04.hs'
+cp 'app/01.hs' 'app/05.hs'
+cp 'app/01.hs' 'app/06.hs'
+cp 'app/01.hs' 'app/07.hs'
+cp 'app/01.hs' 'app/08.hs'
+cp 'app/01.hs' 'app/09.hs'
+cp 'app/01.hs' 'app/10.hs'
+
+: > 'app/01-input'
+: > 'app/02-input'
+: > 'app/03-input'
+: > 'app/04-input'
+: > 'app/05-input'
+: > 'app/06-input'
+: > 'app/07-input'
+: > 'app/08-input'
+: > 'app/09-input'
+: > 'app/10-input'
 
