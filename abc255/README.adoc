@@ -1,0 +1,16 @@
+= {abc255}
+:abc255: https://atcoder.jp/contests/abc255[ABC255]
+
+This is my first participating in a competitive programming contest!
+
+It took me 55 minutes to answer the first two questions. *Haskell is a tough language*.
+
+== What I learned
+
+* Separate `solve` function from the `main` function.
+** To separate the pure function from IO function.
+** To use pattern match over input values.
+** To use `where` expression.
+
+* Make your cheatsheet for competetitive programming.
+

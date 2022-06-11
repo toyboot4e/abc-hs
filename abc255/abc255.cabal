@@ -1,0 +1,110 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.4.
+--
+-- see: https://github.com/sol/hpack
+
+name:           abc255
+version:        0.1.0.0
+description:    Atcoder begginer contest in Haskell
+homepage:       https://github.com/toyboot4e/abc#readme
+bug-reports:    https://github.com/toyboot4e/abc/issues
+author:         toyboot4e
+maintainer:     toyboot4e@gmail.com
+copyright:      2022 toyboot4e
+license:        MIT
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/toyboot4e/abc
+
+executable P01-exe
+  main-is: P01.hs
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  build-depends:
+      base >=4.7 && <5
+  default-language: Haskell2010
+
+executable P02-exe
+  main-is: P02.hs
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  build-depends:
+      base >=4.7 && <5
+  default-language: Haskell2010
+
+executable P03-exe
+  main-is: P03.hs
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  build-depends:
+      base >=4.7 && <5
+  default-language: Haskell2010
+
+executable P04-exe
+  main-is: P04.hs
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  build-depends:
+      base >=4.7 && <5
+  default-language: Haskell2010
+
+executable P05-exe
+  main-is: P05.hs
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  build-depends:
+      base >=4.7 && <5
+  default-language: Haskell2010
+
+executable P06-exe
+  main-is: P06.hs
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  build-depends:
+      base >=4.7 && <5
+  default-language: Haskell2010
+
+executable P07-exe
+  main-is: P07.hs
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  build-depends:
+      base >=4.7 && <5
+  default-language: Haskell2010
+
+executable P08-exe
+  main-is: P08.hs
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  build-depends:
+      base >=4.7 && <5
+  default-language: Haskell2010
+
+executable P09-exe
+  main-is: P09.hs
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  build-depends:
+      base >=4.7 && <5
+  default-language: Haskell2010
+
+executable P10-exe
+  main-is: P10.hs
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  build-depends:
+      base >=4.7 && <5
+  default-language: Haskell2010
