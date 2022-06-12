@@ -1,4 +1,0 @@
-packages:
-- .
-system-ghc: true
-resolver: lts-16.11

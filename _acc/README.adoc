@@ -1,0 +1,39 @@
+= {acc} configuration files
+:acc: https://github.com/Tatamo/atcoder-cli[atcoder-cli]
+:oj: https://github.com/online-judge-tools/oj[online-judge-tools]
+
+Under `acc config-dir`.
+
+== Installation
+
+Install {acc} and {oj}:
+
+[source,sh]
+----
+$ npm install -g atcoder-cli
+$ pip3 install online-judge-tools
+----
+
+== Configuration
+
+Set up `config.yaml`:
+
+[source,sh]
+----
+$ # Download all problems by default
+$ acc config default-task-choice all
+
+$ # Test directories are named as `test-cases`
+$ acc config default-test-dirname-format `test-cases`
+
+$ # Use `haskell` template as default
+$ acc config default-template haskell
+----
+
+Add `haskell` template:
+
+[source,sh]
+----
+$ bash -c 'ln -s "$(pwd)/haskell" "$(acc config-dir)"'
+----
+
