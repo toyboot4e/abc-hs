@@ -1,2 +1,6 @@
 **/.stack-work
 
+**/hie.yaml
+**/package.yaml
+**/stack.yaml
+

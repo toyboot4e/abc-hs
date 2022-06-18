@@ -1,4 +1,5 @@
-#!/usr/bin/env runghc
+#!/usr/bin/env stack
+-- stack script --resolver lts-16.11 --package bytestring --package vector
 
 module Main (main) where
 
