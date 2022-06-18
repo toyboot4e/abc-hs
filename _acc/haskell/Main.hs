@@ -1,6 +1,9 @@
 #!/usr/bin/env stack
 -- stack script --resolver lts-16.11 --package bytestring --package vector
 
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE MultiWayIf #-}
+
 module Main (main) where
 
 import qualified Control.Monad as CM
