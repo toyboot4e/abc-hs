@@ -6,20 +6,23 @@
 
 module Main (main) where
 
-import qualified Control.Monad as CM
+import Control.Monad
+import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Char8 as BS
 import Data.Char
 import Data.List
 import Data.Maybe
+import Data.Ord
 import qualified Data.Vector.Fusion.Bundle as VFB
 import qualified Data.Vector.Generic as VG
 import qualified Data.Vector.Unboxed as VU
 import GHC.Event (IOCallback)
 import GHC.Float (int2Float)
+import System.IO
 
 unreachable = error "unreachable"
 
-sortWith :: Ord o => (a -> o) -> a -> a
+sortWith :: Ord o => (a -> o) -> [a] -> [a]
 sortWith = sortBy . comparing
 
 getLineInt :: IO Int
@@ -38,15 +41,19 @@ vLength = VFB.length . VG.stream
 main :: IO ()
 main = do
   n <- getLineInt
-  rs <- CM.replicateM n getLineInts
-  print $ solve rs
+  rs <- replicateM n getLineInts
+  let res = solve rs
+      bs = map (intListToBsb $ BSB.char7 ' ') res
+   in BSB.hPutBuilder stdout $
+        (mconcat $ intersperse (BSB.char7 '\n') bs) <> (BSB.char7 '\n')
+
+intListToBsb :: BSB.Builder -> [Int] -> BSB.Builder
+intListToBsb c xs = mconcat $ intersperse c $ map BSB.intDec xs
 
 solve :: [[Int]] -> [[Int]]
 solve rs =
-  -- TODO: sortWith for non-non-empty
   let rs' = sortBy (\[l, _] [l', _] -> compare l l') rs
-   in -- FIXME: initial value
-         concat $ foldr [rs' !! 0] mergeMany rs'
+   in foldl mergeMany [head rs'] (tail rs')
 
 mergeMany :: [[Int]] -> [Int] -> [[Int]]
 mergeMany rs r1 = concat $ map (\r0 -> merge r0 r1) rs
@@ -54,7 +61,7 @@ mergeMany rs r1 = concat $ map (\r0 -> merge r0 r1) rs
 merge :: [Int] -> [Int] -> [[Int]]
 merge r0@[l, r] r1@[l', r'] =
   if
-      | r <= l' -> [[l, r `max` r']]
-      | r0 == r1 -> [r0] -- FIXME:
+      | l <= l' && l' <= r -> [[l, r `max` r']]
+      | l' <= l && l <= r' -> [[l', r `max` r']]
       | otherwise -> [r0, r1]
 merge _ _ = unreachable
