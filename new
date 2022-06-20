@@ -1,5 +1,5 @@
 #!/usr/bin/env bash -euE
 
 acc new "$1" --template haskell
-cp "_acc/*.yaml" "$1"
+cp _acc/*.yaml "$1"
 
