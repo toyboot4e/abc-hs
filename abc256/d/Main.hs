@@ -35,46 +35,27 @@ bsToInts = unfoldr (BS.readInt . BS.dropWhile isSpace)
 getLineInts :: IO [Int]
 getLineInts = bsToInts <$> BS.getLine
 
--- FIXME:
--- getLineN :: Int -> IO Vector Int
--- getLineN = VU.unfoldrN n BS.readInt <$> BS.getLine
-
--- (\vec -> (vec VU.! 0, vec VU.! 1)) . VU.unfoldrN 2 readInt <$> B.getLine
-
--- VU.replicateM m getLineN n
--- VU.replicateM n $ (\vec -> (vec VU.! 0, vec VU.! 1)) . VU.unfoldrN 2 readInt <$> B.getLine
-
 {-# INLINE vLength #-}
 vLength :: (VG.Vector v e) => v e -> Int
 vLength = VFB.length . VG.stream
 
--- TODO: faster
-getLineInts2 :: IO (Int, Int)
-getLineInts2 = do
-  xs <- bsToInts <$> BS.getLine :: IO [Int]
-  return (xs !! 0, xs !! 1)
-
 main :: IO ()
 main = do
   n <- getLineInt
-  rs <- replicateM n getLineInts2
+  rs <- replicateM n getLineInts
 
-  let rs' = sortBy (\(!l, !_) (!l', !_) -> compare l l') rs
+  let rs' = sortWith (\[l, _] -> l) rs
   let res = solve2 rs'
 
-  let bs = map (intTupleToBsb $ BSB.char7 ' ') res
+  let bs = map (\xy -> mconcat $ intersperse (BSB.char7 ' ') (map BSB.intDec xy)) res
   BSB.hPutBuilder stdout $
     (mconcat $ intersperse (BSB.char7 '\n') bs) <> (BSB.char7 '\n')
 
-intTupleToBsb :: BSB.Builder -> (Int, Int) -> BSB.Builder
--- TODO: use tuple
-intTupleToBsb c xs = mconcat $ intersperse c $ [BSB.intDec $ fst xs, BSB.intDec $ snd xs]
-
-solve2 :: [(Int, Int)] -> [(Int, Int)]
+solve2 :: [[Int]] -> [[Int]]
 solve2 [] = []
-solve2 ((!x, !y) : rs) = loop x y rs
+solve2 ([x, y] : rs) = loop x y rs
   where
-    loop !x !y [] = [(x, y)]
-    loop !x !y ((u, v) : rs)
+    loop !x !y [] = [[x, y]]
+    loop !x !y ([u, v] : rs)
       | u <= y = loop x (max y v) rs
-      | otherwise = (x, y) : loop u v rs
+      | otherwise = [x, y] : loop u v rs
