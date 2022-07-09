@@ -41,17 +41,11 @@ main = do
   s <- getLine
   t <- getLine
 
-  if solve s t == True
+  if solve s t
     then putStrLn "Yes"
     else putStrLn "No"
 
 solve :: String -> String -> Bool
 solve s t = norm s == norm t
   where
-    norm xs = normalize (head xs, 1) (tail xs) []
-
-normalize :: (Char, Int) -> [Char] -> [(Char, Int)] -> [(Char, Int)]
-normalize cur [] res = res ++ [cur]
-normalize (c, len) (n : ns) res
-  | c == n = normalize (c, (len + 1) `min` 2) ns res
-  | otherwise = normalize (n, 1) ns (res ++ [(c, len)])
+    norm xs = map (\chunk -> (head chunk, length chunk `min` 2)) (group xs)
