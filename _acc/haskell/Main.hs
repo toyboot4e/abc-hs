@@ -6,7 +6,7 @@
 
 module Main (main) where
 
-import qualified Control.Monad as CM
+import Control.Monad
 import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Char8 as BS
 import Data.Char
@@ -19,6 +19,7 @@ import qualified Data.Vector.Unboxed as VU
 import GHC.Event (IOCallback)
 import GHC.Float (int2Float)
 import System.IO
+import Text.Printf
 
 unreachable = error "unreachable"
 
