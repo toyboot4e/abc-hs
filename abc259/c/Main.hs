@@ -46,6 +46,15 @@ main = do
     else putStrLn "No"
 
 solve :: String -> String -> Bool
-solve s t = norm s == norm t
+solve s t = (groupBy (==) s) `normEq` (groupBy (==) t)
   where
-    norm xs = map (\chunk -> (head chunk, length chunk `min` 2)) (group xs)
+    normEq [] [] = True
+    normEq (x : xs) (y : ys) = (normEqStep x y) && (normEq xs ys)
+    normEq _ _ = False
+    normEqStep x y
+      | (head x) /= (head y) = False
+      | lx == 1 = ly == 1
+      | otherwise = lx <= ly
+      where
+        lx = length x
+        ly = length y
