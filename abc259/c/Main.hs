@@ -38,23 +38,24 @@ vLength = VFB.length . VG.stream
 
 main :: IO ()
 main = do
-  s <- getLine
-  t <- getLine
+  s <- BS.getLine
+  t <- BS.getLine
 
-  if solve s t
-    then putStrLn "Yes"
-    else putStrLn "No"
+  putStrLn $
+    if solve s t
+      then "Yes"
+      else "No"
 
-solve :: String -> String -> Bool
-solve s t = (groupBy (==) s) `normEq` (groupBy (==) t)
+solve :: BS.ByteString -> BS.ByteString -> Bool
+solve s t = (BS.groupBy (==) s) `normEq` (BS.groupBy (==) t)
   where
     normEq [] [] = True
     normEq (x : xs) (y : ys) = (normEqStep x y) && (normEq xs ys)
     normEq _ _ = False
     normEqStep x y
-      | (head x) /= (head y) = False
+      | (BS.head x) /= (BS.head y) = False
       | lx == 1 = ly == 1
       | otherwise = lx <= ly
       where
-        lx = length x
-        ly = length y
+        lx = BS.length x
+        ly = BS.length y
