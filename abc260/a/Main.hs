@@ -6,6 +6,7 @@
 
 module Main (main) where
 
+import Control.Applicative
 import Control.Monad
 import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Char8 as BS
@@ -21,45 +22,29 @@ import GHC.Float (int2Float)
 import System.IO
 import Text.Printf
 
-unreachable = error "unreachable"
+safeHead :: [a] -> Maybe a
+safeHead []     = Nothing
+safeHead (a:as) = Just a
 
-sortWith :: Ord o => (a -> o) -> [a] -> [a]
-sortWith = sortBy . comparing
-
-getLineInt :: IO Int
-getLineInt = fst . fromJust . BS.readInt <$> BS.getLine
-
-bsToInts :: BS.ByteString -> [Int]
-bsToInts = unfoldr (BS.readInt . BS.dropWhile isSpace)
-
-getLineInts :: IO [Int]
-getLineInts = bsToInts <$> BS.getLine
-
-{-# INLINE vLength #-}
-vLength :: (VG.Vector v e) => v e -> Int
-vLength = VFB.length . VG.stream
+safeTail :: [a] -> Maybe [a]
+safeTail []     = Nothing
+safeTail (a:as) = Just as
 
 main :: IO ()
 main = do
-  [a, b, c] <- getLine
+  xs <- getLine
+  let c = safeHead $ selectNonDups xs
+  let s = fromMaybe "" (fmap (\c -> [c]) c)
+  putStrLn $ if null s then "-1" else s
 
-  let s = solve a b c
-  if s == [] then
-    print (-1)
-  else do
-    putChar (head s)
-    putChar '\n'
+selectNonDups :: [Char] -> [Char]
+selectNonDups xs = mapMaybe (\i -> if isDup i xs then Nothing else Just (xs !! i)) [0..2]
 
-solve :: Char -> Char -> Char -> String
-solve a b c =
-  case (x, y, z) of
-    (True, False, False) -> [c]
-    (False, True, False) -> [a]
-    (False, False, True) -> [b]
-    (False, False, False) -> [a, b, c]
-    (True, True, _) -> []
-    (True, _, True) -> []
-    (_, True, True) -> []
-  where x = a == b
-        y = b == c
-        z = c == a
+isDup :: Int -> [Char] -> Bool
+isDup i cs = ci == cj || ci == ck
+  where ci = cs !! i
+        cj = cs !! j
+        ck = cs !! k
+        j = (i + 1) `mod` 3
+        k = (i + 2) `mod` 3
+
