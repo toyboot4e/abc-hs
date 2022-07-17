@@ -21,17 +21,19 @@ import GHC.Float (int2Float)
 import System.IO
 import Text.Printf
 
-sortWith :: Ord o => (a -> o) -> [a] -> [a]
-sortWith = sortBy . comparing
-
-sortWithDesc :: Ord o => (a -> o) -> [a] -> [a]
-sortWithDesc = sortBy . flip . comparing
-
 getLineInt :: IO Int
 getLineInt = fst . fromJust . BS.readInt <$> BS.getLine
 
 bsToInts :: BS.ByteString -> [Int]
 bsToInts = unfoldr (BS.readInt . BS.dropWhile isSpace)
+
+safeHead :: [a] -> Maybe a
+safeHead []     = Nothing
+safeHead (a:as) = Just a
+
+safeTail :: [a] -> Maybe [a]
+safeTail []     = Nothing
+safeTail (a:as) = Just as
 
 getLineInts :: IO [Int]
 getLineInts = bsToInts <$> BS.getLine
@@ -39,6 +41,14 @@ getLineInts = bsToInts <$> BS.getLine
 {-# INLINE vLength #-}
 vLength :: (VG.Vector v e) => v e -> Int
 vLength = VFB.length . VG.stream
+
+sortWith :: Ord o => (a -> o) -> [a] -> [a]
+-- sortWith = sortBy . comparing
+sortWith = sortOn -- `sortOn` is faster for ascending sort
+
+sortWithDesc :: Ord o => (a -> o) -> [a] -> [a]
+sortWithDesc = sortBy . flip . comparing -- `sortBy` is faster for descending sort
+-- sortWithDesc f = sortOn (Down . f)
 
 main :: IO ()
 main = do
