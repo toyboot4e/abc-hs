@@ -26,6 +26,9 @@ unreachable = error "unreachable"
 sortWith :: Ord o => (a -> o) -> [a] -> [a]
 sortWith = sortBy . comparing
 
+sortWithDesc :: Ord o => (a -> o) -> [a] -> [a]
+sortWithDesc = sortBy . flip . comparing
+
 getLineInt :: IO Int
 getLineInt = fst . fromJust . BS.readInt <$> BS.getLine
 
