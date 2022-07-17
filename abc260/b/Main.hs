@@ -21,8 +21,6 @@ import GHC.Float (int2Float)
 import System.IO
 import Text.Printf
 
-unreachable = error "unreachable"
-
 sortWith :: Ord o => (a -> o) -> [a] -> [a]
 sortWith = sortBy . comparing
 
@@ -55,19 +53,16 @@ main = do
 
   let !is = [0..(n-1)]
 
-  let getI !xs = map (\(i, _) -> i) xs
+  let getI !xs = map fst xs
 
   let !xs = getI $ markX is math eng
-  let !ix = take x xs
-  let !is = sort $ drop x xs
+  let (!ix, !is) = splitAt x xs
 
-  let !ys = getI $ markY is math eng
-  let !iy = take y ys
-  let !is = sort $ drop y ys
+  let !ys = getI $ markY (sort is) math eng
+  let (!iy, !is) = splitAt y ys
 
-  let !zs = getI $ markZ is math eng
-  let !iz = take z zs
-  -- let !is = sort $ drop z zs
+  let !zs = getI $ markZ (sort is) math eng
+  let (!iz, !is) = splitAt z zs
 
   -- print xs
   -- print ys
