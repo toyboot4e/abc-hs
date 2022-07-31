@@ -60,21 +60,31 @@ sortWithDesc = sortBy . flip . comparing
 getLineInt :: IO Int
 getLineInt = fst . fromJust . BS.readInt <$> BS.getLine
 
-bsToInts :: BS.ByteString -> [Int]
-bsToInts = unfoldr (BS.readInt . BS.dropWhile isSpace)
+bsToIntList :: BS.ByteString -> [Int]
+bsToIntList = unfoldr (BS.readInt . BS.dropWhile isSpace)
 
-getLineInts :: IO [Int]
-getLineInts = bsToInts <$> BS.getLine
+bsToIntVec :: BS.ByteString -> VU.Vector Int
+bsToIntVec = VU.unfoldr (BS.readInt . BS.dropWhile isSpace)
+
+getLineIntList :: IO [Int]
+getLineIntList = bsToIntList <$> BS.getLine
+
+getLineIntVec :: IO (VU.Vector Int)
+getLineIntVec = VU.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 
 {-# INLINE vLength #-}
 vLength :: (VG.Vector v e) => v e -> Int
 vLength = VFB.length . VG.stream
 
+-- {-# INLINE vRange #-}
+vRange :: Int -> Int -> VU.Vector Int
+vRange i j = VU.enumFromN i (j + 1 - i)
+
 -- }}}
 
 main :: IO ()
 main = do
-  xs <- getLineInts
+  xs <- getLineIntList
   print $ solve xs
 
 solve :: [Int] -> Int
