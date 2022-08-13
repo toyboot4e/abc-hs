@@ -76,9 +76,16 @@ getLineIntVec = VU.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 vLength :: (VG.Vector v e) => v e -> Int
 vLength = VFB.length . VG.stream
 
--- {-# INLINE vRange #-}
+{-# INLINE vRange #-}
 vRange :: Int -> Int -> VU.Vector Int
 vRange i j = VU.enumFromN i (j + 1 - i)
+
+combinations :: Int -> [a] -> [[a]]
+combinations n xs = comb n (length xs) xs where
+  comb 0 _ _ = [[]]
+  comb r n a@(x:xs)
+    | n == r    = [a]
+    | otherwise = map (x:) (comb (r - 1) (n - 1) xs) ++ comb r (n - 1) xs
 
 -- }}}
 

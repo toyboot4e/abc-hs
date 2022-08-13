@@ -29,6 +29,10 @@ main = do
    in BSB.hPutBuilder stdout $
         (mconcat $ intersperse (BSB.char7 '\n') bs) <> (BSB.char7 '\n')
 
+  -- let bs = map (\xy -> mconcat $ intersperse (BSB.char7 ' ') (map BSB.intDec xy)) res
+  -- BSB.hPutBuilder stdout $
+  --   (mconcat $ intersperse (BSB.char7 '\n') bs) <> (BSB.char7 '\n')
+
   return ()
 
 solve :: Int -> Int -> Int
@@ -45,3 +49,4 @@ solve a b = undefined
 --       bs = map (intListToBsb $ BSB.char7 ' ') res
 --     in BSB.hPutBuilder stdout $
 --       (mconcat $ intersperse (BSB.char7 '\n') $ bs) <> (BSB.char7 '\n')
+
