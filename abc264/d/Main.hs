@@ -57,6 +57,12 @@ safeTail (a : as) = Just as
 sortWithDesc :: Ord o => (a -> o) -> [a] -> [a]
 sortWithDesc = sortBy . flip . comparing
 
+maximumWith :: Foldable t => Ord o => (a -> o) -> t a -> a
+maximumWith = maximumBy . comparing
+
+minimumWith :: Foldable t => Ord o => (a -> o) -> t a -> a
+minimumWith = minimumBy . comparing
+
 getLineInt :: IO Int
 getLineInt = fst . fromJust . BS.readInt <$> BS.getLine
 
@@ -84,9 +90,35 @@ vRange i j = VU.enumFromN i (j + 1 - i)
 
 main :: IO ()
 main = do
-  xs <- getLineIntList
-  print $ solve xs
+  s <- getLine
+  let !xs = toCharIndexes s
+  print $ reduceAll xs
 
-solve :: [Int] -> Int
-solve xs =
-  undefined
+toCharIndexes :: [Char] -> [Int]
+toCharIndexes s = map (snd . findPair) s
+  where
+    indexer = zip "atcoder" [0..]
+    findPair c = fromJust $ find (\(ch, i) -> ch == c) indexer
+
+cost :: (Int, Int) -> Int
+cost (c, i) = abs (c - i)
+
+reduce :: [(Int, Int)] -> Int -> [(Int, Int)]
+reduce xs n = reIndexed
+  where reIndexed    = map shift rest
+        rest         = take (n - 1) xs ++ drop (n + 1) xs
+        shift (c, i) = (shift1 c nc, shift1 i (min ni n))
+        shift1 x n   = if x >= n then x - 1 else x
+        (nc, ni)     = xs !! n
+
+reduceAll :: [Int] -> Int
+reduceAll !xs = loop (zip xs [0..]) 0
+  where
+    loop ![] !acc = acc
+    loop !ci !acc = let i     = findMaxIndex ci
+                        cost' = cost (ci !! i)
+                        ci'   = reduce ci i
+                    in
+                      loop ci' (acc + cost')
+    findMaxIndex xs = snd $ maximumBy (comparing fst) (zip (map cost xs) [0..])
+
