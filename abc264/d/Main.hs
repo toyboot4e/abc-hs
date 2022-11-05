@@ -107,7 +107,7 @@ reduce :: [(Int, Int)] -> Int -> [(Int, Int)]
 reduce xs n = reIndexed
   where reIndexed    = map shift rest
         rest         = take (n - 1) xs ++ drop (n + 1) xs
-        shift (c, i) = (shift1 c nc, shift1 i (min ni n))
+        shift (c, i) = (shift1 c nc, shift1 i n)
         shift1 x n   = if x >= n then x - 1 else x
         (nc, ni)     = xs !! n
 

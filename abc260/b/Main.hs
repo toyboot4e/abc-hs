@@ -58,6 +58,7 @@ main = do
   --   z: total
   [n, x, y, z] <- getLineInts
 
+  -- TODO: use vector
   !math <- getLineInts
   !eng <- getLineInts
 

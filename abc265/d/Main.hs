@@ -93,6 +93,15 @@ combinations n xs = comb n (length xs) xs where
     | n == r    = [a]
     | otherwise = map (x:) (comb (r - 1) (n - 1) xs) ++ comb r (n - 1) xs
 
+bsearch :: (Int -> Bool) -> Int -> Int -> Int
+bsearch inRightArea l u | inRightArea l = l
+                        | otherwise     = loop l u
+    where
+          loop x y | y == succ x = y
+                   | inRightArea z = loop x z
+                   | otherwise     = loop z y
+              where z = (x + y) `div` 2
+
 -- }}}
 
 main :: IO ()
@@ -107,10 +116,20 @@ solve :: Int -> Int -> Int -> Int -> VU.Vector Int -> Bool
 solve n p q r as = any id dataaa
   where
     dataaa = [True | x <- [1..(n-3)],
-                        y <- [(x+1)..(n-2)],
-                        as VU.! y - as VU.! x == p,
-                        z <- [(y+1)..n],
-                        as VU.! z - as VU.! y == q,
-                        w <- [(z+1)..n],
-                        as VU.! w - as VU.! z == r
+                        let !y = step x (n-2) p,
+                        checkEq x y p,
+
+                        let !z = step y (n-1) q,
+                        checkEq y z q,
+
+                        let !w = step z n r,
+                        checkEq z w r
                      ]
+
+    step !x !end !diff = bsearch (\i -> checkRight x i diff) (x+1) end
+    checkRight !x !i !diff = diff <= (as VU.! (i - 1)) - (as VU.! (x - 1))
+    checkEq !x !i !diff = diff == as VU.! (i - 1) - as VU.! (x - 1)
+    -- checkEq !x !i !diff = True
+    -- stops
+    -- checkEq !x !i !diff = False
+
