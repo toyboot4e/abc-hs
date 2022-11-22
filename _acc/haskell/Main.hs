@@ -1,7 +1,13 @@
 #!/usr/bin/env stack
--- stack script --resolver lts-16.11 --package bytestring --package vector --package vector-algorithms --package containers --package array --package primitive
+{- stack script --resolver lts-16.11
+--package bytestring --package vector --package vector-algorithms --package containers
+--package primitive --package array -}
 
-{-# LANGUAGE BangPatterns, MultiWayIf, NumericUnderscores, ScopedTypeVariables, TypeApplications #-}
+
+{-# LANGUAGE BangPatterns, LambdaCase, MultiWayIf, PatternGuards, TupleSections #-}
+{-# LANGUAGE NumDecimals, NumericUnderscores #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, ScopedTypeVariables, TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
 
 -- {{{ Imports
 
@@ -16,10 +22,13 @@ import Data.Array
 import Data.Bifunctor
 import Data.Bits
 import Data.Char
+import Data.Functor
 import Data.IORef
 import Data.List
 import Data.Maybe
 import Data.Ord
+-- import Data.Traversable
+import Debug.Trace
 import GHC.Event (IOCallback)
 import GHC.Exts
 import GHC.Float (int2Float)
@@ -27,6 +36,12 @@ import System.IO
 import Text.Printf
 
 {- ORMOLU_DISABLE -}
+
+-- array
+import qualified Data.Array.Unboxed as AU
+import qualified Data.Array.MArray as MA
+import qualified Data.Array.IArray as IA
+import qualified Data.Array.ST as STA
 
 -- bytestring: https://www.stackage.org/lts-16.11/package/bytestring-0.10.10.0
 import qualified Data.ByteString.Builder as BSB
@@ -80,7 +95,9 @@ import qualified Data.Map.Strict as M
 
 -- {{{ Binary search
 
--- | Binary search for a sorted items which returns the `(ok, ng)` index pair at the boundary.
+-- | Binary search for sorted items in an inclusive range (from left to right only)
+-- |
+-- | It returns the `(ok, ng)` index pair at the boundary.
 -- |
 -- | Example
 -- | -------
@@ -91,64 +108,41 @@ import qualified Data.Map.Strict as M
 -- | >  <-------------->  <-------->
 -- | >         ok             ng
 -- |
--- | In this case `bsearchMain` returns the `(ok, ng)` = `(5, 6)` pair:
+-- | In this case `bsearch` returns the `(ok, ng)` = `(5, 6)` pair:
 -- |
 -- | > > let xs = [0..9] in do
--- | > >   print $ bsearchMain (0, 9) (\i -> xs !! i <= 5)
+-- | > >   print $ bsearch (0, 9) (\i -> xs !! i <= 5)
 -- | > (5, 6)
--- |
--- | Note that the closure CANNOT BE an exact match. Use a range-based predicate instead.
--- |
--- | Errors in edge cases
--- | --------------------
--- |
--- | While this function works for the above example, be warned that it's incomplete.
--- | It makes errors in certain edge cases:
--- |
--- | 1. The only `ok` item is at the end of the list.
--- | 2. The only `ng` item is at the beginning of the list.
--- | 3. There's no `ok` item or there's no `ng` item.
--- |
--- | So this function is wrapped by `bsearch`.
-bsearchMain :: (Int, Int) -> (Int -> Bool) -> (Int, Int)
-bsearchMain (ok, ng) isOk
-  | abs (ok - ng) == 1 = (ok, ng)
-  | isOk m = bsearchMain (m, ng) isOk
-  | otherwise = bsearchMain (ok, m) isOk
-  where
-    m = (ok + ng) `div` 2
-
--- | Binary search for inclusive range (from left to right only)
 bsearch :: (Int, Int) -> (Int -> Bool) -> (Maybe Int, Maybe Int)
-bsearch (low, top) isOk = bimap wrap wrap result
+bsearch (low, high) isOk = bimap wrap wrap (loop (low - 1, high + 1) isOk)
   where
-    result = bsearchMain (low - 1, top + 1) isOk'
-
-    isOk' :: Int -> Bool
-    isOk' x
-      | x == low - 1 = True
-      | x == top + 1 = False
-      | otherwise = isOk x
-
+    loop (ok, ng) isOk
+      | abs (ok - ng) == 1 = (ok, ng)
+      | isOk m = loop (m, ng) isOk
+      | otherwise = loop (ok, m) isOk
+      where
+        m = (ok + ng) `div` 2
     wrap :: Int -> Maybe Int
     wrap x
-      | x == low - 1 || x == top + 1 = Nothing
+      | x == low - 1 || x == high + 1 = Nothing
       | otherwise = Just x
 
 -- }}}
 
--- {{{ Union-Find
+-- {{{ Union-Find tree
 
 -- | Union-find implementation (originally by `@pel`)
 newtype UnionFind s = UnionFind (VM.MVector s UfNode)
 
 type IOUnionFind = UnionFind RealWorld
+
 type STUnionFind s = UnionFind s
 
 -- | `Child parent | Root size`. Not `Unbox` :(
 data UfNode = Child {-# UNPACK #-} !Int | Root {-# UNPACK #-} !Int
 
 -- | Creates a new Union-Find tree of the given size.
+{-# INLINE newUF #-}
 newUF :: (PrimMonad m) => Int -> m (UnionFind (PrimState m))
 newUF n = UnionFind <$> VM.replicate n (Root 1)
 
@@ -199,6 +193,134 @@ size uf@(UnionFind vec) x = do
 
 -- }}}
 
+-- {{{ Bits
+
+-- TODO: super efficient bit operations
+
+-- | Log base of two or bit floor.
+-- | <https://hackage.haskell.org/package/base-4.17.0.0/docs/Data-Bits.html#v:countLeadingZeros>
+log2 :: (FiniteBits b) => b -> Int
+log2 x = finiteBitSize x - 1 - countLeadingZeros x
+
+-- | Ceiling of log base 2 of an `Int`.
+-- |
+-- | # Example
+-- |
+-- | ```hs
+-- | > log2 3
+-- | 1
+-- | > log2CeilInt 3
+-- | 2
+-- | ```
+log2CeilInt :: Int -> Int
+log2CeilInt x = msb + ceiling
+  where
+    msb = log2 x
+    ceiling = if (clearBit x msb) > 0 then 1 else 0
+
+-- | Calculates the smallest integral power of two that is not smaller than `x`.
+-- |
+-- | # Example
+-- |
+-- | ```hs
+-- | > bitCeil 3
+-- | 4
+-- | ```
+bitCeil :: Int -> Int
+bitCeil = bit . log2CeilInt
+
+-- }}}
+
+-- {{{ Segment tree
+
+-- | A mutable segment tree backed by a complete binary tree.
+-- |
+-- | # Overview
+-- |
+-- | A segment tree is a cache of a folding function.
+-- | Each node corresponds to a folding range and the node contains the folding result.
+-- |
+-- | A segment tree has a constant size and never be resized.
+-- |
+-- | # Operations
+-- |
+-- | Modification takes $O(log N)$, so creation takes $N(log N)$.
+-- | Lookup takes $O(log N)$.
+-- |
+-- | # (Internal) Indices
+-- |
+-- | The complete binary tree has `2 ^ depth - 1` elements.
+-- |
+-- | - Child elements of a parent node `i` has index `2 * i + 1` and `2 * i + 2`.
+-- | - The leaf indices start with `length / 2 - 1`.
+-- |
+-- | Example:
+-- |
+-- | ```
+-- |            0
+-- |      1           2
+-- |   3     4     5     6
+-- | 07 08 09 10 11 12 13 14
+-- | ```
+data MSegmentTree s a = MSegmentTree (a -> a -> a) (VUM.MVector s a)
+
+-- TODO: Generic queries and immutable segment tree (with `Show` instance)
+
+-- | Creates a new segment tree for `n` leaves.
+{-# INLINE newTree #-}
+newTree :: (VUM.Unbox a, PrimMonad m) => (a -> a -> a) -> Int -> a -> m (MSegmentTree (PrimState m) a)
+newTree !f !n !value = MSegmentTree f <$> VUM.replicate n' value
+  where
+    !n' = shiftL (bitCeil n) 1
+
+-- | Updates an `MSegmentTree` leaf value and their parents up to top root.
+{-# INLINE updateLeaf #-}
+updateLeaf :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> a -> m ()
+updateLeaf tree@(MSegmentTree _ vec) !i !value = _updateElement tree i' value
+  where
+    -- length == 2 * (the number of the leaves)
+    !offset = (VUM.length vec) `div` 2 - 1
+    !i' = i + offset
+
+-- | (Internal) Updates an `MSegmentTree` element (node or leaf) value and their parents up to top root.
+{-# INLINE _updateElement #-}
+_updateElement :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> a -> m ()
+_updateElement tree@(MSegmentTree _ vec) !i !value = do
+  VUM.write vec i value
+  _updateParent tree ((i - 1) `div` 2)
+
+-- | (Internal) Recursivelly updates the parent nodes.
+{-# INLINE _updateParent #-}
+_updateParent :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> m ()
+_updateParent _ (-1) = pure () -- REMARK: (-1) `div` 2 == -1
+_updateParent _ 0 = pure ()
+_updateParent tree@(MSegmentTree f vec) !iParent = do
+  !c1 <- VUM.read vec (iParent * 2 + 1)
+  !c2 <- VUM.read vec (iParent * 2 + 2)
+  _updateElement tree iParent (f c1 c2)
+
+-- | Retrieves the folding result over the inclusive range `[l, r]` from `MSegmentTree`.
+{-# INLINE queryByRange #-}
+queryByRange :: forall a m. (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> (Int, Int) -> m a
+queryByRange (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$> loop 0 (0, initialHi)
+  where
+    !initialHi = (VUM.length vec) `div` 2 - 1
+    loop :: Int -> (Int, Int) -> m (Maybe a)
+    loop !i (!l, !h)
+      | lo <= l && h <= hi = Just <$> VUM.read vec i
+      | h < lo || hi < l = pure Nothing
+      | otherwise = do
+        let d = (h - l) `div` 2
+        !ansL <- loop (2 * i + 1) (l, l + d)
+        !ansH <- loop (2 * i + 2) (l + d + 1, h)
+        pure . Just $ case (ansL, ansH) of
+          (Just !a, Just !b) -> f a b
+          (Just !a, _) -> a
+          (_, Just !b) -> b
+          (_, _) -> error "query error (segment tree)"
+
+-- }}}
+
 -- {{{ Misc
 
 -- compress duduplicates sorted list, nub deduplicates non-sorted list
@@ -222,6 +344,12 @@ getLineIntList = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 getLineIntVec :: IO (VU.Vector Int)
 getLineIntVec = VU.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 
+getLineIntVecSorted :: IO (VU.Vector Int)
+getLineIntVecSorted = VU.modify VAI.sort <$> getLineIntVec
+
+getLineIntVecSortedDown :: IO (VU.Vector Int)
+getLineIntVecSortedDown = VU.modify (VAI.sortBy (comparing Down)) <$> getLineIntVec
+
 {-# INLINE vLength #-}
 vLength :: (VG.Vector v e) => v e -> Int
 vLength = VFB.length . VG.stream
@@ -235,8 +363,5 @@ vRange i j = VU.enumFromN i (j + 1 - i)
 main :: IO ()
 main = do
   xs <- getLineIntList
-  print $ solve xs
-
-solve :: [Int] -> Int
-solve xs =
-  undefined
+  let result = True
+  print $ if result then "Yes" else "No"
