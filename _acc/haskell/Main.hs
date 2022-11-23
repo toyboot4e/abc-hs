@@ -1,13 +1,15 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-16.11
---package bytestring --package vector --package vector-algorithms --package containers
---package primitive --package array -}
+--package array --package bytestring --package containers
+--package vector --package vector-algorithms --package primitive --package transformers
+-}
 
-
-{-# LANGUAGE BangPatterns, LambdaCase, MultiWayIf, PatternGuards, TupleSections #-}
+{- ORMOLU_DISABLE -}
+{-# LANGUAGE BangPatterns, BlockArguments, LambdaCase, MultiWayIf, PatternGuards, TupleSections #-}
 {-# LANGUAGE NumDecimals, NumericUnderscores #-}
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, ScopedTypeVariables, TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{- ORMOLU_ENABLE -}
 
 -- {{{ Imports
 
@@ -18,6 +20,7 @@ import Control.Monad
 import Control.Monad.Fix
 import Control.Monad.Primitive
 import Control.Monad.ST
+import qualified Control.Monad.Trans.State.Strict as State
 import Data.Array
 import Data.Bifunctor
 import Data.Bits
@@ -27,7 +30,6 @@ import Data.IORef
 import Data.List
 import Data.Maybe
 import Data.Ord
--- import Data.Traversable
 import Debug.Trace
 import GHC.Event (IOCallback)
 import GHC.Exts

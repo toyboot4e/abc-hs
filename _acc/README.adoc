@@ -37,3 +37,17 @@ Add `haskell` template:
 $ bash -c 'ln -s "$(pwd)/haskell" "$(acc config-dir)"'
 ----
 
+== Language server support
+
+You do need the language server support! If it's working, it's great. If not, make sure that
+
+1. Your GHC / HLS versions are correct (GHC 8.8.3, HLS 1.5.1).
+
+2. HLS runs with the root directory `abc-278` (for example), not `abc-hs`.
+I'm using `.projectile` file for indicating the root directory for Emacs. You might another file
+(e.g. you might have to run `git init`) depending on your editor?
+
+3. Make sure you have correct `package.yaml` with a correct `exectuables` section.
+
+4. Make sure you have `hie.yaml`, which can be generated with [implicit-hie](https://hackage.haskell.org/package/implicit-hie).
+
