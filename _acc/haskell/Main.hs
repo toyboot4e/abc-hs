@@ -116,12 +116,12 @@ import qualified Data.Map.Strict as M
 -- | > >   print $ bsearch (0, 9) (\i -> xs !! i <= 5)
 -- | > (5, 6)
 bsearch :: (Int, Int) -> (Int -> Bool) -> (Maybe Int, Maybe Int)
-bsearch (low, high) isOk = bimap wrap wrap (loop (low - 1, high + 1) isOk)
+bsearch (low, high) isOk = bimap wrap wrap (loop (low - 1, high + 1))
   where
-    loop (ok, ng) isOk
+    loop (ok, ng)
       | abs (ok - ng) == 1 = (ok, ng)
-      | isOk m = loop (m, ng) isOk
-      | otherwise = loop (ok, m) isOk
+      | isOk m = loop (m, ng)
+      | otherwise = loop (ok, m)
       where
         m = (ok + ng) `div` 2
     wrap :: Int -> Maybe Int
@@ -190,8 +190,7 @@ unite uf@(UnionFind vec) x y = do
 size :: (PrimMonad m) => UnionFind (PrimState m) -> Int -> m Int
 size uf@(UnionFind vec) x = do
   px <- root uf x
-  s <- unwrapRoot <$> VM.read vec px
-  return s
+  unwrapRoot <$> VM.read vec px
 
 -- }}}
 
@@ -218,7 +217,7 @@ log2CeilInt :: Int -> Int
 log2CeilInt x = msb + ceiling
   where
     msb = log2 x
-    ceiling = if (clearBit x msb) > 0 then 1 else 0
+    ceiling = if clearBit x msb > 0 then 1 else 0
 
 -- | Calculates the smallest integral power of two that is not smaller than `x`.
 -- |
@@ -281,7 +280,7 @@ updateLeaf :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -
 updateLeaf tree@(MSegmentTree _ vec) !i !value = _updateElement tree i' value
   where
     -- length == 2 * (the number of the leaves)
-    !offset = (VUM.length vec) `div` 2 - 1
+    !offset = VUM.length vec `div` 2 - 1
     !i' = i + offset
 
 -- | (Internal) Updates an `MSegmentTree` element (node or leaf) value and their parents up to top root.
@@ -306,7 +305,7 @@ _updateParent tree@(MSegmentTree f vec) !iParent = do
 queryByRange :: forall a m. (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> (Int, Int) -> m a
 queryByRange (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$> loop 0 (0, initialHi)
   where
-    !initialHi = (VUM.length vec) `div` 2 - 1
+    !initialHi = VUM.length vec `div` 2 - 1
     loop :: Int -> (Int, Int) -> m (Maybe a)
     loop !i (!l, !h)
       | lo <= l && h <= hi = Just <$> VUM.read vec i
@@ -327,18 +326,20 @@ queryByRange (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$> loop 0 (0, initial
 
 -- compress duduplicates sorted list, nub deduplicates non-sorted list
 -- TODO: std?
+compress :: Eq a => [a] -> [a]
 compress [] = []
-compress (x : xs) = x : (compress $ dropWhile (== x) xs)
+compress (x : xs) = x : compress (dropWhile (== x) xs)
 
 -- e.g. binary ocombinations:
 -- combination 2 [0..8]
 combinations :: Int -> [a] -> [[a]]
-combinations n xs = comb n (length xs) xs
+combinations len elements = comb len (length elements) elements
   where
     comb 0 _ _ = [[]]
     comb r n a@(x : xs)
       | n == r = [a]
       | otherwise = map (x :) (comb (r - 1) (n - 1) xs) ++ comb r (n - 1) xs
+    comb _ _ _ = error "unreachable"
 
 getLineIntList :: IO [Int]
 getLineIntList = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
