@@ -3,3 +3,7 @@
 acc new "$1" --template haskell
 cp _acc/*.yaml "$1"
 
+cd "$1"
+gen-hie > hie.yaml
+: > .projectile
+
