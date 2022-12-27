@@ -1,9 +1,12 @@
 #!/usr/bin/env bash -euE
 
 acc new "$1" --template haskell
-cp _acc/*.yaml "$1"
+# mkdir "$1"
 
-cd "$1"
-gen-hie > hie.yaml
-: > .projectile
+cp _acc/package.yaml "$1"
+cp _acc/stack.yaml "$1"
+cat _acc/hie.yaml | sed "s;_acc;$1;g" > "$1/hie.yaml"
+cat _acc/_acc.cabal | sed "s;_acc;$1;g" > "$1/$1.cabal"
+
+: > "$1/.projectile"
 
