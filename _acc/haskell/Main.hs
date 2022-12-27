@@ -1,14 +1,15 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-16.11
 --package array --package bytestring --package containers
+--package hashable --package unordered-containers
 --package vector --package vector-algorithms --package primitive --package transformers
 -}
 
 {- ORMOLU_DISABLE -}
 {-# LANGUAGE BangPatterns, BlockArguments, LambdaCase, MultiWayIf, PatternGuards, TupleSections #-}
 {-# LANGUAGE NumDecimals, NumericUnderscores #-}
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, ScopedTypeVariables, TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications, TypeFamilies, RankNTypes #-}
 {- ORMOLU_ENABLE -}
 
 -- {{{ Imports
@@ -20,8 +21,7 @@ import Control.Monad
 import Control.Monad.Fix
 import Control.Monad.Primitive
 import Control.Monad.ST
-import qualified Control.Monad.Trans.State.Strict as State
-import Data.Array
+import Control.Monad.Trans.State.Strict
 import Data.Bifunctor
 import Data.Bits
 import Data.Char
@@ -40,10 +40,14 @@ import Text.Printf
 {- ORMOLU_DISABLE -}
 
 -- array
-import qualified Data.Array.Unboxed as AU
-import qualified Data.Array.MArray as MA
-import qualified Data.Array.IArray as IA
-import qualified Data.Array.ST as STA
+import Data.Array.IArray
+import Data.Array.IO
+import Data.Array.MArray
+import Data.Array.ST
+import Data.Array.Unboxed (UArray)
+import Data.Array.Unsafe
+
+import qualified Data.Array as A
 
 -- bytestring: https://www.stackage.org/lts-16.11/package/bytestring-0.10.10.0
 import qualified Data.ByteString.Builder as BSB
@@ -59,10 +63,19 @@ import qualified Data.Vector.Mutable as VM
 
 -- vector-algorithms: https://www.stackage.org/haddock/lts-16.11/vector-algorithms-0.8.0.3/Data-Vector-Algorithms-Intro.html
 import qualified Data.Vector.Algorithms.Intro as VAI
+import qualified Data.Vector.Algorithms.Search as VAS
 
 -- containers: https://www.stackage.org/lts-16.11/package/containers-0.6.2.1
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Map.Strict as M
+import qualified Data.IntSet as IS
+
+-- hashable: https://www.stackage.org/lts-16.11/package/hashable-1.3.0.0
+import Data.Hashable
+
+-- unordered-containers: https://www.stackage.org/haddock/lts-16.11/unordered-containers-0.2.10.0
+import qualified Data.HashMap.Strict as HM
+import qualified Data.HashSet as HS
 
 {- ORMOLU_ENABLE -}
 
@@ -93,16 +106,32 @@ import qualified Data.Map.Strict as M
 -- minimumWith :: Foldable t => Ord o => (a -> o) -> t a -> a
 -- minimumWith = minimumBy . comparing
 
+-- compress duduplicates sorted list, nub deduplicates non-sorted list
+-- TODO: std?
+compress :: Eq a => [a] -> [a]
+compress [] = []
+compress (x : xs) = x : compress (dropWhile (== x) xs)
+
+-- e.g. binary ocombinations:
+-- combination 2 [0..8]
+combinations :: Int -> [a] -> [[a]]
+combinations len elements = comb len (length elements) elements
+  where
+    comb 0 _ _ = [[]]
+    comb r n a@(x : xs)
+      | n == r = [a]
+      | otherwise = map (x :) (comb (r - 1) (n - 1) xs) ++ comb r (n - 1) xs
+    comb _ _ _ = error "unreachable"
+
 -- }}}
 
 -- {{{ Binary search
 
 -- | Binary search for sorted items in an inclusive range (from left to right only)
 -- |
--- | It returns the `(ok, ng)` index pair at the boundary.
+-- | It returns an `(ok, ng)` index pair at the boundary.
 -- |
--- | Example
--- | -------
+-- | # Example
 -- |
 -- | With an OK predicate `(<= 5)`, list `[0..9]` can be seen as:
 -- |
@@ -118,6 +147,7 @@ import qualified Data.Map.Strict as M
 bsearch :: (Int, Int) -> (Int -> Bool) -> (Maybe Int, Maybe Int)
 bsearch (low, high) isOk = bimap wrap wrap (loop (low - 1, high + 1))
   where
+    loop :: (Int, Int) -> (Int, Int)
     loop (ok, ng)
       | abs (ok - ng) == 1 = (ok, ng)
       | isOk m = loop (m, ng)
@@ -126,8 +156,27 @@ bsearch (low, high) isOk = bimap wrap wrap (loop (low - 1, high + 1))
         m = (ok + ng) `div` 2
     wrap :: Int -> Maybe Int
     wrap x
-      | x == low - 1 || x == high + 1 = Nothing
-      | otherwise = Just x
+      | inRange (low, high) x = Just x
+      | otherwise = Nothing
+
+-- | Monadic variant of `bsearch`
+bsearchM :: forall m. (Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int, Maybe Int)
+bsearchM (low, high) isOk = bimap wrap wrap <$> loop (low - 1, high + 1)
+  where
+    loop :: (Int, Int) -> m (Int, Int)
+    loop (ok, ng)
+      | abs (ok - ng) == 1 = return (ok, ng)
+      | otherwise =
+        isOk m >>= \yes ->
+          if yes
+            then loop (m, ng)
+            else loop (ok, m)
+      where
+        m = (ok + ng) `div` 2
+    wrap :: Int -> Maybe Int
+    wrap x
+      | inRange (low, high) x = Just x
+      | otherwise = Nothing
 
 -- }}}
 
@@ -149,48 +198,78 @@ newUF :: (PrimMonad m) => Int -> m (UnionFind (PrimState m))
 newUF n = UnionFind <$> VM.replicate n (Root 1)
 
 -- | Returns the root node index.
-{-# INLINE root #-}
-root :: (PrimMonad m) => UnionFind (PrimState m) -> Int -> m Int
-root uf@(UnionFind vec) i = do
+{-# INLINE rootUF #-}
+rootUF :: (PrimMonad m) => UnionFind (PrimState m) -> Int -> m Int
+rootUF uf@(UnionFind vec) i = do
   node <- VM.read vec i
   case node of
     Root _ -> return i
     Child p -> do
-      r <- root uf p
+      r <- rootUF uf p
       -- NOTE(perf): path compression (move the queried node to just under the root, recursivelly)
       VM.write vec i (Child r)
       return r
 
 -- | Checks if the two nodes are under the same root.
-{-# INLINE same #-}
-same :: (PrimMonad m) => UnionFind (PrimState m) -> Int -> Int -> m Bool
-same uf x y = liftM2 (==) (root uf x) (root uf y)
+{-# INLINE sameUF #-}
+sameUF :: (PrimMonad m) => UnionFind (PrimState m) -> Int -> Int -> m Bool
+sameUF uf x y = liftM2 (==) (rootUF uf x) (rootUF uf y)
 
 -- | Just an internal helper.
-unwrapRoot :: UfNode -> Int
-unwrapRoot (Root s) = s
-unwrapRoot (Child _) = undefined
+_unwrapRoot :: UfNode -> Int
+_unwrapRoot (Root s) = s
+_unwrapRoot (Child _) = undefined
 
 -- | Unites two nodes.
-{-# INLINE unite #-}
-unite :: (PrimMonad m) => UnionFind (PrimState m) -> Int -> Int -> m ()
-unite uf@(UnionFind vec) x y = do
-  px <- root uf x
-  py <- root uf y
+{-# INLINE uniteUF #-}
+uniteUF :: (PrimMonad m) => UnionFind (PrimState m) -> Int -> Int -> m ()
+uniteUF uf@(UnionFind vec) x y = do
+  px <- rootUF uf x
+  py <- rootUF uf y
   when (px /= py) $ do
-    sx <- unwrapRoot <$> VM.read vec px
-    sy <- unwrapRoot <$> VM.read vec py
+    sx <- _unwrapRoot <$> VM.read vec px
+    sy <- _unwrapRoot <$> VM.read vec py
     -- NOTE(perf): union by rank (choose smaller one for root)
     let (par, chld) = if sx < sy then (px, py) else (py, px)
     VM.write vec chld (Child par)
     VM.write vec par (Root (sx + sy))
 
 -- | Returns the size of the root node, starting with `1`.
-{-# INLINE size #-}
-size :: (PrimMonad m) => UnionFind (PrimState m) -> Int -> m Int
-size uf@(UnionFind vec) x = do
-  px <- root uf x
-  unwrapRoot <$> VM.read vec px
+{-# INLINE sizeUF #-}
+sizeUF :: (PrimMonad m) => UnionFind (PrimState m) -> Int -> m Int
+sizeUF uf@(UnionFind vec) x = do
+  px <- rootUF uf x
+  _unwrapRoot <$> VM.read vec px
+
+-- }}}
+
+-- {{{ Sparse union-find tree
+
+-- @gotoki_no_joe
+type SparseUnionFind = IM.IntMap Int
+
+newSUF :: SparseUnionFind
+newSUF = IM.empty
+
+getRoot :: SparseUnionFind -> Int -> (Int, Int)
+getRoot uf i
+  | IM.notMember i uf = (i, 1)
+  | j < 0 = (i, - j)
+  | otherwise = getRoot uf j
+  where
+    j = uf IM.! i
+
+findSUF :: SparseUnionFind -> Int -> Int -> Bool
+findSUF uf i j = fst (getRoot uf i) == fst (getRoot uf j)
+
+uniteSUF :: SparseUnionFind -> Int -> Int -> SparseUnionFind
+uniteSUF uf i j
+  | a == b = uf
+  | r >= s = IM.insert a (negate $ r + s) $ IM.insert b a uf
+  | otherwise = IM.insert b (negate $ r + s) $ IM.insert a b uf
+  where
+    (a, r) = getRoot uf i
+    (b, s) = getRoot uf j
 
 -- }}}
 
@@ -322,24 +401,113 @@ queryByRange (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$> loop 0 (0, initial
 
 -- }}}
 
--- {{{ Misc
+-- {{{ DP
 
--- compress duduplicates sorted list, nub deduplicates non-sorted list
--- TODO: std?
-compress :: Eq a => [a] -> [a]
-compress [] = []
-compress (x : xs) = x : compress (dropWhile (== x) xs)
+-- Very slow..
+type Memo k v = M.Map k v
 
--- e.g. binary ocombinations:
--- combination 2 [0..8]
-combinations :: Int -> [a] -> [[a]]
-combinations len elements = comb len (length elements) elements
+type Memoized k v = k -> State (Memo k v) v
+
+emptyMemo :: Memo k v
+emptyMemo = M.empty
+
+lookupMemo :: Ord k => k -> Memo k v -> Maybe v
+lookupMemo = M.lookup
+
+insertMemo :: Ord k => k -> v -> Memo k v -> Memo k v
+insertMemo = M.insert
+
+memoize :: Ord k => Memoized k v -> Memoized k v
+memoize f k = do
+  memo <- gets (lookupMemo k)
+  case memo of
+    Just v -> return v
+    Nothing -> do
+      v <- f k
+      modify (insertMemo k v)
+      return v
+
+evalMemoized :: Memoized a b -> a -> b
+evalMemoized s x = evalState (s x) emptyMemo
+
+{-
+let dp :: Memoized (Int, Int) Int
+    dp = memoize $ \(nRead, nFilled) -> do
+      --
+
+let dp' = evalMemoized dp
+
+let result = dp' (n, 7)
+-}
+
+-- WARNING: Danger of MLE
+tabulateLazy :: Ix i => (i -> e) -> (i, i) -> Array i e
+tabulateLazy f bounds_ = array bounds_ [(x, f x) | x <- range bounds_]
+
+{-# INLINE tabulateMap #-}
+tabulateMap :: forall i e. (Ix i) => (IM.IntMap e -> i -> e) -> (i, i) -> IM.IntMap e -> IM.IntMap e
+tabulateMap f bounds_ cache0 =
+  foldl' step cache0 (range bounds_)
   where
-    comb 0 _ _ = [[]]
-    comb r n a@(x : xs)
-      | n == r = [a]
-      | otherwise = map (x :) (comb (r - 1) (n - 1) xs) ++ comb r (n - 1) xs
-    comb _ _ _ = error "unreachable"
+    step :: IM.IntMap e -> i -> IM.IntMap e
+    step cache i =
+      let e = f cache i
+       in IM.insert (index bounds_ i) e cache
+
+-- let dp = tabulateST f rng (0 :: Int)
+--     rng = ((0, 0), (nItems, wLimit))
+--     f :: forall s. MArray (STUArray s) Int (ST s) => STUArray s (Int, Int) Int -> (Int, Int) -> (ST s) Int
+--     f _ (0, _) = return 0
+--     f arr (i, w) = do
+-- {-# INLINE tabulateST #-}
+tabulateST :: forall i. (Ix i) => (forall s. MArray (STUArray s) Int (ST s) => STUArray s i Int -> i -> ST s Int) -> (i, i) -> Int -> UArray i Int
+tabulateST f bounds_ e0 =
+  runSTUArray uarray
+  where
+    uarray :: forall s. MArray (STUArray s) Int (ST s) => ST s (STUArray s i Int)
+    uarray = do
+      tbl <- newArray bounds_ e0 :: ST s (STUArray s i Int)
+      forM_ (range bounds_) $ \i -> do
+        e <- f tbl i
+        writeArray tbl i e
+      return tbl
+
+-- }}}
+
+-- {{{ ismo 2D
+
+ismo2D :: ((Int, Int), (Int, Int)) -> UArray (Int, Int) Int -> UArray (Int, Int) Int
+ismo2D bounds_ seeds = runSTUArray $ do
+  arr <- newArray bounds_ (0 :: Int)
+
+  -- row scan
+  forM_ (range bounds_) $ \(y, x) -> do
+    v <- if x == 0 then return 0 else readArray arr (y, x - 1)
+    let diff = seeds ! (y, x)
+    writeArray arr (y, x) (v + diff)
+
+  -- column scan
+  forM_ (range bounds_) $ \(x, y) -> do
+    v <- if y == 0 then return 0 else readArray arr (y - 1, x)
+    diff <- readArray arr (y, x)
+    writeArray arr (y, x) (v + diff)
+
+  return arr
+
+printMat2D :: (IArray a e, Ix i, Show [e]) => a (i, i) e -> (i, i) -> (i, i) -> IO ()
+printMat2D mat ys xs = do
+  forM_ (range ys) $ \y -> do
+    print $ flip map (range xs) $ \x -> mat ! (y, x)
+
+traceMat2D :: (IArray a e, Ix i, Show e) => a (i, i) e -> (i, i) -> (i, i) -> ()
+traceMat2D mat ys xs =
+  let !_ = foldl' step () (range ys) in ()
+  where
+    step _ y = traceShow (map (\(!x) -> mat ! (y, x)) (range xs)) ()
+
+-- }}}
+
+-- {{{ Misc
 
 getLineIntList :: IO [Int]
 getLineIntList = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
@@ -365,6 +533,10 @@ vRange i j = VU.enumFromN i (j + 1 - i)
 
 main :: IO ()
 main = do
-  xs <- getLineIntList
-  let result = True
-  print $ if result then "Yes" else "No"
+  [n] <- getLineIntList
+  xs <- getLineIntVec
+
+  -- let result = True
+  -- putStrLn $ if result then "Yes" else "No"
+
+  print "TODO"
