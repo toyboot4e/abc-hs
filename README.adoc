@@ -86,3 +86,7 @@ $ ../test a
 $ ../submit a
 ----
 
+=== I want to use GHC 8.8.3, but only in this repository
+
+https://direnv.net/[direnv] just works as a temporary workaround.
+
