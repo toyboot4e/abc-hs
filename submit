@@ -3,4 +3,3 @@
 cd "$1"
 acc submit -s -- -y
 
-
