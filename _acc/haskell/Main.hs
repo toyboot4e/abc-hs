@@ -1,7 +1,7 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-16.11
 --package array --package bytestring --package containers
---package hashable --package unordered-containers
+--package hashable --package unordered-containers --package heaps
 --package vector --package vector-algorithms --package primitive --package transformers
 -}
 
@@ -69,6 +69,11 @@ import qualified Data.Vector.Algorithms.Search as VAS
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Map.Strict as M
 import qualified Data.IntSet as IS
+import qualified Data.Set as S
+import qualified Data.Sequence as Seq
+
+-- heaps: https://www.stackage.org/haddock/lts-16.11/heaps-0.3.6.1/Data-Heap.html
+import qualified Data.Heap as H
 
 -- hashable: https://www.stackage.org/lts-16.11/package/hashable-1.3.0.0
 import Data.Hashable
@@ -528,6 +533,252 @@ vLength = VFB.length . VG.stream
 {-# INLINE vRange #-}
 vRange :: Int -> Int -> VU.Vector Int
 vRange i j = VU.enumFromN i (j + 1 - i)
+
+-- | From more recent GHC
+clamp :: (Ord a) => (a, a) -> a -> a
+clamp (low, high) a = min high (max a low)
+
+-- }}}
+
+-- {{{{ Multiset
+
+-- | Multiset: (nKeys, (key -> count))
+type MultiSet = (Int, IM.IntMap Int)
+
+emptyMS :: MultiSet
+emptyMS = (0, IM.empty)
+
+singletonMS :: Int -> MultiSet
+singletonMS x = (1, IM.singleton x 1)
+
+incrementMS :: Int -> MultiSet -> MultiSet
+incrementMS k (n, im) =
+  if IM.member k im
+    then (n, IM.insertWith (+) k 1 im)
+    else (n + 1, IM.insert k 1 im)
+
+decrementMS :: Int -> MultiSet -> MultiSet
+decrementMS k (n, im) =
+  case IM.lookup k im of
+    Just 1 -> (n - 1, IM.delete k im)
+    Just _ -> (n, IM.insertWith (+) k (-1) im)
+    Nothing -> (n, im)
+
+-- }}}
+
+-- {{{ Graph
+
+type Graph = Array Int [Int]
+
+-- | [Tree only] Searches through all the posible routes.
+{-# INLINE dfsAll #-}
+dfsAll :: forall s. (Int -> s -> s) -> s -> Graph -> Int -> [s]
+dfsAll !f !s0 !graph !start = snd $ visitNode s0 (IS.empty, []) start
+  where
+    visitNode :: s -> (IS.IntSet, [s]) -> Int -> (IS.IntSet, [s])
+    visitNode !s (!visits, !results) !x =
+      let -- !_ = traceShow x ()
+          !visits' = IS.insert x visits
+          !s' = f x s
+       in visitNeighbors s' (visits', results) x
+
+    visitNeighbors :: s -> (IS.IntSet, [s]) -> Int -> (IS.IntSet, [s])
+    visitNeighbors !s (!visits, !results) !x =
+      let -- !_ = traceShow x ()
+          nbs = filter (\n -> not $ IS.member n visits) (graph ! x)
+       in if null nbs
+            then (visits, s : results)
+            else
+              foldl'
+                ( \(!vs, !rs) !n ->
+                    -- TODO: remove this branch. it's for graphs:
+                    if IS.member n vs
+                      then -- discard duplicates
+                        (vs, rs)
+                      else visitNode s (visits, rs) n
+                )
+                (visits, results)
+                nbs
+
+-- | Searches for a specific route in depth-first order.
+{-# INLINE dfsFind #-}
+dfsFind :: forall s. (Int -> s -> (Bool, s)) -> s -> Graph -> Int -> Maybe s
+dfsFind !f !s0 !graph !start = snd $ visitNode s0 IS.empty start
+  where
+    visitNode :: s -> IS.IntSet -> Int -> (IS.IntSet, Maybe s)
+    visitNode !s !visits !x =
+      let -- !_ = traceShow x ()
+          visits' = IS.insert x visits
+          (goal, s') = f x s
+       in if goal
+            then (visits', Just s')
+            else visitNeighbors s' visits' x
+
+    visitNeighbors :: s -> IS.IntSet -> Int -> (IS.IntSet, Maybe s)
+    visitNeighbors s visits x =
+      let -- !_ = traceShow x ()
+          !nbs = filter (\n -> not $ IS.member n visits) (graph ! x)
+       in foldl'
+            ( \(!vs, !result) !n ->
+                if isJust result || IS.member n vs
+                  then (vs, result)
+                  else visitNode s visits n
+            )
+            (visits, Nothing)
+            nbs
+
+-- TODO: test it
+
+-- | Searches for a specific route in breadth-first order.
+-- | Returns `Just (depth, node)` if succeed.
+{-# INLINE bfsFind #-}
+bfsFind :: (Int -> Bool) -> Graph -> Int -> Maybe (Int, Int)
+bfsFind !f !graph !start =
+  if f start
+    then Just (0, start)
+    else bfsRec 1 (IS.singleton start) (IS.fromList $ graph ! start)
+  where
+    bfsRec :: Int -> IS.IntSet -> IS.IntSet -> Maybe (Int, Int)
+    bfsRec depth !visits !nbs =
+      let -- !_ = traceShow x ()
+          !visits' = foldl' (flip IS.insert) visits (IS.toList nbs)
+       in let (result, nextNbs) = visitNeighbors nbs
+           in case result of
+                Just x -> Just (depth, x)
+                Nothing -> bfsRec (succ depth) visits' nextNbs
+    visitNeighbors :: IS.IntSet -> (Maybe Int, IS.IntSet)
+    visitNeighbors nbs =
+      let -- !_ = traceShow x ()
+          !nbsList = IS.toList nbs
+       in foldl'
+            ( \(!result, !nbs') !x ->
+                let nbs'' = IS.insert x nbs'
+                 in if f x
+                      then (Just x, nbs'')
+                      else (result, nbs'')
+            )
+            (Nothing, IS.empty)
+            nbsList
+
+-- | Weighted graph (Entry priority payload)
+type WGraph = Array Int [IHeapEntry]
+
+-- | Int heap
+type IHeap = H.Heap IHeapEntry
+
+-- | Int entry
+type IHeapEntry = H.Entry Int Int
+
+dijkstra :: forall s. (s -> IHeapEntry -> s) -> s -> WGraph -> Int -> s
+dijkstra !f s0 !graph !start =
+  let (s, _, _) = visitRec (s0, IS.empty, H.singleton $ H.Entry 0 start)
+   in s
+  where
+    visitRec :: (s, IS.IntSet, IHeap) -> (s, IS.IntSet, IHeap)
+    visitRec (!s, !visits, !nbs) =
+      case H.uncons nbs of
+        Just (x, nbs') ->
+          if IS.member (H.payload x) visits
+            then visitRec (s, visits, nbs')
+            else visitRec $ visitNode (s, visits, nbs') x
+        Nothing -> (s, visits, nbs)
+
+    visitNode :: (s, IS.IntSet, IHeap) -> IHeapEntry -> (s, IS.IntSet, IHeap)
+    visitNode (!s, !visits, !nbs) entry@(H.Entry cost x) =
+      let visits' = IS.insert x visits
+          news = H.fromList . map (first (cost +)) . filter p $ graph ! x
+          p = not . (`IS.member` visits') . H.payload
+       in (f s entry, visits', H.union nbs news)
+
+-- }}}
+
+-- {{{ Prime factors
+
+isqrt :: Int -> Int
+isqrt = floor @Double . sqrt . fromIntegral
+
+-- @gotoki_no_joe
+primes :: [Int]
+primes = 2 : 3 : sieve q0 [5, 7 ..]
+  where
+    q0 = H.insert (H.Entry 9 6) H.empty
+    sieve queue xxs@(x : xs) =
+      case compare np x of
+        LT -> sieve queue1 xxs
+        EQ -> sieve queue1 xs
+        GT -> x : sieve queue2 xs
+      where
+        H.Entry np p2 = H.minimum queue
+        queue1 = H.insert (H.Entry (np + p2) p2) $ H.deleteMin queue
+        queue2 = H.insert (H.Entry (x * x) (x * 2)) queue
+
+-- | Returns `[(prime, count)]`
+-- TODO: reuse `primes`
+primeFactors :: Int -> [(Int, Int)]
+primeFactors n_ = map (\xs -> (head xs, length xs)) . group $ loop n_ input
+  where
+    input = 2 : 3 : [y | x <- [5, 11 ..], y <- [x, x + 2]]
+    loop n pps@(p : ps)
+      | n == 1 = []
+      | n < p * p = [n]
+      | r == 0 = p : loop q pps
+      | otherwise = loop n ps
+      where
+        (q, r) = divMod n p
+
+-- }}}
+
+-- {{{ Modulo arithmetic
+
+addMod, subMod, mulMod :: Int -> Int -> Int -> Int
+addMod x a modulus = (x + a) `mod` modulus
+subMod x s modulus = (x - s) `mod` modulus
+mulMod b p modulus = (b * p) `mod` modulus
+
+-- | n! `mod` m
+factMod :: Int -> Int -> Int
+factMod 0 _ = 1
+factMod 1 _ = 1
+factMod n m = n * factMod (n - 1) m `rem` m
+
+-- F: Fermet, FC: Fermet by cache
+
+-- | x / d mod p, using Fermat's little theorem
+-- |
+-- | 1/d = d^{p-2} (mod p) <=> d^p = d (mod p)
+-- |   where the modulus is a prime number and `x` is not a mulitple of `p`
+invModF :: Int -> Int -> Int
+invModF d modulus = invModFC modulus (powerModCache d modulus)
+
+-- | x / d mod p, using Fermat's little theorem
+-- |
+-- | 1/d = d^{p-2} (mod p) <=> d^p = d (mod p)
+-- |   where the modulus is a prime number and `x` is not a mulitple of `p`
+divModF :: Int -> Int -> Int -> Int
+divModF x d modulus = x * divModFC x (powerModCache d modulus) `rem` modulus
+
+-- | Cache of base^i for iterative square method
+powerModCache :: Int -> Int -> (Int, VU.Vector Int)
+powerModCache base modulo = (modulo, VU.fromList $ scanl' (\x _ -> x * x `rem` modulo) base [1 .. 62])
+
+-- | Calculates base^i (mod p) from a cache
+powerByCache :: Int -> (Int, VU.Vector Int) -> Int
+powerByCache power (modulo, cache) = foldl' step 1 [0 .. 62]
+  where
+    step acc nBit =
+      if testBit power nBit
+        then acc * (cache VU.! nBit) `rem` modulo
+        else acc
+
+-- | 1/x = x^{p-2} mod p <=> x^p = x mod p
+-- |   where the modulus is a prime number
+-- |
+-- | and x^{p-2} is calculated with cache
+invModFC :: Int -> (Int, VU.Vector Int) -> Int
+invModFC primeModulus = powerByCache (primeModulus - 2)
+
+divModFC :: Int -> (Int, VU.Vector Int) -> Int
+divModFC x context@(modulus, _) = x * invModFC modulus context `rem` modulus
 
 -- }}}
 
