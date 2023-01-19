@@ -5,6 +5,14 @@
 --package vector --package vector-algorithms --package primitive --package transformers
 -}
 
+{- TODOs
+- [ ] Try using dfsEveryVertex
+- [ ] Better BFS
+- [ ] Better dijkstra
+- [ ] Easier rolling hash
+- [ ] More graph problems
+-}
+
 {- ORMOLU_DISABLE -}
 {-# LANGUAGE BangPatterns, BlockArguments, LambdaCase, MultiWayIf, PatternGuards, TupleSections #-}
 {-# LANGUAGE NumDecimals, NumericUnderscores #-}
@@ -66,6 +74,7 @@ import qualified Data.Vector.Algorithms.Intro as VAI
 import qualified Data.Vector.Algorithms.Search as VAS
 
 -- containers: https://www.stackage.org/lts-16.11/package/containers-0.6.2.1
+import qualified Data.Graph as G
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Map.Strict as M
 import qualified Data.IntSet as IS
@@ -117,8 +126,9 @@ compress :: Eq a => [a] -> [a]
 compress [] = []
 compress (x : xs) = x : compress (dropWhile (== x) xs)
 
--- e.g. binary ocombinations:
--- combination 2 [0..8]
+-- | Returns combinations of the list taking n values.
+-- | For example, binary combinations are got by `combination 2 [0..8]`.
+-- | REMARK: This is slow. Prefer list comprehension like `x <- [1 .. n], y <- [x + 1 .. n]m ..]`.
 combinations :: Int -> [a] -> [[a]]
 combinations len elements = comb len (length elements) elements
   where
@@ -185,40 +195,40 @@ bsearchM (low, high) isOk = bimap wrap wrap <$> loop (low - 1, high + 1)
 
 -- }}}
 
--- {{{ Union-Find tree
+-- {{{ Mutable union-Find tree
 
 -- | Union-find implementation (originally by `@pel`)
-newtype UnionFind s = UnionFind (VM.MVector s UfNode)
+newtype MUnionFind s = MUnionFind (VM.MVector s UfNode)
 
-type IOUnionFind = UnionFind RealWorld
+type IOUnionFind = MUnionFind RealWorld
 
-type STUnionFind s = UnionFind s
+type STUnionFind s = MUnionFind s
 
 -- | `Child parent | Root size`. Not `Unbox` :(
 data UfNode = Child {-# UNPACK #-} !Int | Root {-# UNPACK #-} !Int
 
 -- | Creates a new Union-Find tree of the given size.
-{-# INLINE newUF #-}
-newUF :: (PrimMonad m) => Int -> m (UnionFind (PrimState m))
-newUF n = UnionFind <$> VM.replicate n (Root 1)
+{-# INLINE newMUF #-}
+newMUF :: (PrimMonad m) => Int -> m (MUnionFind (PrimState m))
+newMUF n = MUnionFind <$> VM.replicate n (Root 1)
 
 -- | Returns the root node index.
-{-# INLINE rootUF #-}
-rootUF :: (PrimMonad m) => UnionFind (PrimState m) -> Int -> m Int
-rootUF uf@(UnionFind vec) i = do
+{-# INLINE rootMUF #-}
+rootMUF :: (PrimMonad m) => MUnionFind (PrimState m) -> Int -> m Int
+rootMUF uf@(MUnionFind vec) i = do
   node <- VM.read vec i
   case node of
     Root _ -> return i
     Child p -> do
-      r <- rootUF uf p
+      r <- rootMUF uf p
       -- NOTE(perf): path compression (move the queried node to just under the root, recursivelly)
       VM.write vec i (Child r)
       return r
 
 -- | Checks if the two nodes are under the same root.
-{-# INLINE sameUF #-}
-sameUF :: (PrimMonad m) => UnionFind (PrimState m) -> Int -> Int -> m Bool
-sameUF uf x y = liftM2 (==) (rootUF uf x) (rootUF uf y)
+{-# INLINE sameMUF #-}
+sameMUF :: (PrimMonad m) => MUnionFind (PrimState m) -> Int -> Int -> m Bool
+sameMUF uf x y = liftM2 (==) (rootMUF uf x) (rootMUF uf y)
 
 -- | Just an internal helper.
 _unwrapRoot :: UfNode -> Int
@@ -226,11 +236,11 @@ _unwrapRoot (Root s) = s
 _unwrapRoot (Child _) = undefined
 
 -- | Unites two nodes.
-{-# INLINE uniteUF #-}
-uniteUF :: (PrimMonad m) => UnionFind (PrimState m) -> Int -> Int -> m ()
-uniteUF uf@(UnionFind vec) x y = do
-  px <- rootUF uf x
-  py <- rootUF uf y
+{-# INLINE uniteMUF #-}
+uniteMUF :: (PrimMonad m) => MUnionFind (PrimState m) -> Int -> Int -> m ()
+uniteMUF uf@(MUnionFind vec) x y = do
+  px <- rootMUF uf x
+  py <- rootMUF uf y
   when (px /= py) $ do
     sx <- _unwrapRoot <$> VM.read vec px
     sy <- _unwrapRoot <$> VM.read vec py
@@ -240,10 +250,10 @@ uniteUF uf@(UnionFind vec) x y = do
     VM.write vec par (Root (sx + sy))
 
 -- | Returns the size of the root node, starting with `1`.
-{-# INLINE sizeUF #-}
-sizeUF :: (PrimMonad m) => UnionFind (PrimState m) -> Int -> m Int
-sizeUF uf@(UnionFind vec) x = do
-  px <- rootUF uf x
+{-# INLINE sizeMUF #-}
+sizeMUF :: (PrimMonad m) => MUnionFind (PrimState m) -> Int -> m Int
+sizeMUF uf@(MUnionFind vec) x = do
+  px <- rootMUF uf x
   _unwrapRoot <$> VM.read vec px
 
 -- }}}
@@ -275,6 +285,51 @@ uniteSUF uf i j
   where
     (a, r) = getRoot uf i
     (b, s) = getRoot uf j
+
+-- }}}
+
+-- {{{ Digits
+
+-- Taken from <https://hackage.haskell.org/package/digits-0.3.1/docs/Data-Digits.html>
+
+-- digitToInt :: Char -> Int
+
+-- | Returns the digits of a positive integer as a Maybe list, in reverse order or Nothing if a zero
+-- | or negative base is given. This is slightly more efficient than in forward order.
+mDigitsRev :: Integral n => n -> n -> Maybe [n]
+mDigitsRev base i = if base < 1 then Nothing else Just $ dr base i
+  where
+    dr _ 0 = []
+    dr b x = case base of
+      1 -> genericTake x $ repeat 1
+      _ ->
+        let (rest, lastDigit) = quotRem x b
+         in lastDigit : dr b rest
+
+-- | Returns the digits of a positive integer as a Maybe list.
+--   or Nothing if a zero or negative base is given
+mDigits :: Integral n => n -> n -> Maybe [n]
+mDigits base i = reverse <$> mDigitsRev base i
+
+-- | Returns the digits of a positive integer as a list, in reverse order.
+--   Throws an error if given a zero or negative base.
+digitsRev :: Integral n => n -> n -> [n]
+digitsRev base = fromJust . mDigitsRev base
+
+-- | Returns the digits of a positive integer as a list.
+-- | REMARK: It's modified to return `[0]` when given zero.
+digits :: (Eq n, Integral n) => n -> n -> [n]
+digits _ 0 = [0]
+digits base x = reverse $ digitsRev base x
+
+-- | Takes a list of digits, and converts them back into a positive integer.
+unDigits :: Integral n => n -> [n] -> n
+unDigits base = foldl' (\a b -> a * base + b) 0
+
+-- | <https://stackoverflow.com/questions/10028213/converting-number-base>
+-- | REMARK: It returns `[]` when giben `[0]`. Be sure to convert `[]` to `[0]` if necessary.
+convertBase :: Integral a => a -> a -> [a] -> [a]
+convertBase from to = digits to . unDigits from
 
 -- }}}
 
@@ -551,6 +606,9 @@ emptyMS = (0, IM.empty)
 singletonMS :: Int -> MultiSet
 singletonMS x = (1, IM.singleton x 1)
 
+fromListMS :: [Int] -> MultiSet
+fromListMS = foldl' (flip incrementMS) emptyMS
+
 incrementMS :: Int -> MultiSet -> MultiSet
 incrementMS k (n, im) =
   if IM.member k im
@@ -570,68 +628,39 @@ decrementMS k (n, im) =
 
 type Graph = Array Int [Int]
 
--- | [Tree only] Searches through all the posible routes.
-{-# INLINE dfsAll #-}
-dfsAll :: forall s. (Int -> s -> s) -> s -> Graph -> Int -> [s]
-dfsAll !f !s0 !graph !start = snd $ visitNode s0 (IS.empty, []) start
+dfsEveryVertex :: forall s. (s -> Bool, s -> Int -> s, s -> Int -> s) -> Graph -> Int -> s -> (s, IS.IntSet)
+dfsEveryVertex (isEnd, fin, fout) graph start s0 = visitNode (s0, IS.empty) start
   where
-    visitNode :: s -> (IS.IntSet, [s]) -> Int -> (IS.IntSet, [s])
-    visitNode !s (!visits, !results) !x =
-      let -- !_ = traceShow x ()
-          !visits' = IS.insert x visits
-          !s' = f x s
-       in visitNeighbors s' (visits', results) x
+    visitNode :: (s, IS.IntSet) -> Int -> (s, IS.IntSet)
+    visitNode (s, visits) x
+      | isEnd s = (s, visits)
+      | otherwise =
+        let (s', visits') = visitNeighbors (fin s x, IS.insert x visits) x
+         in (fout s' x, visits')
 
-    visitNeighbors :: s -> (IS.IntSet, [s]) -> Int -> (IS.IntSet, [s])
-    visitNeighbors !s (!visits, !results) !x =
-      let -- !_ = traceShow x ()
-          nbs = filter (\n -> not $ IS.member n visits) (graph ! x)
-       in if null nbs
-            then (visits, s : results)
-            else
-              foldl'
-                ( \(!vs, !rs) !n ->
-                    -- TODO: remove this branch. it's for graphs:
-                    if IS.member n vs
-                      then -- discard duplicates
-                        (vs, rs)
-                      else visitNode s (visits, rs) n
-                )
-                (visits, results)
-                nbs
+    visitNeighbors :: (s, IS.IntSet) -> Int -> (s, IS.IntSet)
+    visitNeighbors (s, visits) x
+      | isEnd s = (s, visits)
+      | otherwise =
+        foldl' visitNode (s, visits) $ filter (`IS.notMember` visits) (graph ! x)
 
--- | Searches for a specific route in depth-first order.
-{-# INLINE dfsFind #-}
-dfsFind :: forall s. (Int -> s -> (Bool, s)) -> s -> Graph -> Int -> Maybe s
-dfsFind !f !s0 !graph !start = snd $ visitNode s0 IS.empty start
+dfsEveryPath :: forall s. (s -> Bool, s -> Int -> s, s -> Int -> s) -> Graph -> Int -> s -> s
+dfsEveryPath (isEnd, fin, fout) graph start s0 = visitNode (s0, IS.empty) start
   where
-    visitNode :: s -> IS.IntSet -> Int -> (IS.IntSet, Maybe s)
-    visitNode !s !visits !x =
-      let -- !_ = traceShow x ()
-          visits' = IS.insert x visits
-          (goal, s') = f x s
-       in if goal
-            then (visits', Just s')
-            else visitNeighbors s' visits' x
+    visitNode :: (s, IS.IntSet) -> Int -> s
+    visitNode (s, visits) x
+      | isEnd s = s
+      | otherwise = flip fout x $ visitNeighbors (fin s x, IS.insert x visits) x
 
-    visitNeighbors :: s -> IS.IntSet -> Int -> (IS.IntSet, Maybe s)
-    visitNeighbors s visits x =
-      let -- !_ = traceShow x ()
-          !nbs = filter (\n -> not $ IS.member n visits) (graph ! x)
-       in foldl'
-            ( \(!vs, !result) !n ->
-                if isJust result || IS.member n vs
-                  then (vs, result)
-                  else visitNode s visits n
-            )
-            (visits, Nothing)
-            nbs
-
--- TODO: test it
+    visitNeighbors :: (s, IS.IntSet) -> Int -> s
+    visitNeighbors (s, visits) x
+      | isEnd s = s
+      | otherwise =
+        foldl' (\s2 n -> visitNode (s2, visits) n) s $ filter (`IS.notMember` visits) (graph ! x)
 
 -- | Searches for a specific route in breadth-first order.
 -- | Returns `Just (depth, node)` if succeed.
-{-# INLINE bfsFind #-}
+-- TODO: refactor / test it
 bfsFind :: (Int -> Bool) -> Graph -> Int -> Maybe (Int, Int)
 bfsFind !f !graph !start =
   if f start
@@ -692,10 +721,23 @@ dijkstra !f s0 !graph !start =
 
 -- }}}
 
--- {{{ Prime factors
+-- {{{ Integer calculation
 
+-- | Calculates `x * y` but wrapping the result to the maximum boundary.
+-- | Works for x >= 0 only.
+wrappingMul :: Int -> Int -> Int
+wrappingMul x y =
+  if (64 - countLeadingZeros x) + (64 - countLeadingZeros y) > 63
+    then maxBound @Int
+    else x * y
+
+-- | CAUTION: Be aware of the accuracy. Prefer binary search when possible
 isqrt :: Int -> Int
-isqrt = floor @Double . sqrt . fromIntegral
+isqrt = round @Double . sqrt . fromIntegral
+
+-- }}}
+
+-- {{{ Prime factors
 
 -- @gotoki_no_joe
 primes :: [Int]
@@ -730,6 +772,9 @@ primeFactors n_ = map (\xs -> (head xs, length xs)) . group $ loop n_ input
 
 -- {{{ Modulo arithmetic
 
+-- TODO: refactor
+-- TODO: consider taking `modulus` as the first argument
+
 addMod, subMod, mulMod :: Int -> Int -> Int -> Int
 addMod x a modulus = (x + a) `mod` modulus
 subMod x s modulus = (x - s) `mod` modulus
@@ -743,7 +788,11 @@ factMod n m = n * factMod (n - 1) m `rem` m
 
 -- F: Fermet, FC: Fermet by cache
 
--- | x / d mod p, using Fermat's little theorem
+-- | One-shot calculation of $base ^ power `mod` modulo$ in a constant time
+powerModConstant :: Int -> Int -> Int -> Int
+powerModConstant base power modulo = powerByCache power (powerModCache base modulo)
+
+-- | One-shot calcaulation of $x / d mod p$, using Fermat's little theorem
 -- |
 -- | 1/d = d^{p-2} (mod p) <=> d^p = d (mod p)
 -- |   where the modulus is a prime number and `x` is not a mulitple of `p`
@@ -786,8 +835,5 @@ main :: IO ()
 main = do
   [n] <- getLineIntList
   xs <- getLineIntVec
-
-  -- let result = True
-  -- putStrLn $ if result then "Yes" else "No"
 
   print "TODO"

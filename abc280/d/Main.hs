@@ -1,14 +1,15 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-16.11
 --package array --package bytestring --package containers
+--package hashable --package unordered-containers
 --package vector --package vector-algorithms --package primitive --package transformers
 -}
 
 {- ORMOLU_DISABLE -}
 {-# LANGUAGE BangPatterns, BlockArguments, LambdaCase, MultiWayIf, PatternGuards, TupleSections #-}
 {-# LANGUAGE NumDecimals, NumericUnderscores #-}
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, ScopedTypeVariables, TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications, TypeFamilies, RankNTypes #-}
 {- ORMOLU_ENABLE -}
 
 -- {{{ Imports
@@ -20,8 +21,7 @@ import Control.Monad
 import Control.Monad.Fix
 import Control.Monad.Primitive
 import Control.Monad.ST
-import qualified Control.Monad.Trans.State.Strict as State
-import Data.Array
+import Control.Monad.Trans.State.Strict
 import Data.Bifunctor
 import Data.Bits
 import Data.Char
@@ -40,10 +40,14 @@ import Text.Printf
 {- ORMOLU_DISABLE -}
 
 -- array
-import qualified Data.Array.Unboxed as AU
-import qualified Data.Array.MArray as MA
-import qualified Data.Array.IArray as IA
-import qualified Data.Array.ST as STA
+import Data.Array.IArray
+import Data.Array.IO
+import Data.Array.MArray
+import Data.Array.ST
+import Data.Array.Unboxed (UArray)
+import Data.Array.Unsafe
+
+import qualified Data.Array as A
 
 -- bytestring: https://www.stackage.org/lts-16.11/package/bytestring-0.10.10.0
 import qualified Data.ByteString.Builder as BSB
@@ -65,6 +69,13 @@ import qualified Data.Vector.Algorithms.Search as VAS
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Map.Strict as M
 import qualified Data.IntSet as IS
+
+-- hashable: https://www.stackage.org/lts-16.11/package/hashable-1.3.0.0
+import Data.Hashable
+
+-- unordered-containers: https://www.stackage.org/haddock/lts-16.11/unordered-containers-0.2.10.0
+import qualified Data.HashMap.Strict as HM
+import qualified Data.HashSet as HS
 
 {- ORMOLU_ENABLE -}
 
@@ -118,10 +129,9 @@ combinations len elements = comb len (length elements) elements
 
 -- | Binary search for sorted items in an inclusive range (from left to right only)
 -- |
--- | It returns the `(ok, ng)` index pair at the boundary.
+-- | It returns an `(ok, ng)` index pair at the boundary.
 -- |
--- | Example
--- | -------
+-- | # Example
 -- |
 -- | With an OK predicate `(<= 5)`, list `[0..9]` can be seen as:
 -- |
@@ -137,6 +147,7 @@ combinations len elements = comb len (length elements) elements
 bsearch :: (Int, Int) -> (Int -> Bool) -> (Maybe Int, Maybe Int)
 bsearch (low, high) isOk = bimap wrap wrap (loop (low - 1, high + 1))
   where
+    loop :: (Int, Int) -> (Int, Int)
     loop (ok, ng)
       | abs (ok - ng) == 1 = (ok, ng)
       | isOk m = loop (m, ng)
@@ -145,8 +156,27 @@ bsearch (low, high) isOk = bimap wrap wrap (loop (low - 1, high + 1))
         m = (ok + ng) `div` 2
     wrap :: Int -> Maybe Int
     wrap x
-      | x == low - 1 || x == high + 1 = Nothing
-      | otherwise = Just x
+      | inRange (low, high) x = Just x
+      | otherwise = Nothing
+
+-- | Monadic variant of `bsearch`
+bsearchM :: forall m. (Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int, Maybe Int)
+bsearchM (low, high) isOk = bimap wrap wrap <$> loop (low - 1, high + 1)
+  where
+    loop :: (Int, Int) -> m (Int, Int)
+    loop (ok, ng)
+      | abs (ok - ng) == 1 = return (ok, ng)
+      | otherwise =
+        isOk m >>= \yes ->
+          if yes
+            then loop (m, ng)
+            else loop (ok, m)
+      where
+        m = (ok + ng) `div` 2
+    wrap :: Int -> Maybe Int
+    wrap x
+      | inRange (low, high) x = Just x
+      | otherwise = Nothing
 
 -- }}}
 
@@ -371,6 +401,112 @@ queryByRange (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$> loop 0 (0, initial
 
 -- }}}
 
+-- {{{ DP
+
+-- Very slow..
+type Memo k v = M.Map k v
+
+type Memoized k v = k -> State (Memo k v) v
+
+emptyMemo :: Memo k v
+emptyMemo = M.empty
+
+lookupMemo :: Ord k => k -> Memo k v -> Maybe v
+lookupMemo = M.lookup
+
+insertMemo :: Ord k => k -> v -> Memo k v -> Memo k v
+insertMemo = M.insert
+
+memoize :: Ord k => Memoized k v -> Memoized k v
+memoize f k = do
+  memo <- gets (lookupMemo k)
+  case memo of
+    Just v -> return v
+    Nothing -> do
+      v <- f k
+      modify (insertMemo k v)
+      return v
+
+evalMemoized :: Memoized a b -> a -> b
+evalMemoized s x = evalState (s x) emptyMemo
+
+{-
+let dp :: Memoized (Int, Int) Int
+    dp = memoize $ \(nRead, nFilled) -> do
+      --
+
+let dp' = evalMemoized dp
+
+let result = dp' (n, 7)
+-}
+
+-- WARNING: Danger of MLE
+tabulateLazy :: Ix i => (i -> e) -> (i, i) -> Array i e
+tabulateLazy f bounds_ = array bounds_ [(x, f x) | x <- range bounds_]
+
+{-# INLINE tabulateMap #-}
+tabulateMap :: forall i e. (Ix i) => (IM.IntMap e -> i -> e) -> (i, i) -> IM.IntMap e -> IM.IntMap e
+tabulateMap f bounds_ cache0 =
+  foldl' step cache0 (range bounds_)
+  where
+    step :: IM.IntMap e -> i -> IM.IntMap e
+    step cache i =
+      let e = f cache i
+       in IM.insert (index bounds_ i) e cache
+
+-- let dp = tabulateST f rng (0 :: Int)
+--     rng = ((0, 0), (nItems, wLimit))
+--     f :: forall s. MArray (STUArray s) Int (ST s) => STUArray s (Int, Int) Int -> (Int, Int) -> (ST s) Int
+--     f _ (0, _) = return 0
+--     f arr (i, w) = do
+-- {-# INLINE tabulateST #-}
+tabulateST :: forall i. (Ix i) => (forall s. MArray (STUArray s) Int (ST s) => STUArray s i Int -> i -> ST s Int) -> (i, i) -> Int -> UArray i Int
+tabulateST f bounds_ e0 =
+  runSTUArray uarray
+  where
+    uarray :: forall s. MArray (STUArray s) Int (ST s) => ST s (STUArray s i Int)
+    uarray = do
+      tbl <- newArray bounds_ e0 :: ST s (STUArray s i Int)
+      forM_ (range bounds_) $ \i -> do
+        e <- f tbl i
+        writeArray tbl i e
+      return tbl
+
+-- }}}
+
+-- {{{ ismo 2D
+
+ismo2D :: ((Int, Int), (Int, Int)) -> UArray (Int, Int) Int -> UArray (Int, Int) Int
+ismo2D bounds_ seeds = runSTUArray $ do
+  arr <- newArray bounds_ (0 :: Int)
+
+  -- row scan
+  forM_ (range bounds_) $ \(y, x) -> do
+    v <- if x == 0 then return 0 else readArray arr (y, x - 1)
+    let diff = seeds ! (y, x)
+    writeArray arr (y, x) (v + diff)
+
+  -- column scan
+  forM_ (range bounds_) $ \(x, y) -> do
+    v <- if y == 0 then return 0 else readArray arr (y - 1, x)
+    diff <- readArray arr (y, x)
+    writeArray arr (y, x) (v + diff)
+
+  return arr
+
+printMat2D :: (IArray a e, Ix i, Show [e]) => a (i, i) e -> (i, i) -> (i, i) -> IO ()
+printMat2D mat ys xs = do
+  forM_ (range ys) $ \y -> do
+    print $ flip map (range xs) $ \x -> mat ! (y, x)
+
+traceMat2D :: (IArray a e, Ix i, Show e) => a (i, i) e -> (i, i) -> (i, i) -> ()
+traceMat2D mat ys xs =
+  let !_ = foldl' step () (range ys) in ()
+  where
+    step _ y = traceShow (map (\(!x) -> mat ! (y, x)) (range xs)) ()
+
+-- }}}
+
 -- {{{ Misc
 
 getLineIntList :: IO [Int]
@@ -393,46 +529,166 @@ vLength = VFB.length . VG.stream
 vRange :: Int -> Int -> VU.Vector Int
 vRange i j = VU.enumFromN i (j + 1 - i)
 
+-- | From more recent GHC
+clamp :: (Ord a) => (a, a) -> a -> a
+clamp (low, high) a = min high (max a low)
+
 -- }}}
 
--- TODO: add primes to the template
-primes :: [Int]
-primes = sieve [2 ..]
+-- {{{{ Multiset
 
-sieve :: [Int] -> [Int]
-sieve (p : xs) = p : sieve [x | x <- xs, x `mod` p /= 0]
+-- | Multiset: (nKeys, (key -> count))
+type MultiSet = (Int, IM.IntMap Int)
+
+emptyMS :: MultiSet
+emptyMS = (0, IM.empty)
+
+singletonMS :: Int -> MultiSet
+singletonMS x = (1, IM.singleton x 1)
+
+incrementMS :: Int -> MultiSet -> MultiSet
+incrementMS k (n, im) =
+  if IM.member k im
+    then (n, IM.insertWith (+) k 1 im)
+    else (n + 1, IM.insert k 1 im)
+
+decrementMS :: Int -> MultiSet -> MultiSet
+decrementMS k (n, im) =
+  case IM.lookup k im of
+    Just 1 -> (n - 1, IM.delete k im)
+    Just _ -> (n, IM.insertWith (+) k (-1) im)
+    Nothing -> (n, im)
+
+-- }}}
+
+-- {{{ Graph
+
+type Graph = Array Int [Int]
+
+-- | [Tree only] Searches through all the posible routes.
+{-# INLINE dfsAll #-}
+dfsAll :: forall s. (Int -> s -> s) -> s -> Graph -> Int -> [s]
+dfsAll !f !s0 !graph !start = snd $ visitNode s0 (IS.empty, []) start
+  where
+    visitNode :: s -> (IS.IntSet, [s]) -> Int -> (IS.IntSet, [s])
+    visitNode !s (!visits, !results) !x =
+      let -- !_ = traceShow x ()
+          !visits' = IS.insert x visits
+          !s' = f x s
+       in visitNeighbors s' (visits', results) x
+
+    visitNeighbors :: s -> (IS.IntSet, [s]) -> Int -> (IS.IntSet, [s])
+    visitNeighbors !s (!visits, !results) !x =
+      let -- !_ = traceShow x ()
+          nbs = filter (\n -> not $ IS.member n visits) (graph ! x)
+       in if null nbs
+            then (visits, s : results)
+            else
+              foldl'
+                ( \(!vs, !rs) !n ->
+                    -- TODO: remove this branch. it's for graphs:
+                    if IS.member n vs
+                      then -- discard duplicates
+                        (vs, rs)
+                      else visitNode s (visits, rs) n
+                )
+                (visits, results)
+                nbs
+
+-- | Searches for a specific route in depth-first order.
+{-# INLINE dfsFind #-}
+dfsFind :: forall s. (Int -> s -> (Bool, s)) -> s -> Graph -> Int -> Maybe s
+dfsFind !f !s0 !graph !start = snd $ visitNode s0 IS.empty start
+  where
+    visitNode :: s -> IS.IntSet -> Int -> (IS.IntSet, Maybe s)
+    visitNode !s !visits !x =
+      let -- !_ = traceShow x ()
+          visits' = IS.insert x visits
+          (goal, s') = f x s
+       in if goal
+            then (visits', Just s')
+            else visitNeighbors s' visits' x
+
+    visitNeighbors :: s -> IS.IntSet -> Int -> (IS.IntSet, Maybe s)
+    visitNeighbors s visits x =
+      let -- !_ = traceShow x ()
+          !nbs = filter (\n -> not $ IS.member n visits) (graph ! x)
+       in foldl'
+            ( \(!vs, !result) !n ->
+                if isJust result || IS.member n vs
+                  then (vs, result)
+                  else visitNode s visits n
+            )
+            (visits, Nothing)
+            nbs
+
+-- TODO: test it
+
+-- | Searches for a specific route in breadth-first order.
+-- | Returns `Just (depth, node)` if succeed.
+{-# INLINE bfsFind #-}
+bfsFind :: (Int -> Bool) -> Graph -> Int -> Maybe (Int, Int)
+bfsFind !f !graph !start =
+  if f start
+    then Just (0, start)
+    else bfsRec 1 (IS.singleton start) (IS.fromList $ graph ! start)
+  where
+    bfsRec :: Int -> IS.IntSet -> IS.IntSet -> Maybe (Int, Int)
+    bfsRec depth !visits !nbs =
+      let -- !_ = traceShow x ()
+          !visits' = foldl' (flip IS.insert) visits (IS.toList nbs)
+       in let (result, nextNbs) = visitNeighbors nbs
+           in case result of
+                Just x -> Just (depth, x)
+                Nothing -> bfsRec (succ depth) visits' nextNbs
+    visitNeighbors :: IS.IntSet -> (Maybe Int, IS.IntSet)
+    visitNeighbors nbs =
+      let -- !_ = traceShow x ()
+          !nbsList = IS.toList nbs
+       in foldl'
+            ( \(!result, !nbs') !x ->
+                let nbs'' = IS.insert x nbs'
+                 in if f x
+                      then (Just x, nbs'')
+                      else (result, nbs'')
+            )
+            (Nothing, IS.empty)
+            nbsList
+
+-- }}}
+
+-- {{{ Integer
 
 isqrt :: Int -> Int
 isqrt = floor @ Double . sqrt . fromIntegral
 
-countPrimes :: Int -> Int -> Int
-countPrimes p x =
-  let xp = x `mod` p in
-    if xp == 0 then
-      1 + countPrimes p (x `div` p)
-    else
-      0
-
--- countPrimesInFactorial 2 6 = 4 since 6! contains 2^4
-countPrimesInFactorial :: Int -> Int -> Int
-countPrimesInFactorial p x =
-  sum $ map (\i -> x `div` (p ^ i)) $ takeWhile (\i -> p ^ i <= x) [1 ..]
-
--- e.g. minFactorial 2 6 = 4
-minFactorial :: Int -> Int -> Int
-minFactorial p k
-  | np == 0 = 0
-  | otherwise = fromJust . snd $ bsearch (1, 10e12) (\x -> countPrimesInFactorial p x < np)
+-- | Returns `[(prime, count)]`
+primeFactors :: Int -> [(Int, Int)]
+primeFactors n_ = map (\xs -> (head xs, length xs)) . group $ loop n_ input
   where
-    np = countPrimes p k
+    input = 2 : 3 : [y | x <- [5,11..], y <- [x, x + 2]]
+    loop n pps@(p:ps)
+      | n == 1    = []
+      | n < p * p = [n]
+      | r == 0    = p : loop q pps
+      | otherwise = loop n ps
+      where
+        (q,r) = divMod n p
+
+-- }}}
 
 main :: IO ()
 main = do
+  -- $K < 10^12$
+  -- find $n$ such that $n!$ is a multiple of $K$
   [k] <- getLineIntList
 
-  let sqrtK = isqrt k
-  let ps = takeWhile (<= sqrtK) primes
+  -- let pns = toPrimFactors k
+  -- let !_ = traceShow pns ()
+  -- let result = maximum $ map (uncurry (*)) pns
 
-  -- each prim number forces some constraint
-  let xs = map (`minFactorial` k) ps
-  print $ maximum xs
+  let ps = primeFactors k
+  let toI n = fromJust . snd $ bsearch (1, 100) (\i -> i * (i + 1) `div` 2 < n)
+  let results = flip map ps $ \(p, i) -> p * toI i
+
+  print $ maximum results

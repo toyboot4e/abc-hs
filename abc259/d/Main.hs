@@ -40,10 +40,21 @@ vLength = VFB.length . VG.stream
 
 main :: IO ()
 main = do
-  n <- getLineInt
-  [sx, sy, tx, ty] <- getLineInts
+  [n] <- getLineInt
+  [sx, sy, tx, ty] <- getLineInt
   circles <- replicateM n getLineInts
-  print $ solve xs
+  print $ solve circles
 
-solve :: [Int] -> Int
-solve xs = undefined
+solve :: [[Int]] -> Int
+solve circles = _
+
+circleContains :: [Int] -> [Int] -> Bool
+circleContains [cx, cy, r] [x, y] = (dx * dx + dy * dy) - r * r < == 0.0
+  where dx = cx - x
+        dy = cy - y
+
+canUnite :: [Int] -> [Int] -> Bool
+canUnite [cx0, cy0, r0] [cx1, cy1, r1] = d >= r0 + r1
+  where dx = cx0 - cx1
+        dy = cy0 - cx1
+        d = sqrt $ dx * dx + dy * dy

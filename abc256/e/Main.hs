@@ -17,6 +17,7 @@ import GHC.Float (int2Float)
 getLineInt :: IO Int
 getLineInt = fst . fromJust . BS.readInt <$> BS.getLine
 
+-- TODO: Try using as input Vector as input. Make a recursive function with Vector.
 bsToInts :: BS.ByteString -> [Int]
 bsToInts = unfoldr (BS.readInt . BS.dropWhile isSpace)
 
@@ -29,8 +30,28 @@ vLength = VFB.length . VG.stream
 
 main :: IO ()
 main = do
+  _n <- getLineInt
   xs <- getLineInts
+  cs <- getLineInts
   print $ solve xs
 
 solve :: [Int] -> Int
 solve xs = undefined
+
+solve2 :: [Int] -> [Int] -> [Int]
+solve2 [i0, i1] [x0, x1] [c0, c1] =
+  case (i0 == x0, i1 == x1) of
+    (true, true) -> if c0 >= c1 then [c0, c1] else [c1, c0]
+    (true, false) -> [c1, c0]
+    (false, true) -> [c0, c1]
+    -- either
+    (false, false) -> [c0, c1]
+
+solve3 :: [Int] -> [Int] -> [Int]
+solve3 [i0, i1, i2] [x0, x1, x2] [c0, c1, c2] =
+  case (i0 == x0, i1 == x1) of
+    (true, true) -> if c0 >= c1 then [c0, c1] else [c1, c0]
+    (true, false) -> [c1, c0]
+    (false, true) -> [c0, c1]
+    -- either
+    (false, false) -> [c0, c1]

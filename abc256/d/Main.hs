@@ -8,6 +8,7 @@ module Main (main) where
 
 import Control.Arrow
 import Control.Monad
+import Control.Monad.Fix
 import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Char8 as BS
 import Data.Char
