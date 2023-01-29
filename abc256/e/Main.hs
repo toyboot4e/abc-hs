@@ -849,16 +849,13 @@ findCycles graph visited0 start
 
 -- TODO: better code
 findMinCycleBreak :: VU.Vector Int -> VU.Vector Int -> Int -> Int
-findMinCycleBreak loop costs start =
-  -- let !_ = traceShow (collected) () in
-  minimum $ map (costs VU.!) collected
+findMinCycleBreak loop costs start = collect (loop VU.! start) (costs VU.! start)
   where
-    collected = collect (loop VU.! start) []
     collect x acc
-      | x == start = x : acc
+      | x == start = acc
       | otherwise =
         let next = loop VU.! x
-         in collect next (x : acc)
+         in collect next (min (costs VU.! x) acc)
 
 main :: IO ()
 main = do
