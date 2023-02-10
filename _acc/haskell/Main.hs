@@ -1,16 +1,17 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-16.11
---package array --package bytestring --package containers
---package hashable --package unordered-containers --package heaps
---package vector --package vector-algorithms --package primitive --package transformers
+--package array --package bytestring --package containers --package extra
+--package hashable --package unordered-containers --package heaps --package utility-ht
+--package vector --package vector-th-unbox --package vector-algorithms --package primitive
+--package transformers
 -}
 
 {- TODOs
-- [ ] Try using dfsEveryVertex
-- [ ] Better BFS
-- [ ] Better dijkstra
-- [ ] Easier rolling hash
-- [ ] More graph problems
+- [ ] Graph
+  - [ ] components
+  - [ ] cycles
+  - [ ] better DFS, better BFS
+- [ ] More graph algorithms
 -}
 
 {- ORMOLU_DISABLE -}
@@ -18,6 +19,9 @@
 {-# LANGUAGE NumDecimals, NumericUnderscores #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications, TypeFamilies, RankNTypes #-}
+
+-- TODO: ditch `vector-th-unbox` and `TemplateHaskell` in 2023 environment
+{-# LANGUAGE TemplateHaskell #-}
 {- ORMOLU_ENABLE -}
 
 -- {{{ Imports
@@ -33,6 +37,7 @@ import Control.Monad.Trans.State.Strict
 import Data.Bifunctor
 import Data.Bits
 import Data.Char
+import Data.Foldable
 import Data.Functor
 import Data.IORef
 import Data.List
@@ -61,6 +66,17 @@ import qualified Data.Array as A
 import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Char8 as BS
 
+-- extra: https://www.stackage.org/lts-16.11/package/extra-1.7.6
+import Control.Monad.Extra -- foldM, ..
+import Data.IORef.Extra    -- writeIORef'
+import Data.List.Extra     -- merge, nubSort, ..
+import Data.Tuple.Extra (dupe, both)
+import Numeric.Extra       -- showDP, intToFloat, ..
+
+-- utility-ht: https://www.stackage.org/lts-16.11/package/utility-ht-0.0.15
+import Data.Bool.HT  -- if', ..
+import qualified Data.Ix.Enum as IxEnum
+
 -- vector: https://www.stackage.org/lts-16.11/package/vector-0.12.1.2
 import qualified Data.Vector.Fusion.Bundle as VFB
 import qualified Data.Vector.Generic as VG
@@ -72,6 +88,9 @@ import qualified Data.Vector.Mutable as VM
 -- vector-algorithms: https://www.stackage.org/haddock/lts-16.11/vector-algorithms-0.8.0.3/Data-Vector-Algorithms-Intro.html
 import qualified Data.Vector.Algorithms.Intro as VAI
 import qualified Data.Vector.Algorithms.Search as VAS
+
+-- vector-th-unbox: https://www.stackage.org/lts-16.11/package/vector-th-unbox-0.2.1.7
+import Data.Vector.Unboxed.Deriving (derivingUnbox)
 
 -- containers: https://www.stackage.org/lts-16.11/package/containers-0.6.2.1
 import qualified Data.Graph as G
@@ -99,26 +118,6 @@ import qualified Data.HashSet as HS
 
 -- Option - Maybe cheatsheet
 -- https://notes.iveselov.info/programming/cheatsheet-rust-option-vs-haskell-maybe
-
--- safe list access
--- safeHead :: [a] -> Maybe a
--- safeHead [] = Nothing
--- safeHead (a : as) = Just a
---
--- safeTail :: [a] -> Maybe [a]
--- safeTail [] = Nothing
--- safeTail (a : as) = Just as
-
--- sortWith
---
--- sortWithDesc :: Ord o => (a -> o) -> [a] -> [a]
--- sortWithDesc = sortBy . flip . comparing
---
--- maximumWith :: Foldable t => Ord o => (a -> o) -> t a -> a
--- maximumWith = maximumBy . comparing
---
--- minimumWith :: Foldable t => Ord o => (a -> o) -> t a -> a
--- minimumWith = minimumBy . comparing
 
 -- compress duduplicates sorted list, nub deduplicates non-sorted list
 -- TODO: std?
@@ -195,34 +194,44 @@ bsearchM (low, high) isOk = bimap wrap wrap <$> loop (low - 1, high + 1)
 
 -- }}}
 
--- {{{ Mutable union-Find tree
+-- {{{ Dense, mutable union-Find tree
 
--- | Union-find implementation (originally by `@pel`)
-newtype MUnionFind s = MUnionFind (VM.MVector s UfNode)
+-- | Dense, mutable union-find tree (originally by `@pel`)
+newtype MUnionFind s = MUnionFind (VUM.MVector s MUFNode)
 
 type IOUnionFind = MUnionFind RealWorld
 
 type STUnionFind s = MUnionFind s
 
--- | `Child parent | Root size`. Not `Unbox` :(
-data UfNode = Child {-# UNPACK #-} !Int | Root {-# UNPACK #-} !Int
+-- | `MUFChild parent | MUFRoot size`. Not `Unbox` :(
+data MUFNode = MUFChild {-# UNPACK #-} !Int | MUFRoot {-# UNPACK #-} !Int
+
+_mufrepr1 :: MUFNode -> (Bool, Int)
+_mufrepr1 (MUFChild x) = (True, x)
+_mufrepr1 (MUFRoot x) = (False, x)
+
+_mufrepr2 :: (Bool, Int) -> MUFNode
+_mufrepr2 (True, x) = MUFChild x
+_mufrepr2 (False, x) = MUFRoot x
+
+derivingUnbox "MUFNode" [t|MUFNode -> (Bool, Int)|] [|_mufrepr1|] [|_mufrepr2|]
 
 -- | Creates a new Union-Find tree of the given size.
 {-# INLINE newMUF #-}
 newMUF :: (PrimMonad m) => Int -> m (MUnionFind (PrimState m))
-newMUF n = MUnionFind <$> VM.replicate n (Root 1)
+newMUF n = MUnionFind <$> VUM.replicate n (MUFRoot 1)
 
 -- | Returns the root node index.
 {-# INLINE rootMUF #-}
 rootMUF :: (PrimMonad m) => MUnionFind (PrimState m) -> Int -> m Int
 rootMUF uf@(MUnionFind vec) i = do
-  node <- VM.read vec i
+  node <- VUM.read vec i
   case node of
-    Root _ -> return i
-    Child p -> do
+    MUFRoot _ -> return i
+    MUFChild p -> do
       r <- rootMUF uf p
       -- NOTE(perf): path compression (move the queried node to just under the root, recursivelly)
-      VM.write vec i (Child r)
+      VUM.write vec i (MUFChild r)
       return r
 
 -- | Checks if the two nodes are under the same root.
@@ -231,9 +240,9 @@ sameMUF :: (PrimMonad m) => MUnionFind (PrimState m) -> Int -> Int -> m Bool
 sameMUF uf x y = liftM2 (==) (rootMUF uf x) (rootMUF uf y)
 
 -- | Just an internal helper.
-_unwrapRoot :: UfNode -> Int
-_unwrapRoot (Root s) = s
-_unwrapRoot (Child _) = undefined
+_unwrapMUFRoot :: MUFNode -> Int
+_unwrapMUFRoot (MUFRoot s) = s
+_unwrapMUFRoot (MUFChild _) = undefined
 
 -- | Unites two nodes.
 {-# INLINE uniteMUF #-}
@@ -242,23 +251,23 @@ uniteMUF uf@(MUnionFind vec) x y = do
   px <- rootMUF uf x
   py <- rootMUF uf y
   when (px /= py) $ do
-    sx <- _unwrapRoot <$> VM.read vec px
-    sy <- _unwrapRoot <$> VM.read vec py
+    sx <- _unwrapMUFRoot <$> VUM.read vec px
+    sy <- _unwrapMUFRoot <$> VUM.read vec py
     -- NOTE(perf): union by rank (choose smaller one for root)
     let (par, chld) = if sx < sy then (px, py) else (py, px)
-    VM.write vec chld (Child par)
-    VM.write vec par (Root (sx + sy))
+    VUM.write vec chld (MUFChild par)
+    VUM.write vec par (MUFRoot (sx + sy))
 
 -- | Returns the size of the root node, starting with `1`.
 {-# INLINE sizeMUF #-}
 sizeMUF :: (PrimMonad m) => MUnionFind (PrimState m) -> Int -> m Int
 sizeMUF uf@(MUnionFind vec) x = do
   px <- rootMUF uf x
-  _unwrapRoot <$> VM.read vec px
+  _unwrapMUFRoot <$> VUM.read vec px
 
 -- }}}
 
--- {{{ Sparse union-find tree
+-- {{{ Sparse, immutable union-find tree
 
 -- @gotoki_no_joe
 type SparseUnionFind = IM.IntMap Int
@@ -266,16 +275,16 @@ type SparseUnionFind = IM.IntMap Int
 newSUF :: SparseUnionFind
 newSUF = IM.empty
 
-getRoot :: SparseUnionFind -> Int -> (Int, Int)
-getRoot uf i
+rootSUF :: SparseUnionFind -> Int -> (Int, Int)
+rootSUF uf i
   | IM.notMember i uf = (i, 1)
   | j < 0 = (i, - j)
-  | otherwise = getRoot uf j
+  | otherwise = rootSUF uf j
   where
     j = uf IM.! i
 
 findSUF :: SparseUnionFind -> Int -> Int -> Bool
-findSUF uf i j = fst (getRoot uf i) == fst (getRoot uf j)
+findSUF uf i j = fst (rootSUF uf i) == fst (rootSUF uf j)
 
 uniteSUF :: SparseUnionFind -> Int -> Int -> SparseUnionFind
 uniteSUF uf i j
@@ -283,8 +292,8 @@ uniteSUF uf i j
   | r >= s = IM.insert a (negate $ r + s) $ IM.insert b a uf
   | otherwise = IM.insert b (negate $ r + s) $ IM.insert a b uf
   where
-    (a, r) = getRoot uf i
-    (b, s) = getRoot uf j
+    (a, r) = rootSUF uf i
+    (b, s) = rootSUF uf j
 
 -- }}}
 
@@ -462,43 +471,6 @@ queryByRange (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$> loop 0 (0, initial
 -- }}}
 
 -- {{{ DP
-
--- Very slow..
-type Memo k v = M.Map k v
-
-type Memoized k v = k -> State (Memo k v) v
-
-emptyMemo :: Memo k v
-emptyMemo = M.empty
-
-lookupMemo :: Ord k => k -> Memo k v -> Maybe v
-lookupMemo = M.lookup
-
-insertMemo :: Ord k => k -> v -> Memo k v -> Memo k v
-insertMemo = M.insert
-
-memoize :: Ord k => Memoized k v -> Memoized k v
-memoize f k = do
-  memo <- gets (lookupMemo k)
-  case memo of
-    Just v -> return v
-    Nothing -> do
-      v <- f k
-      modify (insertMemo k v)
-      return v
-
-evalMemoized :: Memoized a b -> a -> b
-evalMemoized s x = evalState (s x) emptyMemo
-
-{-
-let dp :: Memoized (Int, Int) Int
-    dp = memoize $ \(nRead, nFilled) -> do
-      --
-
-let dp' = evalMemoized dp
-
-let result = dp' (n, 7)
--}
 
 -- WARNING: Danger of MLE
 tabulateLazy :: Ix i => (i -> e) -> (i, i) -> Array i e
@@ -830,6 +802,10 @@ divModFC :: Int -> (Int, VU.Vector Int) -> Int
 divModFC x context@(modulus, _) = x * invModFC modulus context `rem` modulus
 
 -- }}}
+
+-- ord 'a' == 97
+-- ord 'A' == 65
+-- indexString = map (subtract 65 . ord)
 
 main :: IO ()
 main = do
