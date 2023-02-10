@@ -159,13 +159,13 @@ combinations len elements = comb len (length elements) elements
 -- | > >   print $ bsearch (0, 9) (\i -> xs !! i <= 5)
 -- | > (5, 6)
 bsearch :: (Int, Int) -> (Int -> Bool) -> (Maybe Int, Maybe Int)
-bsearch (low, high) isOk = bimap wrap wrap (loop (low - 1, high + 1))
+bsearch (low, high) isOk = both wrap (inner (low - 1, high + 1))
   where
-    loop :: (Int, Int) -> (Int, Int)
-    loop (ok, ng)
+    inner :: (Int, Int) -> (Int, Int)
+    inner (ok, ng)
       | abs (ok - ng) == 1 = (ok, ng)
-      | isOk m = loop (m, ng)
-      | otherwise = loop (ok, m)
+      | isOk m = inner (m, ng)
+      | otherwise = inner (ok, m)
       where
         m = (ok + ng) `div` 2
     wrap :: Int -> Maybe Int
@@ -175,22 +175,52 @@ bsearch (low, high) isOk = bimap wrap wrap (loop (low - 1, high + 1))
 
 -- | Monadic variant of `bsearch`
 bsearchM :: forall m. (Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int, Maybe Int)
-bsearchM (low, high) isOk = bimap wrap wrap <$> loop (low - 1, high + 1)
+bsearchM (low, high) isOk = both wrap <$> inner (low - 1, high + 1)
   where
-    loop :: (Int, Int) -> m (Int, Int)
-    loop (ok, ng)
+    inner :: (Int, Int) -> m (Int, Int)
+    inner (ok, ng)
       | abs (ok - ng) == 1 = return (ok, ng)
       | otherwise =
         isOk m >>= \yes ->
           if yes
-            then loop (m, ng)
-            else loop (ok, m)
+            then inner (m, ng)
+            else inner (ok, m)
       where
         m = (ok + ng) `div` 2
     wrap :: Int -> Maybe Int
     wrap x
       | inRange (low, high) x = Just x
       | otherwise = Nothing
+
+bsearchF32 :: (Float, Float) -> Float -> (Float -> Bool) -> (Maybe Float, Maybe Float)
+bsearchF32 (low, high) diff isOk = both wrap (inner (low - diff, high + diff))
+  where
+    inner :: (Float, Float) -> (Float, Float)
+    inner (ok, ng)
+      | abs (ok - ng) <= diff = (ok, ng)
+      | isOk m = inner (m, ng)
+      | otherwise = inner (ok, m)
+      where
+        m = (ok + ng) / 2
+    wrap :: Float -> Maybe Float
+    wrap x
+      | x == (low - diff) || x == (low + diff) = Nothing
+      | otherwise = Just x
+
+bsearchF64 :: (Double, Double) -> Double -> (Double -> Bool) -> (Maybe Double, Maybe Double)
+bsearchF64 (low, high) diff isOk = both wrap (inner (low - diff, high + diff))
+  where
+    inner :: (Double, Double) -> (Double, Double)
+    inner (ok, ng)
+      | abs (ok - ng) < diff = (ok, ng)
+      | isOk m = inner (m, ng)
+      | otherwise = inner (ok, m)
+      where
+        m = (ok + ng) / 2
+    wrap :: Double -> Maybe Double
+    wrap x
+      | x == (low - diff) || x == (low + diff) = Nothing
+      | otherwise = Just x
 
 -- }}}
 
