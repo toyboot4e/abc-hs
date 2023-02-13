@@ -502,20 +502,6 @@ queryByRange (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$> loop 0 (0, initial
 
 -- {{{ DP
 
--- WARNING: Danger of MLE
-tabulateLazy :: Ix i => (i -> e) -> (i, i) -> Array i e
-tabulateLazy f bounds_ = array bounds_ [(x, f x) | x <- range bounds_]
-
-{-# INLINE tabulateMap #-}
-tabulateMap :: forall i e. (Ix i) => (IM.IntMap e -> i -> e) -> (i, i) -> IM.IntMap e -> IM.IntMap e
-tabulateMap f bounds_ cache0 =
-  foldl' step cache0 (range bounds_)
-  where
-    step :: IM.IntMap e -> i -> IM.IntMap e
-    step cache i =
-      let e = f cache i
-       in IM.insert (index bounds_ i) e cache
-
 -- let dp = tabulateST f rng (0 :: Int)
 --     rng = ((0, 0), (nItems, wLimit))
 --     f :: forall s. MArray (STUArray s) Int (ST s) => STUArray s (Int, Int) Int -> (Int, Int) -> (ST s) Int
@@ -806,7 +792,7 @@ invModF d modulus = invModFC modulus (powerModCache d modulus)
 -- | 1/d = d^{p-2} (mod p) <=> d^p = d (mod p)
 -- |   where the modulus is a prime number and `x` is not a mulitple of `p`
 divModF :: Int -> Int -> Int -> Int
-divModF x d modulus = x * divModFC x (powerModCache d modulus) `rem` modulus
+divModF x d modulus = divModFC x (powerModCache d modulus) `rem` modulus
 
 -- | Cache of base^i for iterative square method
 powerModCache :: Int -> Int -> (Int, VU.Vector Int)
