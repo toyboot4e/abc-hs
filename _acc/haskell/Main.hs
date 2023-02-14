@@ -616,6 +616,33 @@ decrementMS k (n, im) =
 
 type Graph = Array Int [Int]
 
+-- | Weighted graph (Entry priority payload)
+type WGraph = Array Int [IHeapEntry]
+
+-- | Int heap
+type IHeap = H.Heap IHeapEntry
+
+-- | Int entry (priority, payload) where priority = cost, payload = vertex
+type IHeapEntry = H.Entry Int Int
+
+getTuple2 :: IO (Int, Int)
+getTuple2 = map (\[a, b] -> (a, b)) <$> getLineIntList
+
+getTuple3 :: IO (Int, Int)
+getTuple3 = map (\[a, b] -> (a, b)) <$> getLineIntList
+
+-- Creates array-based graph
+genGraph :: Int -> [(Int, a)] -> Array Int [a]
+genGraph nVerts input = accumArray @Array (flip (:)) [] (1 :: Int, nVerts) input
+
+-- Get simple graph
+getGraph :: (Int, Int) -> IO Graph
+getGraph (nVerts, nEdges) = genGraph nVerts . concatMap (\[a, b] -> [(a, b), (b, a)]) <$> replicateM nEdges getLineIntList
+
+-- Get weightend graph
+getWGraph :: (Int, Int) -> IO WGraph
+getWGraph (nVerts, nEdges) = genGraph nVerts . concatMap (\[a, b, cost] -> [(a, H.Entry cost b), (b, H.Entry cost a)]) <$> replicateM nEdges getLineIntList
+
 dfsEveryVertex :: forall s. (s -> Bool, s -> Int -> s, s -> Int -> s) -> Graph -> Int -> s -> (s, IS.IntSet)
 dfsEveryVertex (isEnd, fin, fout) graph start s0 = visitNode (s0, IS.empty) start
   where
@@ -677,35 +704,24 @@ bfsFind !f !graph !start =
             (Nothing, IS.empty)
             nbsList
 
--- | Weighted graph (Entry priority payload)
-type WGraph = Array Int [IHeapEntry]
-
--- | Int heap
-type IHeap = H.Heap IHeapEntry
-
--- | Int entry
-type IHeapEntry = H.Entry Int Int
-
 dijkstra :: forall s. (s -> IHeapEntry -> s) -> s -> WGraph -> Int -> s
-dijkstra !f s0 !graph !start =
-  let (s, _, _) = visitRec (s0, IS.empty, H.singleton $ H.Entry 0 start)
-   in s
+dijkstra !f s0 !graph !start = fst3 $ visitRec (s0, IS.empty, H.singleton $ H.Entry 0 start)
   where
     visitRec :: (s, IS.IntSet, IHeap) -> (s, IS.IntSet, IHeap)
-    visitRec (!s, !visits, !nbs) =
-      case H.uncons nbs of
-        Just (x, nbs') ->
+    visitRec (!s, !visits, !heap) =
+      case H.uncons heap of
+        Just (x, heap') ->
           if IS.member (H.payload x) visits
-            then visitRec (s, visits, nbs')
-            else visitRec $ visitNode (s, visits, nbs') x
-        Nothing -> (s, visits, nbs)
+            then visitRec (s, visits, heap')
+            else visitRec $ visitNode (s, visits, heap') x
+        Nothing -> (s, visits, heap)
 
     visitNode :: (s, IS.IntSet, IHeap) -> IHeapEntry -> (s, IS.IntSet, IHeap)
-    visitNode (!s, !visits, !nbs) entry@(H.Entry cost x) =
+    visitNode (!s, !visits, !heap) entry@(H.Entry cost x) =
       let visits' = IS.insert x visits
           news = H.fromList . map (first (cost +)) . filter p $ graph ! x
           p = not . (`IS.member` visits') . H.payload
-       in (f s entry, visits', H.union nbs news)
+       in (f s entry, visits', H.union heap news)
 
 -- }}}
 
