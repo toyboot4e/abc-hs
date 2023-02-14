@@ -70,7 +70,7 @@ import qualified Data.ByteString.Char8 as BS
 import Control.Monad.Extra -- foldM, ..
 import Data.IORef.Extra    -- writeIORef'
 import Data.List.Extra     -- merge, nubSort, ..
-import Data.Tuple.Extra (dupe, both)
+import Data.Tuple.Extra hiding (first, second)
 import Numeric.Extra       -- showDP, intToFloat, ..
 
 -- utility-ht: https://www.stackage.org/lts-16.11/package/utility-ht-0.0.15
