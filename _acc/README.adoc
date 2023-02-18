@@ -50,17 +50,17 @@ You do need the language server support! If it's not working, check out the foll
 
 Your have to have GHC 8.8.3 and HLS 1.5.1 in your `PATH`.
 
-- Install the corresponding versions of packages:
-  - Use GHCup to download the required GHC and HLS.
-   - On NixOS, WIP..
-#  - On NixOS, compile GHC 8.8.3 using {ghcs-nix}, download
-#    https://github.com/haskell/haskell-language-server/releases/tag/1.5.1[HLS 1.5.1] and download
-#    stack.
-- Use {direnv} to overwrite your binaries in your `PATH`.
+* Install the corresponding versions of packages:
+** Use GHCup to download the required GHC and HLS.
+** On NixOS, WIP..
+// ** On NixOS, compile GHC 8.8.3 using {ghcs-nix}, download
+//   https://github.com/haskell/haskell-language-server/releases/tag/1.5.1[HLS 1.5.1] and download
+//   stack.
+* Use {direnv} to overwrite your binaries in your `PATH`.
 
 === Project detection
 
-HLS have to run with the root directory `abc-278` (for example), not `abc-hs`.
+HLS have to run with the root directory `abc278` (for example), not `abc-hs`.
 
 I'm using `.projectile` file for indicating the root directory for Emacs. You might need another
 file or hack depending on your editor.
