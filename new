@@ -1,6 +1,9 @@
-#!/usr/bin/env bash -euE
+#!/usr/bin/env bash
+set -euE
 
-acc new "$1" --template haskell
+acc='npx acc'
+
+$acc new "$1" --template haskell
 # mkdir "$1"
 
 cp _acc/package.yaml "$1"
