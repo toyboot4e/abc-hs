@@ -1,8 +1,12 @@
 = {acc} configuration files
 :acc: https://github.com/Tatamo/atcoder-cli[atcoder-cli]
 :oj: https://github.com/online-judge-tools/oj[online-judge-tools]
+:ghcs-nix: https://gitlab.haskell.org/bgamari/ghcs-nix[ghcs-nix]
+:direnv: https://direnv.net/[direnv]
+:ghcup: https://www.haskell.org/ghcup/[GHCup]
+:implicit-hie: https://hackage.haskell.org/package/implicit-hie[implicit-hie]
 
-Under `acc config-dir`.
+The configuration files are located at `nix acc config-dir`.
 
 == Installation
 
@@ -10,7 +14,8 @@ Install {acc} and {oj}:
 
 [source,sh]
 ----
-$ npm install -g atcoder-cli
+$ # I use local install (for NixOS):
+$ npm install atcoder-cli
 $ pip3 install online-judge-tools
 ----
 
@@ -21,33 +26,47 @@ Set up `config.yaml`:
 [source,sh]
 ----
 $ # Download all problems by default
-$ acc config default-task-choice all
+$ npx acc config default-task-choice all
 
 $ # Test directories are named as `test-cases`
-$ acc config default-test-dirname-format `test-cases`
+$ npx acc config default-test-dirname-format test-cases
 
 $ # Use `haskell` template as default
-$ acc config default-template haskell
+$ npx acc config default-template haskell
 ----
 
 Add `haskell` template:
 
 [source,sh]
 ----
-$ bash -c 'ln -s "$(pwd)/haskell" "$(acc config-dir)"'
+$ bash -c 'ln -s "$(pwd)/haskell" "$(npx acc config-dir)"'
 ----
 
 == Language server support
 
-You do need the language server support! If it's working, it's great. If not, make sure that
+You do need the language server support! If it's not working, check out the following steps.
 
-1. Your GHC / HLS versions are correct (GHC 8.8.3, HLS 1.5.1).
+=== Installation
 
-2. HLS runs with the root directory `abc-278` (for example), not `abc-hs`.
-I'm using `.projectile` file for indicating the root directory for Emacs. You might another file
-(e.g. you might have to run `git init`) depending on your editor?
+Your have to have GHC 8.8.3 and HLS 1.5.1 in your `PATH`.
 
-3. Make sure you have correct `package.yaml` with a correct `exectuables` section.
+- Install the corresponding versions of packages:
+  - Use GHCup to download the required GHC and HLS.
+   - On NixOS, WIP..
+#  - On NixOS, compile GHC 8.8.3 using {ghcs-nix}, download
+#    https://github.com/haskell/haskell-language-server/releases/tag/1.5.1[HLS 1.5.1] and download
+#    stack.
+- Use {direnv} to overwrite your binaries in your `PATH`.
 
-4. Make sure you have `hie.yaml`, which can be generated with [implicit-hie](https://hackage.haskell.org/package/implicit-hie).
+=== Project detection
+
+HLS have to run with the root directory `abc-278` (for example), not `abc-hs`.
+
+I'm using `.projectile` file for indicating the root directory for Emacs. You might need another
+file or hack depending on your editor.
+
+=== Proiject files
+
+- Make sure you have correct `package.yaml` with a correct `exectuables` section.
+- Make sure you have `hie.yaml`, which can be generated with {implicit-hie}.
 
