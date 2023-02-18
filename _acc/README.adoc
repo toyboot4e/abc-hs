@@ -16,7 +16,7 @@ Install {acc} and {oj}:
 ----
 $ # I use local install (for NixOS):
 $ npm install atcoder-cli
-$ pip3 install online-judge-tools
+$ python3 -m pip install online-judge-tools
 ----
 
 == Configuration
