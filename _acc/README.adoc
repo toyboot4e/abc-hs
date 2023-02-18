@@ -6,7 +6,7 @@
 :ghcup: https://www.haskell.org/ghcup/[GHCup]
 :implicit-hie: https://hackage.haskell.org/package/implicit-hie[implicit-hie]
 
-The configuration files are located at `nix acc config-dir`.
+The configuration files are located at `npx acc config-dir`.
 
 == Installation
 
