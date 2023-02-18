@@ -15,5 +15,11 @@ cradle:
     - path: "./e/Main.hs"
       component: "abc261:exe:e-exe"
 
+    - path: "./ex/Main.hs"
+      component: "abc261:exe:ex-exe"
+
     - path: "./f/Main.hs"
       component: "abc261:exe:f-exe"
+
+    - path: "./g/Main.hs"
+      component: "abc261:exe:g-exe"

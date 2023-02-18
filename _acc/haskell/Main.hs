@@ -625,11 +625,20 @@ type IHeap = H.Heap IHeapEntry
 -- | Int entry (priority, payload) where priority = cost, payload = vertex
 type IHeapEntry = H.Entry Int Int
 
-getTuple2 :: IO (Int, Int)
-getTuple2 = map (\[a, b] -> (a, b)) <$> getLineIntList
+tuple2 :: [Int] -> (Int, Int)
+tuple2 [a, b] = (a, b)
+tuple2 _ = error "not a two-item list"
 
-getTuple3 :: IO (Int, Int)
-getTuple3 = map (\[a, b] -> (a, b)) <$> getLineIntList
+tuple3 :: [Int] -> (Int, Int, Int)
+tuple3 [a, b, c] = (a, b, c)
+tuple3 _ = error "not a three-item list"
+
+getTuple2 :: IO (Int, Int)
+getTuple2 = tuple2 <$> getLineIntList
+
+getTuple3 :: IO (Int, Int, Int)
+getTuple3 = tuple3 <$> getLineIntList
+
 
 -- Creates array-based graph
 genGraph :: Int -> [(Int, a)] -> Array Int [a]
