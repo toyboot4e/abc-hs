@@ -80,6 +80,7 @@ import qualified Data.Ix.Enum as IxEnum
 -- vector: https://www.stackage.org/lts-16.11/package/vector-0.12.1.2
 import qualified Data.Vector.Fusion.Bundle as VFB
 import qualified Data.Vector.Generic as VG
+import qualified Data.Vector.Generic.Mutable as VGM
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Vector.Unboxed.Mutable as VUM
 import qualified Data.Vector as V
@@ -136,6 +137,16 @@ combinations len elements = comb len (length elements) elements
       | n == r = [a]
       | otherwise = map (x :) (comb (r - 1) (n - 1) xs) ++ comb r (n - 1) xs
     comb _ _ _ = error "unreachable"
+
+prevPermutationVec :: (Num e, Ord e, VG.Vector v e) => v e -> v e
+prevPermutationVec =
+  VG.map negate
+    . VG.modify
+      ( \vec -> do
+          _ <- VGM.nextPermutation vec
+          return ()
+      )
+    . VG.map negate
 
 -- }}}
 
@@ -563,11 +574,19 @@ getLineIntList = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 getLineIntVec :: IO (VU.Vector Int)
 getLineIntVec = VU.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 
-getLineIntVecSorted :: IO (VU.Vector Int)
-getLineIntVecSorted = VU.modify VAI.sort <$> getLineIntVec
+tuple2 :: [Int] -> (Int, Int)
+tuple2 [a, b] = (a, b)
+tuple2 _ = error "not a two-item list"
 
-getLineIntVecSortedDown :: IO (VU.Vector Int)
-getLineIntVecSortedDown = VU.modify (VAI.sortBy (comparing Down)) <$> getLineIntVec
+tuple3 :: [Int] -> (Int, Int, Int)
+tuple3 [a, b, c] = (a, b, c)
+tuple3 _ = error "not a three-item list"
+
+getTuple2 :: IO (Int, Int)
+getTuple2 = tuple2 <$> getLineIntList
+
+getTuple3 :: IO (Int, Int, Int)
+getTuple3 = tuple3 <$> getLineIntList
 
 {-# INLINE vLength #-}
 vLength :: (VG.Vector v e) => v e -> Int
@@ -624,21 +643,6 @@ type IHeap = H.Heap IHeapEntry
 
 -- | Int entry (priority, payload) where priority = cost, payload = vertex
 type IHeapEntry = H.Entry Int Int
-
-tuple2 :: [Int] -> (Int, Int)
-tuple2 [a, b] = (a, b)
-tuple2 _ = error "not a two-item list"
-
-tuple3 :: [Int] -> (Int, Int, Int)
-tuple3 [a, b, c] = (a, b, c)
-tuple3 _ = error "not a three-item list"
-
-getTuple2 :: IO (Int, Int)
-getTuple2 = tuple2 <$> getLineIntList
-
-getTuple3 :: IO (Int, Int, Int)
-getTuple3 = tuple3 <$> getLineIntList
-
 
 -- Creates array-based graph
 genGraph :: Int -> [(Int, a)] -> Array Int [a]
