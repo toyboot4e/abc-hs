@@ -138,15 +138,15 @@ combinations len elements = comb len (length elements) elements
       | otherwise = map (x :) (comb (r - 1) (n - 1) xs) ++ comb r (n - 1) xs
     comb _ _ _ = error "unreachable"
 
-prevPermutationVec :: (Num e, Ord e, VG.Vector v e) => v e -> v e
+prevPermutationVec :: (Ord e, VG.Vector v e, VG.Vector v (Down e)) => v e -> v e
 prevPermutationVec =
-  VG.map negate
+  VG.map (\case Down x -> x)
     . VG.modify
       ( \vec -> do
           _ <- VGM.nextPermutation vec
           return ()
       )
-    . VG.map negate
+    . VG.map Down
 
 -- }}}
 
