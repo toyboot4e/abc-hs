@@ -1,5 +1,5 @@
 system-ghc: true
-resolver: lts-16.11
+resolver: lts-16.31
 packages:
 - .
 # extra-deps:

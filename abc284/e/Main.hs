@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
-{- stack script --resolver lts-16.11
+{- stack script --resolver lts-16.31
 --package array --package bytestring --package containers
 --package hashable --package unordered-containers --package heaps
 --package vector --package vector-algorithms --package primitive --package transformers

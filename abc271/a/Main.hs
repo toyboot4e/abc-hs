@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
--- stack script --resolver lts-16.11 --package bytestring --package vector --package containers --package array
+-- stack script --resolver lts-16.31 --package bytestring --package vector --package containers --package array
 
 -- {{{ Imports
 {-# LANGUAGE BangPatterns #-}
@@ -25,11 +25,11 @@ import Text.Printf
 
 {- ORMOLU_DISABLE -}
 
--- bytestring: https://www.stackage.org/lts-16.11/package/bytestring-0.10.10.0
+-- bytestring: https://www.stackage.org/lts-16.31/package/bytestring-0.10.10.0
 import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Char8 as BS
 
--- vector: https://www.stackage.org/lts-16.11/package/vector-0.12.1.2
+-- vector: https://www.stackage.org/lts-16.31/package/vector-0.12.1.2
 import qualified Data.Vector.Fusion.Bundle as VFB
 import qualified Data.Vector.Generic as VG
 import qualified Data.Vector.Unboxed as VU
@@ -37,7 +37,7 @@ import qualified Data.Vector.Unboxed.Mutable as VUM
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as VM
 
--- containers: https://www.stackage.org/lts-16.11/package/containers-0.6.2.1
+-- containers: https://www.stackage.org/lts-16.31/package/containers-0.6.2.1
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Map.Strict as M
 

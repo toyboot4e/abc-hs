@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
-{- stack script --resolver lts-16.11
+{- stack script --resolver lts-16.31
 --package array --package bytestring --package containers --package extra
 --package hashable --package unordered-containers --package heaps --package utility-ht
 --package vector --package vector-th-unbox --package vector-algorithms --package primitive
@@ -62,22 +62,22 @@ import Data.Array.Unsafe
 
 import qualified Data.Array as A
 
--- bytestring: https://www.stackage.org/lts-16.11/package/bytestring-0.10.10.0
+-- bytestring: https://www.stackage.org/lts-16.31/package/bytestring-0.10.10.0
 import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Char8 as BS
 
--- extra: https://www.stackage.org/lts-16.11/package/extra-1.7.6
+-- extra: https://www.stackage.org/lts-16.31/package/extra-1.7.6
 import Control.Monad.Extra -- foldM, ..
 import Data.IORef.Extra    -- writeIORef'
 import Data.List.Extra     -- merge, nubSort, ..
 import Data.Tuple.Extra hiding (first, second)
 import Numeric.Extra       -- showDP, intToFloat, ..
 
--- utility-ht: https://www.stackage.org/lts-16.11/package/utility-ht-0.0.15
+-- utility-ht: https://www.stackage.org/lts-16.31/package/utility-ht-0.0.15
 import Data.Bool.HT  -- if', ..
 import qualified Data.Ix.Enum as IxEnum
 
--- vector: https://www.stackage.org/lts-16.11/package/vector-0.12.1.2
+-- vector: https://www.stackage.org/lts-16.31/package/vector-0.12.1.2
 import qualified Data.Vector.Fusion.Bundle as VFB
 import qualified Data.Vector.Generic as VG
 import qualified Data.Vector.Generic.Mutable as VGM
@@ -86,14 +86,14 @@ import qualified Data.Vector.Unboxed.Mutable as VUM
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as VM
 
--- vector-algorithms: https://www.stackage.org/haddock/lts-16.11/vector-algorithms-0.8.0.3/Data-Vector-Algorithms-Intro.html
+-- vector-algorithms: https://www.stackage.org/haddock/lts-16.31/vector-algorithms-0.8.0.3/Data-Vector-Algorithms-Intro.html
 import qualified Data.Vector.Algorithms.Intro as VAI
 import qualified Data.Vector.Algorithms.Search as VAS
 
--- vector-th-unbox: https://www.stackage.org/lts-16.11/package/vector-th-unbox-0.2.1.7
+-- vector-th-unbox: https://www.stackage.org/lts-16.31/package/vector-th-unbox-0.2.1.7
 import Data.Vector.Unboxed.Deriving (derivingUnbox)
 
--- containers: https://www.stackage.org/lts-16.11/package/containers-0.6.2.1
+-- containers: https://www.stackage.org/lts-16.31/package/containers-0.6.2.1
 import qualified Data.Graph as G
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Map.Strict as M
@@ -101,13 +101,13 @@ import qualified Data.IntSet as IS
 import qualified Data.Set as S
 import qualified Data.Sequence as Seq
 
--- heaps: https://www.stackage.org/haddock/lts-16.11/heaps-0.3.6.1/Data-Heap.html
+-- heaps: https://www.stackage.org/haddock/lts-16.31/heaps-0.3.6.1/Data-Heap.html
 import qualified Data.Heap as H
 
--- hashable: https://www.stackage.org/lts-16.11/package/hashable-1.3.0.0
+-- hashable: https://www.stackage.org/lts-16.31/package/hashable-1.3.0.0
 import Data.Hashable
 
--- unordered-containers: https://www.stackage.org/haddock/lts-16.11/unordered-containers-0.2.10.0
+-- unordered-containers: https://www.stackage.org/haddock/lts-16.31/unordered-containers-0.2.10.0
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 
