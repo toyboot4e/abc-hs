@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+acc='npx acc'
+
 cd "$1"
-acc submit -s -- -y
+$acc submit -s -- -y
 
