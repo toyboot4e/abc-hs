@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
-{- stack script --resolver lts-16.31
+{- stack script --resolver lts-16.11
 --package array --package bytestring --package containers --package extra
 --package hashable --package unordered-containers --package heaps --package utility-ht
 --package vector --package vector-th-unbox --package vector-algorithms --package primitive
@@ -62,38 +62,37 @@ import Data.Array.Unsafe
 
 import qualified Data.Array as A
 
--- bytestring: https://www.stackage.org/lts-16.31/package/bytestring-0.10.10.0
+-- bytestring: https://www.stackage.org/lts-16.11/package/bytestring-0.10.10.0
 import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Char8 as BS
 
--- extra: https://www.stackage.org/lts-16.31/package/extra-1.7.6
+-- extra: https://www.stackage.org/lts-16.11/package/extra-1.7.6
 import Control.Monad.Extra -- foldM, ..
 import Data.IORef.Extra    -- writeIORef'
 import Data.List.Extra     -- merge, nubSort, ..
-import Data.Tuple.Extra hiding (first, second)
+import Data.Tuple.Extra (dupe, both)
 import Numeric.Extra       -- showDP, intToFloat, ..
 
--- utility-ht: https://www.stackage.org/lts-16.31/package/utility-ht-0.0.15
+-- utility-ht: https://www.stackage.org/lts-16.11/package/utility-ht-0.0.15
 import Data.Bool.HT  -- if', ..
 import qualified Data.Ix.Enum as IxEnum
 
--- vector: https://www.stackage.org/lts-16.31/package/vector-0.12.1.2
+-- vector: https://www.stackage.org/lts-16.11/package/vector-0.12.1.2
 import qualified Data.Vector.Fusion.Bundle as VFB
 import qualified Data.Vector.Generic as VG
-import qualified Data.Vector.Generic.Mutable as VGM
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Vector.Unboxed.Mutable as VUM
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as VM
 
--- vector-algorithms: https://www.stackage.org/haddock/lts-16.31/vector-algorithms-0.8.0.3/Data-Vector-Algorithms-Intro.html
+-- vector-algorithms: https://www.stackage.org/haddock/lts-16.11/vector-algorithms-0.8.0.3/Data-Vector-Algorithms-Intro.html
 import qualified Data.Vector.Algorithms.Intro as VAI
 import qualified Data.Vector.Algorithms.Search as VAS
 
--- vector-th-unbox: https://www.stackage.org/lts-16.31/package/vector-th-unbox-0.2.1.7
+-- vector-th-unbox: https://www.stackage.org/lts-16.11/package/vector-th-unbox-0.2.1.7
 import Data.Vector.Unboxed.Deriving (derivingUnbox)
 
--- containers: https://www.stackage.org/lts-16.31/package/containers-0.6.2.1
+-- containers: https://www.stackage.org/lts-16.11/package/containers-0.6.2.1
 import qualified Data.Graph as G
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Map.Strict as M
@@ -101,13 +100,13 @@ import qualified Data.IntSet as IS
 import qualified Data.Set as S
 import qualified Data.Sequence as Seq
 
--- heaps: https://www.stackage.org/haddock/lts-16.31/heaps-0.3.6.1/Data-Heap.html
+-- heaps: https://www.stackage.org/haddock/lts-16.11/heaps-0.3.6.1/Data-Heap.html
 import qualified Data.Heap as H
 
--- hashable: https://www.stackage.org/lts-16.31/package/hashable-1.3.0.0
+-- hashable: https://www.stackage.org/lts-16.11/package/hashable-1.3.0.0
 import Data.Hashable
 
--- unordered-containers: https://www.stackage.org/haddock/lts-16.31/unordered-containers-0.2.10.0
+-- unordered-containers: https://www.stackage.org/haddock/lts-16.11/unordered-containers-0.2.10.0
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 
@@ -137,16 +136,6 @@ combinations len elements = comb len (length elements) elements
       | n == r = [a]
       | otherwise = map (x :) (comb (r - 1) (n - 1) xs) ++ comb r (n - 1) xs
     comb _ _ _ = error "unreachable"
-
-prevPermutationVec :: (Ord e, VG.Vector v e, VG.Vector v (Down e)) => v e -> v e
-prevPermutationVec =
-  VG.map (\case Down x -> x)
-    . VG.modify
-      ( \vec -> do
-          _ <- VGM.nextPermutation vec
-          return ()
-      )
-    . VG.map Down
 
 -- }}}
 
@@ -574,19 +563,11 @@ getLineIntList = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 getLineIntVec :: IO (VU.Vector Int)
 getLineIntVec = VU.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 
-tuple2 :: [Int] -> (Int, Int)
-tuple2 [a, b] = (a, b)
-tuple2 _ = error "not a two-item list"
+getLineIntVecSorted :: IO (VU.Vector Int)
+getLineIntVecSorted = VU.modify VAI.sort <$> getLineIntVec
 
-tuple3 :: [Int] -> (Int, Int, Int)
-tuple3 [a, b, c] = (a, b, c)
-tuple3 _ = error "not a three-item list"
-
-getTuple2 :: IO (Int, Int)
-getTuple2 = tuple2 <$> getLineIntList
-
-getTuple3 :: IO (Int, Int, Int)
-getTuple3 = tuple3 <$> getLineIntList
+getLineIntVecSortedDown :: IO (VU.Vector Int)
+getLineIntVecSortedDown = VU.modify (VAI.sortBy (comparing Down)) <$> getLineIntVec
 
 {-# INLINE vLength #-}
 vLength :: (VG.Vector v e) => v e -> Int
@@ -634,27 +615,6 @@ decrementMS k (n, im) =
 -- {{{ Graph
 
 type Graph = Array Int [Int]
-
--- | Weighted graph (Entry priority payload)
-type WGraph = Array Int [IHeapEntry]
-
--- | Int heap
-type IHeap = H.Heap IHeapEntry
-
--- | Int entry (priority, payload) where priority = cost, payload = vertex
-type IHeapEntry = H.Entry Int Int
-
--- Creates array-based graph
-genGraph :: Int -> [(Int, a)] -> Array Int [a]
-genGraph nVerts input = accumArray @Array (flip (:)) [] (1 :: Int, nVerts) input
-
--- Get simple graph
-getGraph :: (Int, Int) -> IO Graph
-getGraph (nVerts, nEdges) = genGraph nVerts . concatMap (\[a, b] -> [(a, b), (b, a)]) <$> replicateM nEdges getLineIntList
-
--- Get weightend graph
-getWGraph :: (Int, Int) -> IO WGraph
-getWGraph (nVerts, nEdges) = genGraph nVerts . concatMap (\[a, b, cost] -> [(a, H.Entry cost b), (b, H.Entry cost a)]) <$> replicateM nEdges getLineIntList
 
 dfsEveryVertex :: forall s. (s -> Bool, s -> Int -> s, s -> Int -> s) -> Graph -> Int -> s -> (s, IS.IntSet)
 dfsEveryVertex (isEnd, fin, fout) graph start s0 = visitNode (s0, IS.empty) start
@@ -717,24 +677,35 @@ bfsFind !f !graph !start =
             (Nothing, IS.empty)
             nbsList
 
+-- | Weighted graph (Entry priority payload)
+type WGraph = Array Int [IHeapEntry]
+
+-- | Int heap
+type IHeap = H.Heap IHeapEntry
+
+-- | Int entry
+type IHeapEntry = H.Entry Int Int
+
 dijkstra :: forall s. (s -> IHeapEntry -> s) -> s -> WGraph -> Int -> s
-dijkstra !f s0 !graph !start = fst3 $ visitRec (s0, IS.empty, H.singleton $ H.Entry 0 start)
+dijkstra !f s0 !graph !start =
+  let (s, _, _) = visitRec (s0, IS.empty, H.singleton $ H.Entry 0 start)
+   in s
   where
     visitRec :: (s, IS.IntSet, IHeap) -> (s, IS.IntSet, IHeap)
-    visitRec (!s, !visits, !heap) =
-      case H.uncons heap of
-        Just (x, heap') ->
+    visitRec (!s, !visits, !nbs) =
+      case H.uncons nbs of
+        Just (x, nbs') ->
           if IS.member (H.payload x) visits
-            then visitRec (s, visits, heap')
-            else visitRec $ visitNode (s, visits, heap') x
-        Nothing -> (s, visits, heap)
+            then visitRec (s, visits, nbs')
+            else visitRec $ visitNode (s, visits, nbs') x
+        Nothing -> (s, visits, nbs)
 
     visitNode :: (s, IS.IntSet, IHeap) -> IHeapEntry -> (s, IS.IntSet, IHeap)
-    visitNode (!s, !visits, !heap) entry@(H.Entry cost x) =
+    visitNode (!s, !visits, !nbs) entry@(H.Entry cost x) =
       let visits' = IS.insert x visits
           news = H.fromList . map (first (cost +)) . filter p $ graph ! x
           p = not . (`IS.member` visits') . H.payload
-       in (f s entry, visits', H.union heap news)
+       in (f s entry, visits', H.union nbs news)
 
 -- }}}
 
@@ -821,7 +792,7 @@ invModF d modulus = invModFC modulus (powerModCache d modulus)
 -- | 1/d = d^{p-2} (mod p) <=> d^p = d (mod p)
 -- |   where the modulus is a prime number and `x` is not a mulitple of `p`
 divModF :: Int -> Int -> Int -> Int
-divModF x d modulus = divModFC x (powerModCache d modulus) `rem` modulus
+divModF x d modulus = x * divModFC x (powerModCache d modulus) `rem` modulus
 
 -- | Cache of base^i for iterative square method
 powerModCache :: Int -> Int -> (Int, VU.Vector Int)
@@ -854,7 +825,19 @@ divModFC x context@(modulus, _) = x * invModFC modulus context `rem` modulus
 
 main :: IO ()
 main = do
-  [n] <- getLineIntList
-  xs <- getLineIntVec
+  [n, m] <- getLineIntList
+  bitsets <- VU.replicateM m $ do
+    _ <- getLine
+    foldl1' (.|.) . map (\i -> 2 ^ (i - 1)) <$> getLineIntList :: IO Int
 
-  print "TODO"
+  let input = [(1 :: Int) .. 2 ^ m - 1]
+  let result = length . filter (== (2 ^ n - 1)) $ map f input
+      f :: Int -> Int
+      f bits =
+        -- let !_ = traceShow (bits) () in
+        foldl1' (.|.) bitsets'
+        where
+          bitsets' :: [Int]
+          bitsets' = map (\i -> bitsets VU.! i) $ filter (testBit bits) [(0 :: Int) .. m - 1]
+
+  print result
