@@ -6,6 +6,9 @@
 --package transformers
 -}
 
+-- Using GHC 8.8.4 on my local machine, just for HLS 1.8.0.0
+{-# OPTIONS_GHC -O2 #-}
+
 {- TODOs
 - [ ] Graph
   - [ ] components
@@ -13,8 +16,8 @@
   - [ ] better DFS, better BFS
 - [ ] More graph algorithms
 -}
-
 {- ORMOLU_DISABLE -}
+
 {-# LANGUAGE BangPatterns, BlockArguments, LambdaCase, MultiWayIf, PatternGuards, TupleSections #-}
 {-# LANGUAGE NumDecimals, NumericUnderscores #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, ScopedTypeVariables #-}
@@ -110,6 +113,9 @@ import Data.Hashable
 -- unordered-containers: https://www.stackage.org/haddock/lts-16.31/unordered-containers-0.2.10.0
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
+
+-- TODO: mono-traverse
+-- TODO: mutable-containers
 
 {- ORMOLU_ENABLE -}
 
@@ -566,7 +572,7 @@ traceMat2D mat ys xs =
 
 -- }}}
 
--- {{{ Misc
+-- {{{ Input / output
 
 getLineIntList :: IO [Int]
 getLineIntList = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
@@ -587,6 +593,10 @@ getTuple2 = tuple2 <$> getLineIntList
 
 getTuple3 :: IO (Int, Int, Int)
 getTuple3 = tuple3 <$> getLineIntList
+
+-- }}}
+
+-- {{{ Misc
 
 {-# INLINE vLength #-}
 vLength :: (VG.Vector v e) => v e -> Int
@@ -852,16 +862,33 @@ divModFC x context@(modulus, _) = x * invModFC modulus context `rem` modulus
 -- ord 'A' == 65
 -- indexString = map (subtract 65 . ord)
 
-solve :: Int -> Int -> Int -> IO Int
-solve n k t = do
-  let x = (0 + d) `rem` n
-  return 0
+solve :: Int -> Int -> Int -> Int
+solve n _d 1 =
+  -- catch zero division cases!
+  -- let !_ = traceShow ("A") () in
+  0
+solve 0 _ _ =
+  -- catch zero division cases!
+  -- let !_ = traceShow ("B") () in
+  0
+solve n _d _k
+  -- catch zero division cases!
+  | d == 0 = k
+  | otherwise =
+    let k = pred _k
+        cycle = lcm n d `div` d
+        (nCycle, nRem) = k `quotRem` cycle
+        -- REMARK: 0^n == 1, so use branch
+        offset = if nRem == 0 then 0 else d * nRem `rem` n
+     in -- !_ = traceShow ((n, d, k), lcm n d, (nCycle, nRem), offset) ()
+        nCycle + offset
+  where
+    d = _d `rem` n
+    k = pred _k
 
 main :: IO ()
 main = do
   [nTests] <- getLineIntList
   tests <- replicateM nTests (tuple3 <$> getLineIntList)
 
-  forM_ tests $ \test -> do
-    result <- uncurry3 solve test
-    print result
+  forM_ tests (print . uncurry3 solve)

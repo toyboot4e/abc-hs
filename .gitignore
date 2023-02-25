@@ -1,2 +1,7 @@
 **/.stack-work
+**/stack.yaml
 
+Main
+Main.dyn_hi
+Main.dyn_i
+Main.hi
