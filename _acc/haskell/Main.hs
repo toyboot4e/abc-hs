@@ -598,15 +598,10 @@ type STUnionFind s = MUnionFind s
 -- | `MUFChild parent | MUFRoot size`. Not `Unbox` :(
 data MUFNode = MUFChild {-# UNPACK #-} !Int | MUFRoot {-# UNPACK #-} !Int
 
-_mufrepr1 :: MUFNode -> (Bool, Int)
-_mufrepr1 (MUFChild x) = (True, x)
-_mufrepr1 (MUFRoot x) = (False, x)
-
-_mufrepr2 :: (Bool, Int) -> MUFNode
-_mufrepr2 (True, x) = MUFChild x
-_mufrepr2 (False, x) = MUFRoot x
-
-derivingUnbox "MUFNode" [t|MUFNode -> (Bool, Int)|] [|_mufrepr1|] [|_mufrepr2|]
+derivingUnbox "MUFNode"
+  [t|MUFNode -> (Bool, Int)|]
+  [|\case (MUFChild x) -> (True, x)  ; (MUFRoot x) -> (False, x)|]
+  [|\case (True, x) -> MUFChild x; (False, x) -> MUFRoot x|]
 
 -- | Creates a new Union-Find tree of the given size.
 {-# INLINE newMUF #-}
