@@ -11,7 +11,13 @@
   - [ ] components
   - [ ] cycles
   - [ ] better DFS, better BFS
-- [ ] More graph algorithms
+  - [ ] minimum spanning tree template
+  - [ ] trying minimum cut / bibartite matching problems
+
+- [ ] More
+  - [ ] Chokudai Speedrun001, 002
+  - [ ] EDCP
+  - [ ] tessoku A, B (again)
 -}
 
 {- ORMOLU_DISABLE -}
@@ -43,6 +49,7 @@ import Data.IORef
 import Data.List
 import Data.Maybe
 import Data.Ord
+import Data.Word
 import Debug.Trace
 import GHC.Event (IOCallback)
 import GHC.Exts
@@ -75,7 +82,8 @@ import Numeric.Extra       -- showDP, intToFloat, ..
 
 -- utility-ht: https://www.stackage.org/lts-16.11/package/utility-ht-0.0.15
 import Data.Bool.HT  -- if', ..
-import qualified Data.Ix.Enum as IxEnum
+import qualified Data.Ix.Enum as HT
+import qualified Data.List.HT as HT -- `groupBy`, but with adjacent elements
 
 -- vector: https://www.stackage.org/lts-16.11/package/vector-0.12.1.2
 import qualified Data.Vector.Fusion.Bundle as VFB
@@ -112,6 +120,24 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 
 {- ORMOLU_ENABLE -}
+
+-- }}}
+
+-- {{{ Libary complements
+
+{-# INLINE vLength #-}
+vLength :: (VG.Vector v e) => v e -> Int
+vLength = VFB.length . VG.stream
+
+{-# INLINE vRange #-}
+vRange :: Int -> Int -> VU.Vector Int
+vRange i j = VU.enumFromN i (j + 1 - i)
+
+-- NOTE: We can only lookup by priority (cost), not by payload (vertex)
+lookupHeapEntry :: Int -> H.Heap (H.Entry Int Int) -> Maybe (H.Entry Int Int)
+lookupHeapEntry key heap =
+  let h = H.intersect heap (H.singleton $ H.Entry key (0 :: Int))
+   in if' (H.null h) Nothing $ Just (H.minimum h)
 
 -- }}}
 
@@ -184,12 +210,14 @@ getLineIntList = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 getLineIntVec :: IO (VU.Vector Int)
 getLineIntVec = VU.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 
+-- | Creates a graph from 1-based vertices
 getGraph :: Int -> Int -> IO (Array Int [Int])
 getGraph !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges getLineIntList
   where
     accGraph = accumArray @Array (flip (:)) [] (1, nVerts)
     toInput = concatMap2 $ second swap . dupe . tuple2
 
+-- | Creates a weightend graph from 1-based vertices
 getWGraph :: Int -> Int -> IO (Array Int [H.Entry Int Int])
 getWGraph !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges getLineIntList
   where
@@ -205,6 +233,12 @@ putBSB = BSB.hPutBuilder stdout
 
 printBSB :: ShowBSB a => a -> IO ()
 printBSB = putBSB . showBSB
+
+-- ord8 :: Char -> Word8
+-- ord8 = fromIntegral . fromEnum
+--
+-- chr8 :: Word8 -> Char
+-- chr8 = toEnum . fromIntegral
 
 -- | Show as a bytestring builder
 class ShowBSB a where
@@ -223,8 +257,6 @@ instance ShowBSB Float where
 
 instance ShowBSB Double where
   showBSB = BSB.doubleDec
-
--- TODO: String -> ByteString here (or not)?
 
 printMat2D :: (IArray a e, Ix i, Show [e]) => a (i, i) e -> (i, i) -> (i, i) -> IO ()
 printMat2D mat ys xs = do
@@ -430,6 +462,12 @@ invModFC primeModulus = powerByCache (primeModulus - 2)
 divModFC :: Int -> (Int, VU.Vector Int) -> Int
 divModFC x context@(modulus, _) = x * invModFC modulus context `rem` modulus
 
+-- | nCr `mod` m (binominal cofficient)
+bcMod :: Int -> Int -> Int -> Int
+bcMod n r modulus = foldl' (\x y -> divModF x y modulus) (facts VU.! n) [facts VU.! r, facts VU.! (n - r)]
+  where
+    facts = VU.scanl' (\x y -> x * y `rem` modulus) (1 :: Int) $ VU.fromList [(1 :: Int) .. 1_000_000]
+
 -- }}}
 
 -- {{{ Multiset
@@ -462,14 +500,6 @@ decrementMS k (n, im) =
 -- }}}
 
 -- {{{ Misc utilities
-
-{-# INLINE vLength #-}
-vLength :: (VG.Vector v e) => v e -> Int
-vLength = VFB.length . VG.stream
-
-{-# INLINE vRange #-}
-vRange :: Int -> Int -> VU.Vector Int
-vRange i j = VU.enumFromN i (j + 1 - i)
 
 -- | From more recent GHC
 clamp :: (Ord a) => (a, a) -> a -> a
