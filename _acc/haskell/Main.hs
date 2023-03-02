@@ -923,6 +923,125 @@ dijkstra !f s0 !graph !start = fst3 $ visitRec (s0, IS.empty, H.singleton $ H.En
           p = not . (`IS.member` visits') . H.payload
        in (f s entry, visits', H.union heap news)
 
+-- | Edge in residual network from on vertex to another.
+data RNEdge = RNEdge
+  { -- | Points the the other side of the edge
+    to :: {-# UNPACK #-} !G.Vertex,
+    -- | Capacity of the edge, or the flow from the vertex to another
+    cap :: {-# UNPACK #-} !Int,
+    -- | The other side of the vertices is pointed with `rn ! (rev (rn ! to))`
+    -- | so that edge insertion takes just $O(1)$.
+    rev :: {-# UNPACK #-} !Int
+  }
+  deriving (Show)
+
+derivingUnbox
+  "RNEdge"
+  [t|RNEdge -> (G.Vertex, Int, Int)|]
+  [|\(RNEdge x1 x2 x3) -> (x1, x2, x3)|]
+  [|\(x1, x2, x3) -> RNEdge x1 x2 x3|]
+
+-- | `Vertex` -> `[RNEdge]`
+-- TODO: For the container, use `MVector`, not array
+-- TODO: For the sub containers, `Sequence` or something better here
+type ResidualNetwork a = a G.Vertex (IM.IntMap RNEdge)
+
+-- | Builds a residual network at initial state.
+-- {-# INLINE buildRN #-}
+-- TODO: make it generic over ST.. for no reason?
+buildRN :: Int -> [(Int, (Int, Int))] -> IO (ResidualNetwork IOArray)
+buildRN nVerts edges = do
+  rn <- newArray (0, pred nVerts) IM.empty
+  -- TODO: consider using `VU.accumlate` instead?
+  forM_ edges $ \(v1, (v2, cap)) -> do
+    addEdgeRN rn v1 v2 cap
+  return rn
+
+  where
+    addEdgeRN :: ResidualNetwork IOArray -> Int -> Int -> Int -> IO ()
+    addEdgeRN rn v1 v2 maxFlow = do
+      -- TODO: Use `VUM.modify`
+      edges1 <- readArray rn v1
+      edges2 <- readArray rn v2
+
+      -- REMARK: Be sure to use `insertWith`!
+      -- We can have both (v1 -> v2) path and (v2 -> v1) path
+
+      -- We can run up to `maxFlow`:
+      writeArray rn v1 $ IM.insertWith mergeEdge v2 (RNEdge v2 maxFlow v1) edges1
+      -- We cannot reverse when there's no flow:
+      writeArray rn v2 $ IM.insertWith mergeEdge v1 (RNEdge v1 0 v2) edges2
+
+    mergeEdge :: RNEdge -> RNEdge -> RNEdge
+    mergeEdge (RNEdge to flow cap) (RNEdge _ flow' _) = RNEdge to (flow + flow') cap
+
+-- | Find a flow augment path between two vertices
+-- {-# INLINE maxFlowRN #-}
+maxFlowRN :: Int -> ResidualNetwork IOArray -> Int -> Int -> IO Int
+maxFlowRN nVerts rn v0 ve = do
+  -- TODO: use BitVec in 2023 environment
+  vis <- VUM.replicate nVerts False
+  loop vis v0 ve
+  where
+    loop :: VUM.IOVector Bool -> Int -> Int -> IO Int
+    loop vis v0 ve = do
+      flow <- dfsM vis v0 ve (maxBound @Int)
+      -- let !_ = traceShow (flow) ()
+      case flow of
+        Nothing -> return 0
+        Just flow | flow <= 0 -> error "maxFlowRN bug"
+        Just flow -> do
+          forM_ [0 .. pred (VUM.length vis)] $ \i -> do
+            VUM.write vis i False
+          (+ flow) <$> loop vis v0 ve
+
+    dfsM :: VUM.IOVector Bool -> Int -> Int -> Int -> IO (Maybe Int)
+    dfsM _ v goal flow | v == goal = return $ Just flow
+    dfsM vis v goal flow = do
+      -- let !_ = traceShow ("v:", v, "flow:", flow) ()
+      VUM.write vis v True
+      edges <- readArray rn v
+
+      -- TODO: perform `foldM` in-place?
+      -- TODO: `MaybeT`, `StateT` or anything any better
+      -- TODO: early return
+      let m :: IO (Maybe Int)
+          m = foldM step Nothing edges
+          step :: Maybe Int -> RNEdge -> IO (Maybe Int)
+          step (Just flow) _ = return $ Just flow
+          step Nothing edge = do
+            -- let !_ = traceShow ("flow:", flow, "v:", v, "edge:", edge) ()
+            -- omg. please FIXME:
+            let b1 = cap edge == 0
+            b2 <- VUM.read vis (to edge)
+            if b1 || b2
+              then return Nothing
+              else do
+                flow <- dfsM vis (to edge) goal (min flow (cap edge))
+                case flow of
+                  Nothing -> return Nothing
+                  Just flow | flow <= 0 -> error "bug in dfsM"
+                  Just flow -> do
+                    -- This function is called recursively, so the edges from the end to the start
+                    -- are all modified:
+                    _addFlowEdgeRN rn v (to edge) flow
+                    return $ Just flow
+
+      m
+
+_addFlowEdgeRN :: ResidualNetwork IOArray -> G.Vertex -> G.Vertex -> Int -> IO ()
+_addFlowEdgeRN rn v1 v2 flow = do
+  -- TODO: consider using `VUM.modify`
+  -- TODO: consider using `lens`, `snd2` (or not)
+  -- TODO: replace `dupe` with function applicative?
+  (edges1, edge12) <- second (IM.! v2) . dupe <$> readArray rn v1
+  (edges2, edge21) <- second (IM.! v1) . dupe <$> readArray rn v2
+  let !_ = traceShow ("edge", "v1:", v1, edge12, "v2:", v2, edge21, flow) ()
+  -- TODO: debugAssert
+  -- when (cap edge12 < flow) $ error "invariant broken"
+  writeArray rn v1 $ IM.insert v2 (RNEdge (to edge12) (cap edge12 - flow) (rev edge12)) edges1
+  writeArray rn v2 $ IM.insert v1 (RNEdge (to edge21) (cap edge21 + flow) (rev edge21)) edges2
+
 -- }}}
 
 -- ord 'a' == 97
