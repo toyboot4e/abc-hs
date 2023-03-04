@@ -8,16 +8,18 @@
 
 {- TODOs
 - [ ] Graph
+  - [ ] better DFS, better BFS
   - [ ] components
   - [ ] cycles
-  - [ ] better DFS, better BFS
-  - [ ] minimum spanning tree template
-  - [ ] trying minimum cut / bibartite matching problems
+  - [ ] minimum cut
 
 - [ ] More
+  - [ ] Tessoku A71~, C11~
+  - [ ] Tessoku graph B
   - [ ] Chokudai Speedrun001, 002
+  - [ ] Tessoku DP
   - [ ] EDCP
-  - [ ] tessoku A, B (again)
+  - [ ] Typical 90
 -}
 
 {- ORMOLU_DISABLE -}
@@ -747,19 +749,20 @@ uniteSUF uf i j
 -- | ```
 data MSegmentTree s a = MSegmentTree (a -> a -> a) (VUM.MVector s a)
 
+-- TODO: Can I UNPACK? the funciton?
 -- TODO: Generic queries and immutable segment tree (with `Show` instance)
 
 -- | Creates a new segment tree for `n` leaves.
-{-# INLINE newTree #-}
-newTree :: (VUM.Unbox a, PrimMonad m) => (a -> a -> a) -> Int -> a -> m (MSegmentTree (PrimState m) a)
-newTree !f !n !value = MSegmentTree f <$> VUM.replicate n' value
+{-# INLINE newSTree #-}
+newSTree :: (VUM.Unbox a, PrimMonad m) => (a -> a -> a) -> Int -> a -> m (MSegmentTree (PrimState m) a)
+newSTree !f !n !value = MSegmentTree f <$> VUM.replicate n' value
   where
     !n' = shiftL (bitCeil n) 1
 
 -- | Updates an `MSegmentTree` leaf value and their parents up to top root.
 {-# INLINE updateLeaf #-}
 updateLeaf :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> a -> m ()
-updateLeaf tree@(MSegmentTree _ vec) !i !value = _updateElement tree i' value
+updateLeaf !tree@(MSegmentTree !_ !vec) !i !value = _updateElement tree i' value
   where
     -- length == 2 * (the number of the leaves)
     !offset = VUM.length vec `div` 2 - 1
@@ -768,7 +771,7 @@ updateLeaf tree@(MSegmentTree _ vec) !i !value = _updateElement tree i' value
 -- | (Internal) Updates an `MSegmentTree` element (node or leaf) value and their parents up to top root.
 {-# INLINE _updateElement #-}
 _updateElement :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> a -> m ()
-_updateElement tree@(MSegmentTree _ vec) !i !value = do
+_updateElement !tree@(MSegmentTree !_ !vec) !i !value = do
   VUM.write vec i value
   _updateParent tree ((i - 1) `div` 2)
 
@@ -777,15 +780,15 @@ _updateElement tree@(MSegmentTree _ vec) !i !value = do
 _updateParent :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> m ()
 _updateParent _ (-1) = pure () -- REMARK: (-1) `div` 2 == -1
 _updateParent _ 0 = pure ()
-_updateParent tree@(MSegmentTree f vec) !iParent = do
+_updateParent !tree@(MSegmentTree !f !vec) !iParent = do
   !c1 <- VUM.read vec (iParent * 2 + 1)
   !c2 <- VUM.read vec (iParent * 2 + 2)
   _updateElement tree iParent (f c1 c2)
 
 -- | Retrieves the folding result over the inclusive range `[l, r]` from `MSegmentTree`.
-{-# INLINE queryByRange #-}
-queryByRange :: forall a m. (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> (Int, Int) -> m a
-queryByRange (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$> loop 0 (0, initialHi)
+{-# INLINE querySTree #-}
+querySTree :: forall a m. (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> (Int, Int) -> m a
+querySTree (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$> loop 0 (0, initialHi)
   where
     !initialHi = VUM.length vec `div` 2 - 1
     loop :: Int -> (Int, Int) -> m (Maybe a)
@@ -793,7 +796,7 @@ queryByRange (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$> loop 0 (0, initial
       | lo <= l && h <= hi = Just <$> VUM.read vec i
       | h < lo || hi < l = pure Nothing
       | otherwise = do
-        let d = (h - l) `div` 2
+        let !d = (h - l) `div` 2
         !ansL <- loop (2 * i + 1) (l, l + d)
         !ansH <- loop (2 * i + 2) (l + d + 1, h)
         pure . Just $ case (ansL, ansH) of
@@ -828,7 +831,7 @@ tabulateST f bounds_ e0 =
 
 -- }}}
 
--- {{{ Graph
+-- {{{ Graph search
 
 -- TODO: rewrite all
 
@@ -883,26 +886,27 @@ bfsFind !f !graph !start =
     else bfsRec 1 (IS.singleton start) (IS.fromList $ graph ! start)
   where
     bfsRec :: Int -> IS.IntSet -> IS.IntSet -> Maybe (Int, Int)
-    bfsRec depth !visits !nbs =
-      let -- !_ = traceShow x ()
-          !visits' = foldl' (flip IS.insert) visits (IS.toList nbs)
-       in let (result, nextNbs) = visitNeighbors nbs
-           in case result of
-                Just x -> Just (depth, x)
-                Nothing -> bfsRec (succ depth) visits' nextNbs
-    visitNeighbors :: IS.IntSet -> (Maybe Int, IS.IntSet)
-    visitNeighbors nbs =
-      let -- !_ = traceShow x ()
-          !nbsList = IS.toList nbs
-       in foldl'
-            ( \(!result, !nbs') !x ->
-                let nbs'' = IS.insert x nbs'
+    bfsRec depth !visits !nbs
+      | IS.null nbs = Nothing
+      | otherwise =
+        let -- !_ = traceShow ("bfsRec", depth, nbs) ()
+            !visits' = IS.union visits nbs
+         in let (result, nextNbs) = visitNeighbors visits' nbs
+             in case result of
+                  Just x -> Just (depth, x)
+                  Nothing -> bfsRec (succ depth) visits' nextNbs
+
+    visitNeighbors :: IS.IntSet -> IS.IntSet -> (Maybe Int, IS.IntSet)
+    visitNeighbors visits !nbs =
+       foldl'
+            ( \(!result, !nbs) !x ->
+                let nbs' = IS.union nbs $ IS.fromList . filter (`IS.notMember` visits) $ graph ! x
                  in if f x
-                      then (Just x, nbs'')
-                      else (result, nbs'')
+                      then (Just x, nbs')
+                      else (result, nbs')
             )
             (Nothing, IS.empty)
-            nbsList
+            (IS.toList nbs)
 
 dijkstra :: forall s. (s -> IHeapEntry -> s) -> s -> WGraph -> Int -> s
 dijkstra !f s0 !graph !start = fst3 $ visitRec (s0, IS.empty, H.singleton $ H.Entry 0 start)
@@ -923,6 +927,125 @@ dijkstra !f s0 !graph !start = fst3 $ visitRec (s0, IS.empty, H.singleton $ H.En
           p = not . (`IS.member` visits') . H.payload
        in (f s entry, visits', H.union heap news)
 
+-- | Red | Green color
+type Color = Bool
+
+-- | Colored vertices in a bipartite graph
+type ColorInfo = ([Int], [Int])
+
+-- | DFS with vertices given colors
+colorize :: Graph -> IM.IntMap Color -> G.Vertex -> (IM.IntMap Color, Maybe ColorInfo)
+colorize graph colors0 = dfs True (colors0, Just ([], []))
+  where
+    dfs :: Color -> (IM.IntMap Color, Maybe ColorInfo) -> G.Vertex -> (IM.IntMap Color, Maybe ColorInfo)
+    dfs color (colors, acc) v =
+      let (colors', acc') = setColor color (colors, acc) v
+       in if IM.member v colors
+            then (colors', acc')
+            else foldl' (dfs (not color)) (colors', acc') $ graph ! v
+
+    setColor :: Color -> (IM.IntMap Color, Maybe ColorInfo) -> G.Vertex -> (IM.IntMap Color, Maybe ColorInfo)
+    setColor color (colors, acc) v =
+      case IM.lookup v colors of
+        Just c
+          | c == color -> (colors, acc)
+          | otherwise -> (colors, Nothing)
+        Nothing -> (IM.insert v color colors, applyColor color v acc)
+
+    applyColor :: Color -> G.Vertex -> Maybe ColorInfo -> Maybe ColorInfo
+    applyColor _ _ Nothing = Nothing
+    applyColor color v (Just acc)
+      | color = Just $ first (v : ) acc
+      | otherwise = Just $ second (v : ) acc
+
+
+-- }}}
+
+-- {{{ Minimum spanning tree (Kruskal's algorithm)
+
+-- Find a minimum spanning tree by eagerly adding the lightest path
+
+-- TODO: add template
+
+-- }}}
+
+-- {{{ Every shortest path (Floyd-Warshall algorithm)
+
+-- Get the shortest path between every pair of the vertices in a weightend graph
+
+-- | Create buffer for the Floyd-Warshapp algorithm
+{-# INLINE newFW #-}
+newFW :: (PrimMonad m, VU.Unbox cost) => (G.Vertex -> cost, cost, cost) -> Int -> [(Int, Int)] -> m (VUM.MVector (PrimState m) cost)
+newFW (!getCost, !zeroCost, !maxCost) !nVerts !edges = do
+  -- REMARK: Boxed array is too slow
+  !dp <- VUM.replicate (nVerts * nVerts) maxCost
+
+  -- diagnonal components
+  forM_ [0 .. pred nVerts] $ \(!v) ->
+    VUM.write dp (ix (v, v)) zeroCost
+
+  -- directly connected vertices
+  forM_ edges $ \(!v1, !v2) -> do
+    -- let !_ = traceShow (v1, v2, values VU.! v2) ()
+    -- (distance, value)
+    let !cost = getCost v2
+    VUM.write dp (ix (v1, v2)) cost
+
+  return dp
+  where
+    ix :: (Int, Int) -> Int
+    ix = index ((0, 0), (nVerts - 1, nVerts - 1))
+
+{-# INLINE runFW #-}
+runFW :: (PrimMonad m, VU.Unbox cost) => (cost -> cost -> cost, cost -> cost -> cost) -> Int -> VUM.MVector (PrimState m) cost -> m ()
+runFW (!mergeCost, !minCost) !nVerts !dp = do
+  let !ve = pred nVerts
+  forM_ (range ((0, 0, 0), (ve, ve, ve))) $ \(!v3, !v1, !v2) -> do
+    !cost1 <- VUM.read dp (ix (v1, v2))
+    !cost2 <- mergeCost <$> VUM.read dp (ix (v1, v3)) <*> VUM.read dp (ix (v3, v2))
+    -- let !_ = traceShow ((v3, v2, v1), cost1, cost2, mergeCost cost1 cost2) ()
+    VUM.write dp (ix (v1, v2)) $ minCost cost1 cost2
+  where
+    ix :: (Int, Int) -> Int
+    ix = index ((0, 0), (nVerts - 1, nVerts - 1))
+
+-- Floyd-Warshall algorithm over `WGraph`
+-- TODO: test it
+-- newFW_W :: (G.Vertex -> Int) -> Int -> [(Int, Int)] -> IO (VUM.IOVector Int)
+-- newFW_W getCost = newFW (getCost, 0 :: Int, maxBound @Int)
+
+--  Floyd-Warshall algorithm over `Graph` + vertex values (see ABC 286 E)
+{-# INLINE newFW_ABC286E #-}
+newFW_ABC286E :: (PrimMonad m) => (G.Vertex -> (Int, Int)) -> Int -> [(Int, Int)] -> m (VUM.MVector (PrimState m) (Int, Int))
+newFW_ABC286E !getCost = newFW (getCost, (0, 0), (maxBound @Int, maxBound @Int))
+
+{-# INLINE runFW_ABC286E #-}
+runFW_ABC286E :: (PrimMonad m) => Int -> VUM.MVector (PrimState m) (Int, Int) -> m ()
+runFW_ABC286E = runFW (mergeCost, minCost)
+  where
+    mergeCost :: (Int, Int) -> (Int, Int) -> (Int, Int)
+    mergeCost (!d1, !v1) (!d2, !v2)
+      -- if not connected (TODO: use `Maybe` instead of `maxBound`
+      | d1 == maxBound = (d1, v1)
+      | d2 == maxBound = (d2, v2)
+      -- if connected
+      | d1 == maxBound = (d1, v1)
+      | otherwise = (d1 + d2, v1 + v2)
+
+    minCost :: (Int, Int) -> (Int, Int) -> (Int, Int)
+    minCost (!d1, !v1) (!d2, !v2) =
+      case compare d1 d2 of
+        EQ -> (d1, max v1 v2)
+        LT -> (d1, v1)
+        GT -> (d2, v2)
+
+-- }}}
+
+-- {{{ Maximum flow (Ford-Fulkerson algorithm)
+
+-- Find the maximum flow from one vertex to another by repeatedly finding augument path
+-- TODO: Use `ST` monad for the visit buffer
+
 -- | Edge in residual network from on vertex to another.
 data RNEdge = RNEdge
   { -- | Points the the other side of the edge
@@ -942,105 +1065,97 @@ derivingUnbox
   [|\(x1, x2, x3) -> RNEdge x1 x2 x3|]
 
 -- | `Vertex` -> `[RNEdge]`
--- TODO: For the container, use `MVector`, not array
--- TODO: For the sub containers, `Sequence` or something better here
-type ResidualNetwork a = a G.Vertex (IM.IntMap RNEdge)
+-- TODO: For the sub containers, use `Sequence` or something better
+type ResidualNetwork = VM.IOVector (IM.IntMap RNEdge)
 
 -- | Builds a residual network at initial state.
 -- {-# INLINE buildRN #-}
 -- TODO: make it generic over ST.. for no reason?
-buildRN :: Int -> [(Int, (Int, Int))] -> IO (ResidualNetwork IOArray)
-buildRN nVerts edges = do
-  rn <- newArray (0, pred nVerts) IM.empty
+buildRN :: Int -> [(Int, (Int, Int))] -> IO ResidualNetwork
+buildRN !nVerts !edges = do
+  !rn <- VM.replicate nVerts IM.empty
   -- TODO: consider using `VU.accumlate` instead?
-  forM_ edges $ \(v1, (v2, cap)) -> do
+  forM_ edges $ \(!v1, (!v2, !cap)) -> do
     addEdgeRN rn v1 v2 cap
   return rn
-
   where
-    addEdgeRN :: ResidualNetwork IOArray -> Int -> Int -> Int -> IO ()
-    addEdgeRN rn v1 v2 maxFlow = do
-      -- TODO: Use `VUM.modify`
-      edges1 <- readArray rn v1
-      edges2 <- readArray rn v2
+    addEdgeRN :: ResidualNetwork -> Int -> Int -> Int -> IO ()
+    addEdgeRN !rn !v1 !v2 !maxFlow = do
+      !edges1 <- VM.read rn v1
+      !edges2 <- VM.read rn v2
 
       -- REMARK: Be sure to use `insertWith`!
       -- We can have both (v1 -> v2) path and (v2 -> v1) path
 
       -- We can run up to `maxFlow`:
-      writeArray rn v1 $ IM.insertWith mergeEdge v2 (RNEdge v2 maxFlow v1) edges1
+      VM.write rn v1 $ IM.insertWith mergeEdge v2 (RNEdge v2 maxFlow v1) edges1
       -- We cannot reverse when there's no flow:
-      writeArray rn v2 $ IM.insertWith mergeEdge v1 (RNEdge v1 0 v2) edges2
+      VM.write rn v2 $ IM.insertWith mergeEdge v1 (RNEdge v1 0 v2) edges2
 
     mergeEdge :: RNEdge -> RNEdge -> RNEdge
-    mergeEdge (RNEdge to flow cap) (RNEdge _ flow' _) = RNEdge to (flow + flow') cap
+    mergeEdge (RNEdge !to !flow !cap) (RNEdge !_ !flow' !_) = RNEdge to (flow + flow') cap
 
--- | Find a flow augment path between two vertices
--- {-# INLINE maxFlowRN #-}
-maxFlowRN :: Int -> ResidualNetwork IOArray -> Int -> Int -> IO Int
-maxFlowRN nVerts rn v0 ve = do
+{-# INLINE maxFlowRN #-}
+maxFlowRN :: Int -> ResidualNetwork -> Int -> Int -> IO Int
+maxFlowRN !nVerts !rn !v0 !ve = do
   -- TODO: use BitVec in 2023 environment
-  vis <- VUM.replicate nVerts False
-  loop vis v0 ve
+  !vis <- VM.replicate nVerts False
+  loop vis
   where
-    loop :: VUM.IOVector Bool -> Int -> Int -> IO Int
-    loop vis v0 ve = do
-      flow <- dfsM vis v0 ve (maxBound @Int)
-      -- let !_ = traceShow (flow) ()
-      case flow of
+    loop :: VM.IOVector Bool -> IO Int
+    loop !vis =
+      augumentPath rn vis v0 ve >>= \case
         Nothing -> return 0
-        Just flow | flow <= 0 -> error "maxFlowRN bug"
-        Just flow -> do
-          forM_ [0 .. pred (VUM.length vis)] $ \i -> do
-            VUM.write vis i False
-          (+ flow) <$> loop vis v0 ve
+        Just (!flow, !path) -> do
+          updateFlow rn flow path
+          VM.set vis False
+          (flow +) <$> loop vis
 
-    dfsM :: VUM.IOVector Bool -> Int -> Int -> Int -> IO (Maybe Int)
-    dfsM _ v goal flow | v == goal = return $ Just flow
-    dfsM vis v goal flow = do
-      -- let !_ = traceShow ("v:", v, "flow:", flow) ()
-      VUM.write vis v True
-      edges <- readArray rn v
+-- | Find a flow augment path between two vertices.
+{-# INLINE augumentPath #-}
+augumentPath :: ResidualNetwork -> VM.IOVector Bool -> G.Vertex -> Int -> IO (Maybe (Int, [(G.Vertex, G.Vertex)]))
+augumentPath !rn !vis !v0 !goal = visitVertex v0 (maxBound @Int)
+  where
+    visitVertex :: G.Vertex -> Int -> IO (Maybe (Int, [(G.Vertex, G.Vertex)]))
+    visitVertex !v !flow
+      | v == goal = return $ Just (flow, [])
+      | otherwise = do
+        VM.write vis v True
+        !edges <- VM.read rn v
+        foldM (step v flow) Nothing edges
 
-      -- TODO: perform `foldM` in-place?
-      -- TODO: `MaybeT`, `StateT` or anything any better
-      -- TODO: early return
-      let m :: IO (Maybe Int)
-          m = foldM step Nothing edges
-          step :: Maybe Int -> RNEdge -> IO (Maybe Int)
-          step (Just flow) _ = return $ Just flow
-          step Nothing edge = do
-            -- let !_ = traceShow ("flow:", flow, "v:", v, "edge:", edge) ()
-            -- omg. please FIXME:
-            let b1 = cap edge == 0
-            b2 <- VUM.read vis (to edge)
-            if b1 || b2
-              then return Nothing
-              else do
-                flow <- dfsM vis (to edge) goal (min flow (cap edge))
-                case flow of
-                  Nothing -> return Nothing
-                  Just flow | flow <= 0 -> error "bug in dfsM"
-                  Just flow -> do
-                    -- This function is called recursively, so the edges from the end to the start
-                    -- are all modified:
-                    _addFlowEdgeRN rn v (to edge) flow
-                    return $ Just flow
+    step :: G.Vertex -> Int -> Maybe (Int, [(G.Vertex, G.Vertex)]) -> RNEdge -> IO (Maybe (Int, [(G.Vertex, G.Vertex)]))
+    step !_ !_ r@(Just _) _ = return r
+    step !from !flow !_ !edge = do
+      !visited <- VM.read vis (to edge)
+      if visited || flow' == 0
+        then return Nothing
+        else
+          visitVertex (to edge) flow' >>= \case
+            Nothing -> return Nothing
+            Just (!f, !path) -> return $ Just (f, p : path)
+      where
+        flow' = min flow (cap edge)
+        p = (from, to edge)
 
-      m
+{-# INLINE updateFlow #-}
+updateFlow :: ResidualNetwork -> Int -> [(G.Vertex, G.Vertex)] -> IO ()
+updateFlow !rn !flow !path = forM_ path $ \(!v1, !v2) -> addFlowRNEdge rn v1 v2 flow
 
-_addFlowEdgeRN :: ResidualNetwork IOArray -> G.Vertex -> G.Vertex -> Int -> IO ()
-_addFlowEdgeRN rn v1 v2 flow = do
-  -- TODO: consider using `VUM.modify`
+{-# INLINE addFlowRNEdge #-}
+addFlowRNEdge :: ResidualNetwork -> G.Vertex -> G.Vertex -> Int -> IO ()
+addFlowRNEdge !rn !v1 !v2 !flow = do
+  -- TODO: consider using `VM.modify`
   -- TODO: consider using `lens`, `snd2` (or not)
   -- TODO: replace `dupe` with function applicative?
-  (edges1, edge12) <- second (IM.! v2) . dupe <$> readArray rn v1
-  (edges2, edge21) <- second (IM.! v1) . dupe <$> readArray rn v2
-  let !_ = traceShow ("edge", "v1:", v1, edge12, "v2:", v2, edge21, flow) ()
+  (!edges1, !edge12) <- second (IM.! v2) . dupe <$> VM.read rn v1
+  (!edges2, !edge21) <- second (IM.! v1) . dupe <$> VM.read rn v2
+  -- let !_ = traceShow ("edge", "v1:", v1, edge12, "v2:", v2, edge21, flow) ()
+
   -- TODO: debugAssert
   -- when (cap edge12 < flow) $ error "invariant broken"
-  writeArray rn v1 $ IM.insert v2 (RNEdge (to edge12) (cap edge12 - flow) (rev edge12)) edges1
-  writeArray rn v2 $ IM.insert v1 (RNEdge (to edge21) (cap edge21 + flow) (rev edge21)) edges2
+  VM.write rn v1 $ IM.insert v2 (RNEdge (to edge12) (cap edge12 - flow) (rev edge12)) edges1
+  VM.write rn v2 $ IM.insert v1 (RNEdge (to edge21) (cap edge21 + flow) (rev edge21)) edges2
 
 -- }}}
 
