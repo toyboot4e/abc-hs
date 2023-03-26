@@ -7,16 +7,32 @@
 -}
 
 {- TODOs
-- [ ] Graph
-  - [ ] components
-  - [ ] cycles
-  - [ ] better DFS, better BFS
-- [ ] More graph algorithms
+
+- [ ] More templates
+  - [ ] Graph
+    - [ ] connections, scc, cycles
+    - [ ] try minimum cut problem
+  - [ ] Better, easier rolling hash
+
+- [ ] Green steak
+
+- [ ] More graph
+  - [ ] Dijkstra2
+  - [ ] Tessoku graph B
+
+- [ ] DP
+  - [ ] Tessoku DP
+  - [ ] EDCP
+
+- [ ] More practices
+  - [ ] Chokudai Speedrun001, 002
+  - [ ] Tessoku A71~, C11~
+  - [ ] Typical 90
 -}
 
 {- ORMOLU_DISABLE -}
-{-# LANGUAGE BangPatterns, BlockArguments, LambdaCase, MultiWayIf, PatternGuards, TupleSections #-}
-{-# LANGUAGE NumDecimals, NumericUnderscores #-}
+{-# LANGUAGE BangPatterns, BlockArguments, DefaultSignatures, LambdaCase, MultiWayIf #-}
+{-# LANGUAGE NumDecimals, NumericUnderscores, PatternGuards, TupleSections #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications, TypeFamilies, RankNTypes #-}
 
@@ -43,6 +59,7 @@ import Data.IORef
 import Data.List
 import Data.Maybe
 import Data.Ord
+import Data.Word
 import Debug.Trace
 import GHC.Event (IOCallback)
 import GHC.Exts
@@ -75,7 +92,8 @@ import Numeric.Extra       -- showDP, intToFloat, ..
 
 -- utility-ht: https://www.stackage.org/lts-16.11/package/utility-ht-0.0.15
 import Data.Bool.HT  -- if', ..
-import qualified Data.Ix.Enum as IxEnum
+import qualified Data.Ix.Enum as HT
+import qualified Data.List.HT as HT -- `groupBy`, but with adjacent elements
 
 -- vector: https://www.stackage.org/lts-16.11/package/vector-0.12.1.2
 import qualified Data.Vector.Fusion.Bundle as VFB
@@ -115,6 +133,24 @@ import qualified Data.HashSet as HS
 
 -- }}}
 
+-- {{{ Libary complements
+
+{-# INLINE vLength #-}
+vLength :: (VG.Vector v e) => v e -> Int
+vLength = VFB.length . VG.stream
+
+{-# INLINE vRange #-}
+vRange :: Int -> Int -> VU.Vector Int
+vRange i j = VU.enumFromN i (j + 1 - i)
+
+-- NOTE: We can only lookup by priority (cost), not by payload (vertex)
+lookupHeapEntry :: Int -> H.Heap (H.Entry Int Int) -> Maybe (H.Entry Int Int)
+lookupHeapEntry key heap =
+  let h = H.intersect heap (H.singleton $ H.Entry key (0 :: Int))
+   in if' (H.null h) Nothing $ Just (H.minimum h)
+
+-- }}}
+
 -- {{{ cheatsheet
 
 -- Option - Maybe cheatsheet
@@ -150,7 +186,368 @@ prevPermutationVec =
 
 -- }}}
 
+-- {{{ Tuples
+
+tuple2 :: [Int] -> (Int, Int)
+tuple2 [!a, !b] = (a, b)
+tuple2 _ = error "not a two-item list"
+
+tuple3 :: [Int] -> (Int, Int, Int)
+tuple3 [!a, !b, !c] = (a, b, c)
+tuple3 _ = error "not a three-item list"
+
+getTuple2 :: IO (Int, Int)
+getTuple2 = tuple2 <$> getLineIntList
+
+getTuple3 :: IO (Int, Int, Int)
+getTuple3 = tuple3 <$> getLineIntList
+
+-- | `concat` two-item tuples
+concat2 :: [(a, a)] -> [a]
+concat2 [] = []
+concat2 ((!x, !y) : xys) = x : y : concat2 xys
+
+concatMap2 :: (a -> (b, b)) -> [a] -> [b]
+concatMap2 !f = concat2 . map f
+
+add2 :: (Int, Int) -> (Int, Int) -> (Int, Int)
+add2 a b = (fst a + fst b, snd a + snd b)
+
+sub2 :: (Int, Int) -> (Int, Int) -> (Int, Int)
+sub2 a b = (fst a - fst b, snd a - snd b)
+
+-- }}}
+
+-- {{{ Input
+
+getLineIntList :: IO [Int]
+getLineIntList = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
+
+getLineIntVec :: IO (VU.Vector Int)
+getLineIntVec = VU.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
+
+-- | Creates a graph from 1-based vertices
+getGraph :: Int -> Int -> IO (Array Int [Int])
+getGraph !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges getLineIntList
+  where
+    accGraph = accumArray @Array (flip (:)) [] (1, nVerts)
+    toInput = concatMap2 $ second swap . dupe . tuple2
+
+-- | Creates a weightend graph from 1-based vertices
+getWGraph :: Int -> Int -> IO (Array Int [H.Entry Int Int])
+getWGraph !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges getLineIntList
+  where
+    accGraph = accumArray @Array (flip (:)) [] (1, nVerts)
+    toInput = concatMap2 $ \[a, b, cost] -> ((a, H.Entry cost b), (b, H.Entry cost a))
+
+-- }}}
+
+-- {{{ Output
+
+putBSB :: BSB.Builder -> IO ()
+putBSB = BSB.hPutBuilder stdout
+
+printBSB :: ShowBSB a => a -> IO ()
+printBSB = putBSB . showBSB
+
+-- ord8 :: Char -> Word8
+-- ord8 = fromIntegral . fromEnum
+--
+-- chr8 :: Word8 -> Char
+-- chr8 = toEnum . fromIntegral
+
+-- | Show as a bytestring builder
+class ShowBSB a where
+  showBSB :: a -> BSB.Builder
+  default showBSB :: (Show a) => a -> BSB.Builder
+  showBSB = BSB.string8 . show
+
+instance ShowBSB Int where
+  showBSB = BSB.intDec
+
+instance ShowBSB Integer where
+  showBSB = BSB.integerDec
+
+instance ShowBSB Float where
+  showBSB = BSB.floatDec
+
+instance ShowBSB Double where
+  showBSB = BSB.doubleDec
+
+printMat2D :: (IArray a e, Ix i, Show [e]) => a (i, i) e -> (i, i) -> (i, i) -> IO ()
+printMat2D mat ys xs = do
+  forM_ (range ys) $ \y -> do
+    print $ flip map (range xs) $ \x -> mat ! (y, x)
+
+traceMat2D :: (IArray a e, Ix i, Show e) => a (i, i) e -> (i, i) -> (i, i) -> ()
+traceMat2D mat ys xs =
+  let !_ = foldl' step () (range ys) in ()
+  where
+    step _ y = traceShow (map (\(!x) -> mat ! (y, x)) (range xs)) ()
+
+-- }}}
+
+-- {{{ Digits
+
+-- Taken from <https://hackage.haskell.org/package/digits-0.3.1/docs/Data-Digits.html>
+
+-- digitToInt :: Char -> Int
+
+-- | Returns the digits of a positive integer as a Maybe list, in reverse order or Nothing if a zero
+-- | or negative base is given. This is slightly more efficient than in forward order.
+mDigitsRev :: Integral n => n -> n -> Maybe [n]
+mDigitsRev base i = if base < 1 then Nothing else Just $ dr base i
+  where
+    dr _ 0 = []
+    dr b x = case base of
+      1 -> genericTake x $ repeat 1
+      _ ->
+        let (rest, lastDigit) = quotRem x b
+         in lastDigit : dr b rest
+
+-- | Returns the digits of a positive integer as a Maybe list.
+--   or Nothing if a zero or negative base is given
+mDigits :: Integral n => n -> n -> Maybe [n]
+mDigits base i = reverse <$> mDigitsRev base i
+
+-- | Returns the digits of a positive integer as a list, in reverse order.
+--   Throws an error if given a zero or negative base.
+digitsRev :: Integral n => n -> n -> [n]
+digitsRev base = fromJust . mDigitsRev base
+
+-- | Returns the digits of a positive integer as a list.
+-- | REMARK: It's modified to return `[0]` when given zero.
+digits :: (Eq n, Integral n) => n -> n -> [n]
+digits _ 0 = [0]
+digits base x = reverse $ digitsRev base x
+
+-- | Takes a list of digits, and converts them back into a positive integer.
+unDigits :: Integral n => n -> [n] -> n
+unDigits base = foldl' (\a b -> a * base + b) 0
+
+-- | <https://stackoverflow.com/questions/10028213/converting-number-base>
+-- | REMARK: It returns `[]` when giben `[0]`. Be sure to convert `[]` to `[0]` if necessary.
+convertBase :: Integral a => a -> a -> [a] -> [a]
+convertBase from to = digits to . unDigits from
+
+-- }}}
+
+-- {{{ Bits
+
+-- TODO: super efficient bit operations
+
+-- | Log base of two or bit floor.
+-- | <https://hackage.haskell.org/package/base-4.17.0.0/docs/Data-Bits.html#v:countLeadingZeros>
+log2 :: (FiniteBits b) => b -> Int
+log2 x = finiteBitSize x - 1 - countLeadingZeros x
+
+-- | Ceiling of log base 2 of an `Int`.
+-- |
+-- | # Example
+-- |
+-- | ```hs
+-- | > log2 3
+-- | 1
+-- | > log2CeilInt 3
+-- | 2
+-- | ```
+log2CeilInt :: Int -> Int
+log2CeilInt x = msb + ceiling
+  where
+    msb = log2 x
+    ceiling = if clearBit x msb > 0 then 1 else 0
+
+-- | Calculates the smallest integral power of two that is not smaller than `x`.
+-- |
+-- | # Example
+-- |
+-- | ```hs
+-- | > bitCeil 3
+-- | 4
+-- | ```
+bitCeil :: Int -> Int
+bitCeil = bit . log2CeilInt
+
+-- }}}
+
+-- {{{ Integer
+
+-- | CAUTION: Be aware of the accuracy. Prefer binary search when possible
+isqrt :: Int -> Int
+isqrt = round @Double . sqrt . fromIntegral
+
+-- | Calculates `x * y` but wrapping the result to the maximum boundary.
+-- | Works for x >= 0 only.
+wrappingMul :: Int -> Int -> Int
+wrappingMul x y =
+  if (64 - countLeadingZeros x) + (64 - countLeadingZeros y) > 63
+    then maxBound @Int
+    else x * y
+
+-- }}}
+
+-- {{{ Prime factors
+
+-- @gotoki_no_joe
+primes :: [Int]
+primes = 2 : 3 : sieve q0 [5, 7 ..]
+  where
+    q0 = H.insert (H.Entry 9 6) H.empty
+    sieve queue xxs@(x : xs) =
+      case compare np x of
+        LT -> sieve queue1 xxs
+        EQ -> sieve queue1 xs
+        GT -> x : sieve queue2 xs
+      where
+        H.Entry np p2 = H.minimum queue
+        queue1 = H.insert (H.Entry (np + p2) p2) $ H.deleteMin queue
+        queue2 = H.insert (H.Entry (x * x) (x * 2)) queue
+
+-- | Returns `[(prime, count)]`
+-- TODO: reuse `primes`
+primeFactors :: Int -> [(Int, Int)]
+primeFactors n_ = map (\xs -> (head xs, length xs)) . group $ loop n_ input
+  where
+    input = 2 : 3 : [y | x <- [5, 11 ..], y <- [x, x + 2]]
+    loop n pps@(p : ps)
+      | n == 1 = []
+      | n < p * p = [n]
+      | r == 0 = p : loop q pps
+      | otherwise = loop n ps
+      where
+        (q, r) = divMod n p
+
+-- }}}
+
+-- {{{ Modulo arithmetic
+
+-- TODO: refactor
+-- TODO: consider taking `modulus` as the first argument
+
+addMod, subMod, mulMod :: Int -> Int -> Int -> Int
+addMod x a modulus = (x + a) `mod` modulus
+subMod x s modulus = (x - s) `mod` modulus
+mulMod b p modulus = (b * p) `mod` modulus
+
+-- | n! `mod` m
+factMod :: Int -> Int -> Int
+factMod 0 _ = 1
+factMod 1 _ = 1
+factMod n m = n * factMod (n - 1) m `rem` m
+
+-- F: Fermet, FC: Fermet by cache
+
+-- | One-shot calculation of $base ^ power `mod` modulo$ in a constant time
+powerModConstant :: Int -> Int -> Int -> Int
+powerModConstant base power modulo = powerByCache power (powerModCache base modulo)
+
+-- | One-shot calcaulation of $x / d mod p$, using Fermat's little theorem
+-- |
+-- | 1/d = d^{p-2} (mod p) <=> d^p = d (mod p)
+-- |   where the modulus is a prime number and `x` is not a mulitple of `p`
+invModF :: Int -> Int -> Int
+invModF d modulus = invModFC modulus (powerModCache d modulus)
+
+-- | x / d mod p, using Fermat's little theorem
+-- |
+-- | 1/d = d^{p-2} (mod p) <=> d^p = d (mod p)
+-- |   where the modulus is a prime number and `x` is not a mulitple of `p`
+divModF :: Int -> Int -> Int -> Int
+divModF x d modulus = divModFC x (powerModCache d modulus) `rem` modulus
+
+-- | Cache of base^i for iterative square method
+powerModCache :: Int -> Int -> (Int, VU.Vector Int)
+powerModCache base modulo = (modulo, VU.fromList $ scanl' (\x _ -> x * x `rem` modulo) base [1 .. 62])
+
+-- | Calculates base^i (mod p) from a cache
+powerByCache :: Int -> (Int, VU.Vector Int) -> Int
+powerByCache power (modulo, cache) = foldl' step 1 [0 .. 62]
+  where
+    step acc nBit =
+      if testBit power nBit
+        then acc * (cache VU.! nBit) `rem` modulo
+        else acc
+
+-- | 1/x = x^{p-2} mod p <=> x^p = x mod p
+-- |   where the modulus is a prime number
+-- |
+-- | and x^{p-2} is calculated with cache
+invModFC :: Int -> (Int, VU.Vector Int) -> Int
+invModFC primeModulus = powerByCache (primeModulus - 2)
+
+divModFC :: Int -> (Int, VU.Vector Int) -> Int
+divModFC x context@(modulus, _) = x * invModFC modulus context `rem` modulus
+
+-- | nCr `mod` m (binominal cofficient)
+bcMod :: Int -> Int -> Int -> Int
+bcMod n r modulus = foldl' (\x y -> divModF x y modulus) (facts VU.! n) [facts VU.! r, facts VU.! (n - r)]
+  where
+    facts = VU.scanl' (\x y -> x * y `rem` modulus) (1 :: Int) $ VU.fromList [(1 :: Int) .. 1_000_000]
+
+-- }}}
+
+-- {{{ Multiset
+
+-- | Multiset: (nKeys, (key -> count))
+type MultiSet = (Int, IM.IntMap Int)
+
+emptyMS :: MultiSet
+emptyMS = (0, IM.empty)
+
+singletonMS :: Int -> MultiSet
+singletonMS x = (1, IM.singleton x 1)
+
+fromListMS :: [Int] -> MultiSet
+fromListMS = foldl' (flip incrementMS) emptyMS
+
+incrementMS :: Int -> MultiSet -> MultiSet
+incrementMS k (n, im) =
+  if IM.member k im
+    then (n, IM.insertWith (+) k 1 im)
+    else (n + 1, IM.insert k 1 im)
+
+decrementMS :: Int -> MultiSet -> MultiSet
+decrementMS k (n, im) =
+  case IM.lookup k im of
+    Just 1 -> (n - 1, IM.delete k im)
+    Just _ -> (n, IM.insertWith (+) k (-1) im)
+    Nothing -> (n, im)
+
+-- }}}
+
+-- {{{ Misc utilities
+
+-- | From more recent GHC
+clamp :: (Ord a) => (a, a) -> a -> a
+clamp (low, high) a = min high (max a low)
+
+-- }}}
+
+-- {{{ ismo 2D
+
+ismo2D :: ((Int, Int), (Int, Int)) -> UArray (Int, Int) Int -> UArray (Int, Int) Int
+ismo2D bounds_ seeds = runSTUArray $ do
+  arr <- newArray bounds_ (0 :: Int)
+
+  -- row scan
+  forM_ (range bounds_) $ \(y, x) -> do
+    v <- if x == 0 then return 0 else readArray arr (y, x - 1)
+    let diff = seeds ! (y, x)
+    writeArray arr (y, x) (v + diff)
+
+  -- column scan
+  forM_ (range bounds_) $ \(x, y) -> do
+    v <- if y == 0 then return 0 else readArray arr (y - 1, x)
+    diff <- readArray arr (y, x)
+    writeArray arr (y, x) (v + diff)
+
+  return arr
+
+-- }}}
+
 -- {{{ Binary search
+
+-- TODO: Use typeclass for getting middle and detecting end
 
 -- | Binary search for sorted items in an inclusive range (from left to right only)
 -- |
@@ -247,15 +644,11 @@ type STUnionFind s = MUnionFind s
 -- | `MUFChild parent | MUFRoot size`. Not `Unbox` :(
 data MUFNode = MUFChild {-# UNPACK #-} !Int | MUFRoot {-# UNPACK #-} !Int
 
-_mufrepr1 :: MUFNode -> (Bool, Int)
-_mufrepr1 (MUFChild x) = (True, x)
-_mufrepr1 (MUFRoot x) = (False, x)
-
-_mufrepr2 :: (Bool, Int) -> MUFNode
-_mufrepr2 (True, x) = MUFChild x
-_mufrepr2 (False, x) = MUFRoot x
-
-derivingUnbox "MUFNode" [t|MUFNode -> (Bool, Int)|] [|_mufrepr1|] [|_mufrepr2|]
+derivingUnbox
+  "MUFNode"
+  [t|MUFNode -> (Bool, Int)|]
+  [|\case (MUFChild x) -> (True, x); (MUFRoot x) -> (False, x)|]
+  [|\case (True, x) -> MUFChild x; (False, x) -> MUFRoot x|]
 
 -- | Creates a new Union-Find tree of the given size.
 {-# INLINE newMUF #-}
@@ -338,89 +731,6 @@ uniteSUF uf i j
 
 -- }}}
 
--- {{{ Digits
-
--- Taken from <https://hackage.haskell.org/package/digits-0.3.1/docs/Data-Digits.html>
-
--- digitToInt :: Char -> Int
-
--- | Returns the digits of a positive integer as a Maybe list, in reverse order or Nothing if a zero
--- | or negative base is given. This is slightly more efficient than in forward order.
-mDigitsRev :: Integral n => n -> n -> Maybe [n]
-mDigitsRev base i = if base < 1 then Nothing else Just $ dr base i
-  where
-    dr _ 0 = []
-    dr b x = case base of
-      1 -> genericTake x $ repeat 1
-      _ ->
-        let (rest, lastDigit) = quotRem x b
-         in lastDigit : dr b rest
-
--- | Returns the digits of a positive integer as a Maybe list.
---   or Nothing if a zero or negative base is given
-mDigits :: Integral n => n -> n -> Maybe [n]
-mDigits base i = reverse <$> mDigitsRev base i
-
--- | Returns the digits of a positive integer as a list, in reverse order.
---   Throws an error if given a zero or negative base.
-digitsRev :: Integral n => n -> n -> [n]
-digitsRev base = fromJust . mDigitsRev base
-
--- | Returns the digits of a positive integer as a list.
--- | REMARK: It's modified to return `[0]` when given zero.
-digits :: (Eq n, Integral n) => n -> n -> [n]
-digits _ 0 = [0]
-digits base x = reverse $ digitsRev base x
-
--- | Takes a list of digits, and converts them back into a positive integer.
-unDigits :: Integral n => n -> [n] -> n
-unDigits base = foldl' (\a b -> a * base + b) 0
-
--- | <https://stackoverflow.com/questions/10028213/converting-number-base>
--- | REMARK: It returns `[]` when giben `[0]`. Be sure to convert `[]` to `[0]` if necessary.
-convertBase :: Integral a => a -> a -> [a] -> [a]
-convertBase from to = digits to . unDigits from
-
--- }}}
-
--- {{{ Bits
-
--- TODO: super efficient bit operations
-
--- | Log base of two or bit floor.
--- | <https://hackage.haskell.org/package/base-4.17.0.0/docs/Data-Bits.html#v:countLeadingZeros>
-log2 :: (FiniteBits b) => b -> Int
-log2 x = finiteBitSize x - 1 - countLeadingZeros x
-
--- | Ceiling of log base 2 of an `Int`.
--- |
--- | # Example
--- |
--- | ```hs
--- | > log2 3
--- | 1
--- | > log2CeilInt 3
--- | 2
--- | ```
-log2CeilInt :: Int -> Int
-log2CeilInt x = msb + ceiling
-  where
-    msb = log2 x
-    ceiling = if clearBit x msb > 0 then 1 else 0
-
--- | Calculates the smallest integral power of two that is not smaller than `x`.
--- |
--- | # Example
--- |
--- | ```hs
--- | > bitCeil 3
--- | 4
--- | ```
-bitCeil :: Int -> Int
-bitCeil = bit . log2CeilInt
-
--- }}}
-
 -- {{{ Segment tree
 
 -- | A mutable segment tree backed by a complete binary tree.
@@ -454,19 +764,20 @@ bitCeil = bit . log2CeilInt
 -- | ```
 data MSegmentTree s a = MSegmentTree (a -> a -> a) (VUM.MVector s a)
 
+-- TODO: Can I UNPACK? the funciton?
 -- TODO: Generic queries and immutable segment tree (with `Show` instance)
 
 -- | Creates a new segment tree for `n` leaves.
-{-# INLINE newTree #-}
-newTree :: (VUM.Unbox a, PrimMonad m) => (a -> a -> a) -> Int -> a -> m (MSegmentTree (PrimState m) a)
-newTree !f !n !value = MSegmentTree f <$> VUM.replicate n' value
+{-# INLINE newSTree #-}
+newSTree :: (VUM.Unbox a, PrimMonad m) => (a -> a -> a) -> Int -> a -> m (MSegmentTree (PrimState m) a)
+newSTree !f !n !value = MSegmentTree f <$> VUM.replicate n' value
   where
     !n' = shiftL (bitCeil n) 1
 
 -- | Updates an `MSegmentTree` leaf value and their parents up to top root.
 {-# INLINE updateLeaf #-}
 updateLeaf :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> a -> m ()
-updateLeaf tree@(MSegmentTree _ vec) !i !value = _updateElement tree i' value
+updateLeaf !tree@(MSegmentTree !_ !vec) !i !value = _updateElement tree i' value
   where
     -- length == 2 * (the number of the leaves)
     !offset = VUM.length vec `div` 2 - 1
@@ -475,7 +786,7 @@ updateLeaf tree@(MSegmentTree _ vec) !i !value = _updateElement tree i' value
 -- | (Internal) Updates an `MSegmentTree` element (node or leaf) value and their parents up to top root.
 {-# INLINE _updateElement #-}
 _updateElement :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> a -> m ()
-_updateElement tree@(MSegmentTree _ vec) !i !value = do
+_updateElement !tree@(MSegmentTree !_ !vec) !i !value = do
   VUM.write vec i value
   _updateParent tree ((i - 1) `div` 2)
 
@@ -484,15 +795,15 @@ _updateElement tree@(MSegmentTree _ vec) !i !value = do
 _updateParent :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> m ()
 _updateParent _ (-1) = pure () -- REMARK: (-1) `div` 2 == -1
 _updateParent _ 0 = pure ()
-_updateParent tree@(MSegmentTree f vec) !iParent = do
+_updateParent !tree@(MSegmentTree !f !vec) !iParent = do
   !c1 <- VUM.read vec (iParent * 2 + 1)
   !c2 <- VUM.read vec (iParent * 2 + 2)
   _updateElement tree iParent (f c1 c2)
 
 -- | Retrieves the folding result over the inclusive range `[l, r]` from `MSegmentTree`.
-{-# INLINE queryByRange #-}
-queryByRange :: forall a m. (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> (Int, Int) -> m a
-queryByRange (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$> loop 0 (0, initialHi)
+{-# INLINE querySTree #-}
+querySTree :: forall a m. (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> (Int, Int) -> m a
+querySTree (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$> loop 0 (0, initialHi)
   where
     !initialHi = VUM.length vec `div` 2 - 1
     loop :: Int -> (Int, Int) -> m (Maybe a)
@@ -500,7 +811,7 @@ queryByRange (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$> loop 0 (0, initial
       | lo <= l && h <= hi = Just <$> VUM.read vec i
       | h < lo || hi < l = pure Nothing
       | otherwise = do
-        let d = (h - l) `div` 2
+        let !d = (h - l) `div` 2
         !ansL <- loop (2 * i + 1) (l, l + d)
         !ansH <- loop (2 * i + 2) (l + d + 1, h)
         pure . Just $ case (ansL, ansH) of
@@ -511,13 +822,15 @@ queryByRange (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$> loop 0 (0, initial
 
 -- }}}
 
--- {{{ DP
+-- {{{ Dynamic programming
 
 -- let dp = tabulateST f rng (0 :: Int)
 --     rng = ((0, 0), (nItems, wLimit))
+--     -- type signature can be inferred:
 --     f :: forall s. MArray (STUArray s) Int (ST s) => STUArray s (Int, Int) Int -> (Int, Int) -> (ST s) Int
 --     f _ (0, _) = return 0
 --     f arr (i, w) = do
+
 -- {-# INLINE tabulateST #-}
 tabulateST :: forall i. (Ix i) => (forall s. MArray (STUArray s) Int (ST s) => STUArray s i Int -> i -> ST s Int) -> (i, i) -> Int -> UArray i Int
 tabulateST f bounds_ e0 =
@@ -533,105 +846,9 @@ tabulateST f bounds_ e0 =
 
 -- }}}
 
--- {{{ ismo 2D
+-- {{{ Graph search
 
-ismo2D :: ((Int, Int), (Int, Int)) -> UArray (Int, Int) Int -> UArray (Int, Int) Int
-ismo2D bounds_ seeds = runSTUArray $ do
-  arr <- newArray bounds_ (0 :: Int)
-
-  -- row scan
-  forM_ (range bounds_) $ \(y, x) -> do
-    v <- if x == 0 then return 0 else readArray arr (y, x - 1)
-    let diff = seeds ! (y, x)
-    writeArray arr (y, x) (v + diff)
-
-  -- column scan
-  forM_ (range bounds_) $ \(x, y) -> do
-    v <- if y == 0 then return 0 else readArray arr (y - 1, x)
-    diff <- readArray arr (y, x)
-    writeArray arr (y, x) (v + diff)
-
-  return arr
-
-printMat2D :: (IArray a e, Ix i, Show [e]) => a (i, i) e -> (i, i) -> (i, i) -> IO ()
-printMat2D mat ys xs = do
-  forM_ (range ys) $ \y -> do
-    print $ flip map (range xs) $ \x -> mat ! (y, x)
-
-traceMat2D :: (IArray a e, Ix i, Show e) => a (i, i) e -> (i, i) -> (i, i) -> ()
-traceMat2D mat ys xs =
-  let !_ = foldl' step () (range ys) in ()
-  where
-    step _ y = traceShow (map (\(!x) -> mat ! (y, x)) (range xs)) ()
-
--- }}}
-
--- {{{ Misc
-
-getLineIntList :: IO [Int]
-getLineIntList = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
-
-getLineIntVec :: IO (VU.Vector Int)
-getLineIntVec = VU.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
-
-tuple2 :: [Int] -> (Int, Int)
-tuple2 [a, b] = (a, b)
-tuple2 _ = error "not a two-item list"
-
-tuple3 :: [Int] -> (Int, Int, Int)
-tuple3 [a, b, c] = (a, b, c)
-tuple3 _ = error "not a three-item list"
-
-getTuple2 :: IO (Int, Int)
-getTuple2 = tuple2 <$> getLineIntList
-
-getTuple3 :: IO (Int, Int, Int)
-getTuple3 = tuple3 <$> getLineIntList
-
-{-# INLINE vLength #-}
-vLength :: (VG.Vector v e) => v e -> Int
-vLength = VFB.length . VG.stream
-
-{-# INLINE vRange #-}
-vRange :: Int -> Int -> VU.Vector Int
-vRange i j = VU.enumFromN i (j + 1 - i)
-
--- | From more recent GHC
-clamp :: (Ord a) => (a, a) -> a -> a
-clamp (low, high) a = min high (max a low)
-
--- }}}
-
--- {{{{ Multiset
-
--- | Multiset: (nKeys, (key -> count))
-type MultiSet = (Int, IM.IntMap Int)
-
-emptyMS :: MultiSet
-emptyMS = (0, IM.empty)
-
-singletonMS :: Int -> MultiSet
-singletonMS x = (1, IM.singleton x 1)
-
-fromListMS :: [Int] -> MultiSet
-fromListMS = foldl' (flip incrementMS) emptyMS
-
-incrementMS :: Int -> MultiSet -> MultiSet
-incrementMS k (n, im) =
-  if IM.member k im
-    then (n, IM.insertWith (+) k 1 im)
-    else (n + 1, IM.insert k 1 im)
-
-decrementMS :: Int -> MultiSet -> MultiSet
-decrementMS k (n, im) =
-  case IM.lookup k im of
-    Just 1 -> (n - 1, IM.delete k im)
-    Just _ -> (n, IM.insertWith (+) k (-1) im)
-    Nothing -> (n, im)
-
--- }}}
-
--- {{{ Graph
+-- TODO: rewrite all
 
 type Graph = Array Int [Int]
 
@@ -644,33 +861,22 @@ type IHeap = H.Heap IHeapEntry
 -- | Int entry (priority, payload) where priority = cost, payload = vertex
 type IHeapEntry = H.Entry Int Int
 
--- Creates array-based graph
-genGraph :: Int -> [(Int, a)] -> Array Int [a]
-genGraph nVerts input = accumArray @Array (flip (:)) [] (1 :: Int, nVerts) input
-
--- Get simple graph
-getGraph :: (Int, Int) -> IO Graph
-getGraph (nVerts, nEdges) = genGraph nVerts . concatMap (\[a, b] -> [(a, b), (b, a)]) <$> replicateM nEdges getLineIntList
-
--- Get weightend graph
-getWGraph :: (Int, Int) -> IO WGraph
-getWGraph (nVerts, nEdges) = genGraph nVerts . concatMap (\[a, b, cost] -> [(a, H.Entry cost b), (b, H.Entry cost a)]) <$> replicateM nEdges getLineIntList
-
 dfsEveryVertex :: forall s. (s -> Bool, s -> Int -> s, s -> Int -> s) -> Graph -> Int -> s -> (s, IS.IntSet)
 dfsEveryVertex (isEnd, fin, fout) graph start s0 = visitNode (s0, IS.empty) start
   where
     visitNode :: (s, IS.IntSet) -> Int -> (s, IS.IntSet)
     visitNode (s, visits) x
       | isEnd s = (s, visits)
+      | IS.member x visits = (s, visits)
       | otherwise =
         let (s', visits') = visitNeighbors (fin s x, IS.insert x visits) x
-         in (fout s' x, visits')
+         in -- !_ = traceShow (start, x, graph ! x) ()
+            (fout s' x, visits')
 
     visitNeighbors :: (s, IS.IntSet) -> Int -> (s, IS.IntSet)
     visitNeighbors (s, visits) x
       | isEnd s = (s, visits)
-      | otherwise =
-        foldl' visitNode (s, visits) $ filter (`IS.notMember` visits) (graph ! x)
+      | otherwise = foldl' visitNode (s, visits) (graph ! x)
 
 dfsEveryPath :: forall s. (s -> Bool, s -> Int -> s, s -> Int -> s) -> Graph -> Int -> s -> s
 dfsEveryPath (isEnd, fin, fout) graph start s0 = visitNode (s0, IS.empty) start
@@ -696,26 +902,27 @@ bfsFind !f !graph !start =
     else bfsRec 1 (IS.singleton start) (IS.fromList $ graph ! start)
   where
     bfsRec :: Int -> IS.IntSet -> IS.IntSet -> Maybe (Int, Int)
-    bfsRec depth !visits !nbs =
-      let -- !_ = traceShow x ()
-          !visits' = foldl' (flip IS.insert) visits (IS.toList nbs)
-       in let (result, nextNbs) = visitNeighbors nbs
-           in case result of
-                Just x -> Just (depth, x)
-                Nothing -> bfsRec (succ depth) visits' nextNbs
-    visitNeighbors :: IS.IntSet -> (Maybe Int, IS.IntSet)
-    visitNeighbors nbs =
-      let -- !_ = traceShow x ()
-          !nbsList = IS.toList nbs
-       in foldl'
-            ( \(!result, !nbs') !x ->
-                let nbs'' = IS.insert x nbs'
-                 in if f x
-                      then (Just x, nbs'')
-                      else (result, nbs'')
-            )
-            (Nothing, IS.empty)
-            nbsList
+    bfsRec depth !visits !nbs
+      | IS.null nbs = Nothing
+      | otherwise =
+        let -- !_ = traceShow ("bfsRec", depth, nbs) ()
+            !visits' = IS.union visits nbs
+         in let (result, nextNbs) = visitNeighbors visits' nbs
+             in case result of
+                  Just x -> Just (depth, x)
+                  Nothing -> bfsRec (succ depth) visits' nextNbs
+
+    visitNeighbors :: IS.IntSet -> IS.IntSet -> (Maybe Int, IS.IntSet)
+    visitNeighbors visits !nbs =
+      foldl'
+        ( \(!result, !nbs) !x ->
+            let nbs' = IS.union nbs $ IS.fromList . filter (`IS.notMember` visits) $ graph ! x
+             in if f x
+                  then (Just x, nbs')
+                  else (result, nbs')
+        )
+        (Nothing, IS.empty)
+        (IS.toList nbs)
 
 dijkstra :: forall s. (s -> IHeapEntry -> s) -> s -> WGraph -> Int -> s
 dijkstra !f s0 !graph !start = fst3 $ visitRec (s0, IS.empty, H.singleton $ H.Entry 0 start)
@@ -736,115 +943,293 @@ dijkstra !f s0 !graph !start = fst3 $ visitRec (s0, IS.empty, H.singleton $ H.En
           p = not . (`IS.member` visits') . H.payload
        in (f s entry, visits', H.union heap news)
 
--- }}}
+-- | Red | Green color
+type Color = Bool
 
--- {{{ Integer calculation
+-- | Colored vertices in a bipartite graph
+type ColorInfo = ([Int], [Int])
 
--- | Calculates `x * y` but wrapping the result to the maximum boundary.
--- | Works for x >= 0 only.
-wrappingMul :: Int -> Int -> Int
-wrappingMul x y =
-  if (64 - countLeadingZeros x) + (64 - countLeadingZeros y) > 63
-    then maxBound @Int
-    else x * y
-
--- | CAUTION: Be aware of the accuracy. Prefer binary search when possible
-isqrt :: Int -> Int
-isqrt = round @Double . sqrt . fromIntegral
-
--- }}}
-
--- {{{ Prime factors
-
--- @gotoki_no_joe
-primes :: [Int]
-primes = 2 : 3 : sieve q0 [5, 7 ..]
+-- | DFS with vertices given colors
+colorize :: Graph -> IM.IntMap Color -> G.Vertex -> (IM.IntMap Color, Maybe ColorInfo)
+colorize graph colors0 = dfs True (colors0, Just ([], []))
   where
-    q0 = H.insert (H.Entry 9 6) H.empty
-    sieve queue xxs@(x : xs) =
-      case compare np x of
-        LT -> sieve queue1 xxs
-        EQ -> sieve queue1 xs
-        GT -> x : sieve queue2 xs
+    dfs :: Color -> (IM.IntMap Color, Maybe ColorInfo) -> G.Vertex -> (IM.IntMap Color, Maybe ColorInfo)
+    dfs color (colors, acc) v =
+      let (colors', acc') = setColor color (colors, acc) v
+       in if IM.member v colors
+            then (colors', acc')
+            else foldl' (dfs (not color)) (colors', acc') $ graph ! v
+
+    setColor :: Color -> (IM.IntMap Color, Maybe ColorInfo) -> G.Vertex -> (IM.IntMap Color, Maybe ColorInfo)
+    setColor color (colors, acc) v =
+      case IM.lookup v colors of
+        Just c
+          | c == color -> (colors, acc)
+          | otherwise -> (colors, Nothing)
+        Nothing -> (IM.insert v color colors, applyColor color v acc)
+
+    applyColor :: Color -> G.Vertex -> Maybe ColorInfo -> Maybe ColorInfo
+    applyColor _ _ Nothing = Nothing
+    applyColor color v (Just acc)
+      | color = Just $ first (v :) acc
+      | otherwise = Just $ second (v :) acc
+
+-- }}}
+
+-- {{{ Graph search (V2)
+
+-- | BFS template for finding a shortest path from one vertex to another.
+bfsPath :: Graph -> Int -> Int -> Maybe Int
+bfsPath graph start end = inner (-1) IS.empty (IS.singleton start)
+  where
+    inner :: Int -> IS.IntSet -> IS.IntSet -> Maybe Int
+    inner depth vis vs
+      | IS.member end vis = Just depth
+      | IS.null vs = Nothing
+      | otherwise = inner (succ depth) vis' vs'
       where
-        H.Entry np p2 = H.minimum queue
-        queue1 = H.insert (H.Entry (np + p2) p2) $ H.deleteMin queue
-        queue2 = H.insert (H.Entry (x * x) (x * 2)) queue
+        vis' = vis `IS.union` vs
+        vs' = IS.fromList $ filter (`IS.notMember` vis') $ concatMap (graph !) (IS.toList vs)
 
--- | Returns `[(prime, count)]`
--- TODO: reuse `primes`
-primeFactors :: Int -> [(Int, Int)]
-primeFactors n_ = map (\xs -> (head xs, length xs)) . group $ loop n_ input
+-- | BFS template for collecting shortest paths from one vertex to every other.
+bfsVerts :: Graph -> Int -> IM.IntMap Int
+bfsVerts graph start = inner 0 IM.empty (IS.singleton start)
   where
-    input = 2 : 3 : [y | x <- [5, 11 ..], y <- [x, x + 2]]
-    loop n pps@(p : ps)
-      | n == 1 = []
-      | n < p * p = [n]
-      | r == 0 = p : loop q pps
-      | otherwise = loop n ps
+    inner :: Int -> IM.IntMap Int -> IS.IntSet -> IM.IntMap Int
+    inner depth vis vs
+      | IS.null vs = vis
+      | otherwise = inner (succ depth) vis' vs'
       where
-        (q, r) = divMod n p
+        vis' = IM.union vis $ IM.fromSet (const depth) vs
+        vs' = IS.fromList $ filter (`IM.notMember` vis') $ concatMap (graph !) (IS.toList vs)
+
+-- | DFS where all the reachable vertices from one vertex are collcetd
+components :: Graph -> Int -> IS.IntSet
+components graph start = inner (IS.singleton start) start
+  where
+    inner vis v
+      | null vs = vis'
+      | otherwise = foldl' inner vis' vs
+      where
+        vs = filter (`IS.notMember` vis) $ graph ! v
+        vis' = IS.union vis $ IS.fromList vs
+
+-- | Dijkstra template that collects all the shortest distances from one vertex to every other.
+-- | Works for weightened graphs with positive edge capacities only.
+dj :: WGraph -> Int -> IM.IntMap Int
+dj !graph !start = inner (H.singleton $ H.Entry 0 start) IM.empty
+  where
+    inner !heap !vis
+      | H.null heap = vis
+      | IM.member v vis = inner heap' vis
+      | otherwise = inner heap'' vis'
+      where
+        (H.Entry !cost !v, !heap') = fromJust $ H.uncons heap
+        vis' = IM.insert v cost vis
+        vs = map (first (+ cost)) $ filter ((`IM.notMember` vis') . H.payload) $ graph ! v
+        heap'' = foldl' (flip H.insert) heap' vs
 
 -- }}}
 
--- {{{ Modulo arithmetic
+-- }}}
 
--- TODO: refactor
--- TODO: consider taking `modulus` as the first argument
+-- {{{ Minimum spanning tree (Kruskal's algorithm)
 
-addMod, subMod, mulMod :: Int -> Int -> Int -> Int
-addMod x a modulus = (x + a) `mod` modulus
-subMod x s modulus = (x - s) `mod` modulus
-mulMod b p modulus = (b * p) `mod` modulus
+-- Find a minimum spanning tree by eagerly adding the lightest path
 
--- | n! `mod` m
-factMod :: Int -> Int -> Int
-factMod 0 _ = 1
-factMod 1 _ = 1
-factMod n m = n * factMod (n - 1) m `rem` m
+-- TODO: add template
 
--- F: Fermet, FC: Fermet by cache
+-- }}}
 
--- | One-shot calculation of $base ^ power `mod` modulo$ in a constant time
-powerModConstant :: Int -> Int -> Int -> Int
-powerModConstant base power modulo = powerByCache power (powerModCache base modulo)
+-- {{{ Every shortest path (Floyd-Warshall algorithm)
 
--- | One-shot calcaulation of $x / d mod p$, using Fermat's little theorem
--- |
--- | 1/d = d^{p-2} (mod p) <=> d^p = d (mod p)
--- |   where the modulus is a prime number and `x` is not a mulitple of `p`
-invModF :: Int -> Int -> Int
-invModF d modulus = invModFC modulus (powerModCache d modulus)
+-- Get the shortest path between every pair of the vertices in a weightend graph
 
--- | x / d mod p, using Fermat's little theorem
--- |
--- | 1/d = d^{p-2} (mod p) <=> d^p = d (mod p)
--- |   where the modulus is a prime number and `x` is not a mulitple of `p`
-divModF :: Int -> Int -> Int -> Int
-divModF x d modulus = divModFC x (powerModCache d modulus) `rem` modulus
+-- | Create buffer for the Floyd-Warshapp algorithm
+{-# INLINE newFW #-}
+newFW :: (PrimMonad m, VU.Unbox cost) => (G.Vertex -> cost, cost, cost) -> Int -> [(Int, Int)] -> m (VUM.MVector (PrimState m) cost)
+newFW (!getCost, !zeroCost, !maxCost) !nVerts !edges = do
+  -- REMARK: Boxed array is too slow
+  !dp <- VUM.replicate (nVerts * nVerts) maxCost
 
--- | Cache of base^i for iterative square method
-powerModCache :: Int -> Int -> (Int, VU.Vector Int)
-powerModCache base modulo = (modulo, VU.fromList $ scanl' (\x _ -> x * x `rem` modulo) base [1 .. 62])
+  -- diagnonal components
+  forM_ [0 .. pred nVerts] $ \(!v) ->
+    VUM.write dp (ix (v, v)) zeroCost
 
--- | Calculates base^i (mod p) from a cache
-powerByCache :: Int -> (Int, VU.Vector Int) -> Int
-powerByCache power (modulo, cache) = foldl' step 1 [0 .. 62]
+  -- directly connected vertices
+  forM_ edges $ \(!v1, !v2) -> do
+    -- let !_ = traceShow (v1, v2, values VU.! v2) ()
+    -- (distance, value)
+    let !cost = getCost v2
+    VUM.write dp (ix (v1, v2)) cost
+
+  return dp
   where
-    step acc nBit =
-      if testBit power nBit
-        then acc * (cache VU.! nBit) `rem` modulo
-        else acc
+    ix :: (Int, Int) -> Int
+    ix = index ((0, 0), (nVerts - 1, nVerts - 1))
 
--- | 1/x = x^{p-2} mod p <=> x^p = x mod p
--- |   where the modulus is a prime number
--- |
--- | and x^{p-2} is calculated with cache
-invModFC :: Int -> (Int, VU.Vector Int) -> Int
-invModFC primeModulus = powerByCache (primeModulus - 2)
+{-# INLINE runFW #-}
+runFW :: (PrimMonad m, VU.Unbox cost) => (cost -> cost -> cost, cost -> cost -> cost) -> Int -> VUM.MVector (PrimState m) cost -> m ()
+runFW (!mergeCost, !minCost) !nVerts !dp = do
+  let !ve = pred nVerts
+  forM_ (range ((0, 0, 0), (ve, ve, ve))) $ \(!v3, !v1, !v2) -> do
+    !cost1 <- VUM.read dp (ix (v1, v2))
+    !cost2 <- mergeCost <$> VUM.read dp (ix (v1, v3)) <*> VUM.read dp (ix (v3, v2))
+    -- let !_ = traceShow ((v3, v2, v1), cost1, cost2, mergeCost cost1 cost2) ()
+    VUM.write dp (ix (v1, v2)) $ minCost cost1 cost2
+  where
+    ix :: (Int, Int) -> Int
+    ix = index ((0, 0), (nVerts - 1, nVerts - 1))
 
-divModFC :: Int -> (Int, VU.Vector Int) -> Int
-divModFC x context@(modulus, _) = x * invModFC modulus context `rem` modulus
+-- Floyd-Warshall algorithm over `WGraph`
+-- TODO: test it
+-- newFW_W :: (G.Vertex -> Int) -> Int -> [(Int, Int)] -> IO (VUM.IOVector Int)
+-- newFW_W getCost = newFW (getCost, 0 :: Int, maxBound @Int)
+
+--  Floyd-Warshall algorithm over `Graph` + vertex values (see ABC 286 E)
+{-# INLINE newFW_ABC286E #-}
+newFW_ABC286E :: (PrimMonad m) => (G.Vertex -> (Int, Int)) -> Int -> [(Int, Int)] -> m (VUM.MVector (PrimState m) (Int, Int))
+newFW_ABC286E !getCost = newFW (getCost, (0, 0), (maxBound @Int, maxBound @Int))
+
+{-# INLINE runFW_ABC286E #-}
+runFW_ABC286E :: (PrimMonad m) => Int -> VUM.MVector (PrimState m) (Int, Int) -> m ()
+runFW_ABC286E = runFW (mergeCost, minCost)
+  where
+    mergeCost :: (Int, Int) -> (Int, Int) -> (Int, Int)
+    mergeCost (!d1, !v1) (!d2, !v2)
+      -- if not connected (TODO: use `Maybe` instead of `maxBound`
+      | d1 == maxBound = (d1, v1)
+      | d2 == maxBound = (d2, v2)
+      -- if connected
+      | d1 == maxBound = (d1, v1)
+      | otherwise = (d1 + d2, v1 + v2)
+
+    minCost :: (Int, Int) -> (Int, Int) -> (Int, Int)
+    minCost (!d1, !v1) (!d2, !v2) =
+      case compare d1 d2 of
+        EQ -> (d1, max v1 v2)
+        LT -> (d1, v1)
+        GT -> (d2, v2)
+
+-- }}}
+
+-- {{{ Maximum flow (Ford-Fulkerson algorithm)
+
+-- Find the maximum flow from one vertex to another by repeatedly finding augument path and teaking
+-- the flow.
+
+-- TODO: Use `ST` monad for the visit buffer.. but how? (ST monad transformer??)
+
+-- | Edge in residual network from on vertex to another.
+data RNEdge = RNEdge
+  { -- | Points the the other side of the edge
+    to :: {-# UNPACK #-} !G.Vertex,
+    -- | Capacity of the edge, or the flow from the vertex to another
+    cap :: {-# UNPACK #-} !Int,
+    -- | The other side of the vertices is pointed with `rn ! (rev (rn ! to))`
+    -- | so that edge insertion takes just $O(1)$.
+    rev :: {-# UNPACK #-} !Int
+  }
+  deriving (Show)
+
+derivingUnbox
+  "RNEdge"
+  [t|RNEdge -> (G.Vertex, Int, Int)|]
+  [|\(RNEdge x1 x2 x3) -> (x1, x2, x3)|]
+  [|\(x1, x2, x3) -> RNEdge x1 x2 x3|]
+
+-- | `Vertex` -> `[RNEdge]`
+-- TODO: For the sub containers, use `Sequence` or something better
+type ResidualNetwork = VM.IOVector (IM.IntMap RNEdge)
+
+-- | Builds a residual network at initial state.
+-- {-# INLINE buildRN #-}
+-- TODO: make it generic over ST.. for no reason?
+buildRN :: Int -> [(Int, (Int, Int))] -> IO ResidualNetwork
+buildRN !nVerts !edges = do
+  !rn <- VM.replicate nVerts IM.empty
+  -- TODO: consider using `VU.accumlate` instead?
+  forM_ edges $ \(!v1, (!v2, !cap)) -> do
+    addEdgeRN rn v1 v2 cap
+  return rn
+  where
+    addEdgeRN :: ResidualNetwork -> Int -> Int -> Int -> IO ()
+    addEdgeRN !rn !v1 !v2 !maxFlow = do
+      !edges1 <- VM.read rn v1
+      !edges2 <- VM.read rn v2
+
+      -- REMARK: Be sure to use `insertWith`!
+      -- We can have both (v1 -> v2) path and (v2 -> v1) path
+
+      -- We can run up to `maxFlow`:
+      VM.write rn v1 $ IM.insertWith mergeEdge v2 (RNEdge v2 maxFlow v1) edges1
+      -- We cannot reverse when there's no flow:
+      VM.write rn v2 $ IM.insertWith mergeEdge v1 (RNEdge v1 0 v2) edges2
+
+    mergeEdge :: RNEdge -> RNEdge -> RNEdge
+    mergeEdge (RNEdge !to !flow !cap) (RNEdge !_ !flow' !_) = RNEdge to (flow + flow') cap
+
+{-# INLINE maxFlowRN #-}
+maxFlowRN :: Int -> ResidualNetwork -> Int -> Int -> IO Int
+maxFlowRN !nVerts !rn !v0 !ve = do
+  -- TODO: use BitVec in 2023 environment
+  !vis <- VM.replicate nVerts False
+  loop vis
+  where
+    loop :: VM.IOVector Bool -> IO Int
+    loop !vis =
+      augumentPath rn vis v0 ve >>= \case
+        Nothing -> return 0
+        Just (!flow, !path) -> do
+          updateFlow rn flow path
+          VM.set vis False
+          (flow +) <$> loop vis
+
+-- | Find a flow augment path between two vertices.
+{-# INLINE augumentPath #-}
+augumentPath :: ResidualNetwork -> VM.IOVector Bool -> G.Vertex -> Int -> IO (Maybe (Int, [(G.Vertex, G.Vertex)]))
+augumentPath !rn !vis !v0 !goal = visitVertex v0 (maxBound @Int)
+  where
+    visitVertex :: G.Vertex -> Int -> IO (Maybe (Int, [(G.Vertex, G.Vertex)]))
+    visitVertex !v !flow
+      | v == goal = return $ Just (flow, [])
+      | otherwise = do
+        VM.write vis v True
+        !edges <- VM.read rn v
+        foldM (step v flow) Nothing edges
+
+    step :: G.Vertex -> Int -> Maybe (Int, [(G.Vertex, G.Vertex)]) -> RNEdge -> IO (Maybe (Int, [(G.Vertex, G.Vertex)]))
+    step !_ !_ r@(Just _) _ = return r
+    step !from !flow !_ !edge = do
+      !visited <- VM.read vis (to edge)
+      if visited || flow' == 0
+        then return Nothing
+        else
+          visitVertex (to edge) flow' >>= \case
+            Nothing -> return Nothing
+            Just (!f, !path) -> return $ Just (f, p : path)
+      where
+        flow' = min flow (cap edge)
+        p = (from, to edge)
+
+{-# INLINE updateFlow #-}
+updateFlow :: ResidualNetwork -> Int -> [(G.Vertex, G.Vertex)] -> IO ()
+updateFlow !rn !flow !path = forM_ path $ \(!v1, !v2) -> addFlowRNEdge rn v1 v2 flow
+
+{-# INLINE addFlowRNEdge #-}
+addFlowRNEdge :: ResidualNetwork -> G.Vertex -> G.Vertex -> Int -> IO ()
+addFlowRNEdge !rn !v1 !v2 !flow = do
+  -- TODO: consider using `VM.modify`
+  -- TODO: consider using `lens`, `snd2` (or not)
+  -- TODO: replace `dupe` with function applicative?
+  (!edges1, !edge12) <- second (IM.! v2) . dupe <$> VM.read rn v1
+  (!edges2, !edge21) <- second (IM.! v1) . dupe <$> VM.read rn v2
+  -- let !_ = traceShow ("edge", "v1:", v1, edge12, "v2:", v2, edge21, flow) ()
+
+  -- TODO: debugAssert
+  -- when (cap edge12 < flow) $ error "invariant broken"
+  VM.write rn v1 $ IM.insert v2 (RNEdge (to edge12) (cap edge12 - flow) (rev edge12)) edges1
+  VM.write rn v2 $ IM.insert v1 (RNEdge (to edge21) (cap edge21 + flow) (rev edge21)) edges2
 
 -- }}}
 
@@ -855,6 +1240,16 @@ divModFC x context@(modulus, _) = x * invModFC modulus context `rem` modulus
 main :: IO ()
 main = do
   [n] <- getLineIntList
-  xs <- getLineIntVec
+  let n2 = n `div` 2
+  let toHalf :: Int -> Int
+      toHalf x = min x (n - 1 - x)
+  input <- sortBy (comparing snd) . zipWith (curry $ both (toHalf . pred) . swap) [1 ..] <$> getLineIntList
+  -- let !_ = traceShow (input) ()
+  let arr = accumArray @Array (flip (:)) [] (0, n2) input
 
-  print "TODO"
+  let result = sum $ map (fst . f) [0 .. n2]
+      f i =
+        let xs = arr ! i
+         in foldl' (\(acc, l) d -> (acc + succ d * pred l, pred l)) (0, length xs) xs
+
+  print result

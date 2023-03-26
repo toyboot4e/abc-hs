@@ -1,2 +1,19 @@
 cradle:
   stack:
+    - path: "./f/Main.hs"
+      component: "abc268:exe:f-exe"
+
+    - path: "./e/Main.hs"
+      component: "abc268:exe:e-exe"
+
+    - path: "./d/Main.hs"
+      component: "abc268:exe:d-exe"
+
+    - path: "./c/Main.hs"
+      component: "abc268:exe:c-exe"
+
+    - path: "./b/Main.hs"
+      component: "abc268:exe:b-exe"
+
+    - path: "./a/Main.hs"
+      component: "abc268:exe:a-exe"
