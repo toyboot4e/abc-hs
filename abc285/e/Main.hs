@@ -1261,31 +1261,44 @@ addFlowRNEdge !rn !v1 !v2 !flow = do
 -- ord 'A' == 65
 -- indexString = map (subtract 65 . ord)
 
+-- TOO DIFFICULT for me!
 main :: IO ()
 main = do
   [n] <- getLineIntList
   !xs <- getLineIntVec
 
+  -- Earn of workdays with sandwitch holidays
+  -- e.g. n = 3: x . . . x (x: holidy, .: workday)
+  let sandwitch len = sum $ map (\d -> xs VU.! min d (len - 1 - d)) [0 .. pred len]
+
   let !result = VU.create $ do
-        dp <- VUM.replicate n (0 :: Int)
+        dp <- VUM.replicate (succ n) (0 :: Int)
 
-        forM_ [2 .. VU.length result] $ \r -> do
+        VUM.write dp 1 (0 :: Int)
+
+        -- REMARK: It causes runtime error when `n == 1`
+        -- VUM.write dp 2 (xs VU.! 0)
+
+        forM_ [2 .. pred $ VUM.length dp] $ \r -> do
+          -- DP:
           --   0 1 2 3 r
-          -- i = 0 1 2
-          --     0   e
+          --     0 1 2
+          let !workAll = sandwitch (r - 1)
+          -- let !_ = traceShow (r, workAll) ()
 
-          -- all weekdays:
-          let e = r - 2
-          let !v1 = sum $ map (\i -> xs VU.! min i (e - i)) [0 .. e]
-
-          -- dp:
-          !vs <- forM [0 .. r] $ \i -> do
+          !vs <- forM [0 .. (r - 1)] $ \i -> do
             x1 <- VUM.read dp i
+
+            -- I think this also works, just like an ordinary span-based DP:
             x2 <- VUM.read dp (r - i)
+            -- let !x2 = sandwitch (r - 1 - i) -- pass length
+
             return $ x1 + x2
 
-          return $ maximum (v1 : vs)
+          VUM.write dp r $ maximum $ workAll : vs
 
         return dp
 
-  print "TODO"
+  -- let !_ = traceShow (result) ()
+
+  print $ VU.maximum result
