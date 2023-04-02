@@ -8,28 +8,30 @@
 
 {- TODOs
 
-- [ ] DP
-  - [ ] Span-based
-  - [ ] Bit-based
-  - [ ] EDPC
-  - [ ] TDPC
+- [ ] EDPC / TDPC
+  - [x] Span-based
+  - [x] Expected values
+  - [x] Bit-based (set-based)
+  - [ ] Digits-based?
 
 - [ ] More practices
-  - [ ] Tessoku A71~, C11~
-  - [ ] Typical 90
   - [ ] Chokudai Speedrun001, 002
+  - [.] Tessoku A71~, C11~
+  - [ ] Typical 90
 
-- [ ] PAST (advanced)
+- [ ] PAST book (advanced)
+  - [.] Binary search
+  - [.] DP
 
-- [ ] More templates
-  - [ ] Graph
-    - [ ] connections, scc, cycles
-    - [ ] try minimum cut problem
+- [ ] Graph
+  - [ ] connections
+  - [ ] cycles
+  - [ ] scc and topological sort
+  - [ ] minimum cut problem
+
+- [ ] Techniques
+  - [ ] 2D index compression
   - [ ] Better, easier rolling hash
-
-- [ ] More graph
-  - [ ] Dijkstra2
-  - [ ] Tessoku graph B
 
 -}
 
@@ -153,8 +155,8 @@ flipOrder = \case
 -- {{{ Libary complements
 
 {-# INLINE modifyArray #-}
-modifyArray :: (MArray a e m, Ix i) => a i e -> i -> (e -> e) -> m ()
-modifyArray ary i f = do
+modifyArray :: (MArray a e m, Ix i) => a i e -> (e -> e) -> i -> m ()
+modifyArray ary f i = do
   !v <- f <$> readArray ary i
   writeArray ary i v
 
@@ -801,12 +803,25 @@ newSTree !f !n !value = MSegmentTree f <$!> VUM.replicate n' value
     !n' = shiftL (bitCeil n) 1
 
 -- | Updates an `MSegmentTree` leaf value and their parents up to top root.
-{-# INLINE updateLeaf #-}
-updateLeaf :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> a -> m ()
-updateLeaf tree@(MSegmentTree !_ !vec) !i !value = _updateElement tree i' value
+{-# INLINE insertSTree #-}
+insertSTree :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> a -> m ()
+insertSTree tree@(MSegmentTree !_ !vec) !i !value = _updateElement tree i' value
   where
     -- length == 2 * (the number of the leaves)
     !offset = VUM.length vec `div` 2 - 1
+    -- leaf index
+    !i' = i + offset
+
+-- | Updates an `MSegmentTree` leaf value and their parents up to top root.
+{-# INLINE modifySTree #-}
+modifySTree :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> (a -> a) -> Int -> m ()
+modifySTree tree@(MSegmentTree !_ !vec) !f !i = do
+  !v <- f <$> VUM.read vec i'
+  _updateElement tree i' v
+  where
+    -- length == 2 * (the number of the leaves)
+    !offset = VUM.length vec `div` 2 - 1
+    -- leaf index
     !i' = i + offset
 
 -- | (Internal) Updates an `MSegmentTree` element (node or leaf) value and their parents up to top root.
@@ -829,7 +844,10 @@ _updateParent tree@(MSegmentTree !f !vec) !iParent = do
 -- | Retrieves the folding result over the inclusive range `[l, r]` from `MSegmentTree`.
 {-# INLINE querySTree #-}
 querySTree :: forall a m. (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> (Int, Int) -> m a
-querySTree (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$!> inner 0 (0, initialHi)
+querySTree (MSegmentTree !f !vec) (!lo, !hi) =
+  if hi == lo
+    then VUM.read vec (lo + (VUM.length vec `div` 2 - 1))
+    else fromJust <$!> inner 0 (0, initialHi)
   where
     !initialHi = VUM.length vec `div` 2 - 1
     inner :: Int -> (Int, Int) -> m (Maybe a)
@@ -845,6 +863,30 @@ querySTree (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$!> inner 0 (0, initial
           (Just !a, _) -> a
           (_, Just !b) -> b
           (_, _) -> error "query error (segment tree)"
+
+-- }}}
+
+-- {{{ Inveresion number (segment tree)
+
+-- | Calculates the inversion number. Input must be zero-based
+invNumVU :: VU.Vector Int -> Int
+invNumVU xs = runST $ do
+  let !n = VU.length xs
+  !stree <- newSTree (+) (pred n) (0 :: Int)
+
+  -- NOTE: foldM is better for performance
+  !ss <- VU.forM xs $ \x -> do
+    -- count pre-inserted numbers bigger than this:
+    !s <-
+      if x == pred n
+        then return 0
+        else querySTree stree (succ x, pred n)
+
+    -- let !_ = traceShow (x, s, (succ x, pred n)) ()
+    modifySTree stree succ x
+    return s
+
+  return $ VU.sum ss
 
 -- }}}
 
