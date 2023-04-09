@@ -227,20 +227,9 @@ combinations !len !elements = comb len (length elements) elements
       | otherwise = map (x :) (comb (r - 1) (n - 1) xs) ++ comb r (n - 1) xs
     comb _ _ _ = error "unreachable"
 
-prevPermutationVec :: (Ord e, VG.Vector v e, VG.Vector v (Down e)) => v e -> v e
-prevPermutationVec =
-  VG.map (\case Down !x -> x)
-    . VG.modify
-      ( \ !vec -> do
-          _ <- VGM.nextPermutation vec
-          return ()
-      )
-    . VG.map Down
-
 -- }}}
 
 -- {{{ Tuples
-
 
 tuple2 :: [a] -> (a, a)
 tuple2 [!a, !b] = (a, b)
@@ -542,11 +531,131 @@ invModFC !primeModulus = powerByCache (primeModulus - 2)
 divModFC :: Int -> (Int, VU.Vector Int) -> Int
 divModFC !x context@(!modulus, !_) = x * invModFC modulus context `rem` modulus
 
+-- | Cache of `n! mod m` up to `n`.
+factMods :: Int -> Int -> VU.Vector Int
+factMods !n !modulus =
+  VU.scanl' (\ !x !y -> x * y `rem` modulus) (1 :: Int) $ VU.fromList [(1 :: Int) .. n]
+
 -- | nCr `mod` m (binominal cofficient)
 bcMod :: Int -> Int -> Int -> Int
 bcMod !n !r !modulus = foldl' (\ !x !y -> divModF x y modulus) (facts VU.! n) [facts VU.! r, facts VU.! (n - r)]
   where
-    facts = VU.scanl' (\ !x !y -> x * y `rem` modulus) (1 :: Int) $ VU.fromList [(1 :: Int) .. 1_000_000]
+    facts = factMods n modulus
+
+-- }}}
+
+-- {{{ IntMod
+
+-- | Type level constant `Int` value.
+-- | TODO: Replace with `GHC.TypeNats`
+class TypeInt a where
+  typeInt :: Proxy a -> Int
+
+-- | `Int` where modulus operation is performed automatically.
+newtype ModInt p = ModInt {toInt :: Int}
+  deriving (Eq)
+
+derivingUnbox
+  "ModInt"
+  [t|forall p. ModInt p -> Int|]
+  [|\(ModInt !x) -> x|]
+  [|\ !x -> ModInt x|]
+
+instance Show (ModInt p) where
+  show = show . toInt
+
+instance TypeInt p => Num (ModInt p) where
+  (ModInt !x1) + (ModInt !x2) = ModInt $ (x1 + x2) `mod` typeInt (Proxy @p)
+  (ModInt !x1) * (ModInt !x2) = ModInt $ (x1 * x2) `mod` typeInt (Proxy @p)
+  negate (ModInt !v) = ModInt $ (- v) `mod` typeInt (Proxy @p)
+  abs = id
+  signum _ = 1
+  fromInteger = ModInt . fromInteger
+
+instance TypeInt p => Fractional (ModInt p) where
+  -- reciprocal of x (inverse of x)
+  recip (ModInt !x) = ModInt $ invModF x (typeInt (Proxy @p))
+  fromRational !r = ModInt n / ModInt d
+    where
+      n = fromInteger $ Ratio.numerator r
+      d = fromInteger $ Ratio.denominator r
+
+-- }}}
+
+-- {{{ Rolling hash
+
+-- | Rolling hash of a string.
+-- |
+-- | # Example
+-- | Slice (2, 4) of "abcdef" is given as this:
+-- | ```
+-- |            s :=     a       b       c       d       e
+-- |            s4 = b^4 a + b^3 b + b^2 c + b^1 d + b^0 e
+-- |            s2 = b^1 a + b^0 b
+-- | s4 - s2 * b^3 =                 b^2 c + b^1 d + b^0 e
+-- | ```
+data RollingHash b p = RollingHash
+  { sourceLeength :: Int,
+    -- | $\{B^i mod p\}_{i \elem [0, n)}$
+    dimensions :: VU.Vector Int,
+    hashSum :: VU.Vector Int
+  }
+  deriving (Show, Eq)
+
+-- | B-adic number for the rolling hash algorithm.
+data HashInt = HashInt
+
+instance TypeInt HashInt where
+  typeInt _ = 100
+
+newRHash :: forall p. TypeInt p => String -> RollingHash HashInt p
+newRHash !source = RollingHash n bn hashSum
+  where
+    !p = typeInt (Proxy @p)
+    !b = typeInt (Proxy @HashInt)
+    !n = length source
+    !bn = VU.create $ do
+      !vec <- VUM.replicate n (1 :: Int)
+      VU.forM_ (vRange 1 (pred n)) $ \i -> do
+        !lastB <- VUM.read vec (pred i)
+        VUM.write vec i (b * lastB `mod` p)
+      return vec
+    !hashSum = evalState (VU.mapM (\ !ch -> state $ \ !acc -> f ch acc) $ VU.fromList source) (0 :: Int)
+      where
+        f :: Char -> Int -> (Int, Int)
+        f !ch !lastX = dupe $ (lastX * b + ord ch) `mod` p
+
+lengthRHash :: RollingHash b p -> Int
+lengthRHash (RollingHash !len !_ !_) = len
+
+-- | HashSlice value length. See also the example of `RollingHash`.
+data HashSlice p = HashSlice
+  { hashValue :: {-# UNPACK #-} !Int,
+    -- hashOffset :: {-# UNPACK #-} !Int,
+    hashLength :: {-# UNPACK #-} !Int
+  }
+  deriving (Show, Eq)
+
+-- | Slices a rolling hash string
+sliceRHash :: forall b p. (TypeInt b, TypeInt p) => RollingHash b p -> Int -> Int -> HashSlice p
+sliceRHash (RollingHash !_ !bn !s) !i0 !i1
+  -- TODO: add debug assertion
+  | i0 > i1 = HashSlice 0 0
+  | otherwise =
+    let !len = i1 - i0 + 1
+        !s1 = s VU.! i1
+        !s0 = fromMaybe 0 $ s VU.!? pred i0
+        !value = (s1 - (bn VU.! len) * s0) `mod` p
+     in HashSlice value len
+ where
+    !p = typeInt (Proxy @p)
+
+consHashSlice :: forall b p. (TypeInt b, TypeInt p) => RollingHash b p -> HashSlice p -> HashSlice p -> HashSlice p
+consHashSlice (RollingHash !_ !bn !_) (HashSlice !v0 !l0) (HashSlice !v1 !l1) = HashSlice value len
+  where
+    !p = typeInt (Proxy @p)
+    !value = ((bn VU.! l1) * v0 + v1) `mod` p
+    !len = l0 + l1
 
 -- }}}
 
@@ -945,6 +1054,53 @@ tabulateST !f !bounds_ !e0 =
 
 -- }}}
 
+-- {{{ Dictionary orders
+
+prevPermutationVec :: (Ord e, VG.Vector v e, VG.Vector v (Down e)) => v e -> v e
+prevPermutationVec =
+  VG.map (\case Down !x -> x)
+    . VG.modify
+      ( \ !vec -> do
+          _ <- VGM.nextPermutation vec
+          return ()
+      )
+    . VG.map Down
+
+-- | Returns 1-based dictionary order for the given array.
+-- | WARNING: Use 0-based indices for the input.
+dictOrderModuloVec :: (VG.Vector v Int) => v Int -> Int -> Int
+dictOrderModuloVec xs modulus = runST $ do
+  !stree <- newSTree (+) (VG.length xs + 1) (0 :: Int)
+
+  -- Pre-calculate factorial numbers:
+  let !facts = factMods (VG.length xs) modulus
+
+  -- The calculation is very similar to that of inversion number. For example,
+  -- ```
+  --     2 0 4 3 1
+  --     | | | | |
+  --     | | | | +-- 0 * 0!
+  --     | | | +-- 1 * 1!
+  --     | | +-- 2 * 2!
+  --     | +-- 0 * 3 !
+  --     +-- 2 * 4!
+  -- ```
+  -- So each expression is given as `(the number of unused numbers smaller than this) * factMod`.
+  !counts <- flip VG.imapM xs $ \i x -> do
+    !nUsed <- querySTree stree (0, x)
+    let !nUnused = x - nUsed
+    let !factMod = facts VG.! (VG.length xs - (i + 1))
+    let !inc = nUnused * factMod `rem` modulus
+
+    -- mark it as used
+    insertSTree stree x 1
+
+    return inc
+
+  return $ succ $ VG.foldl1' (\ !acc x -> (acc + x) `rem` modulus) counts
+
+-- }}}
+
 -- {{{ Graph search
 
 -- TODO: rewrite all
@@ -969,14 +1125,13 @@ dfsEveryVertex (!isEnd, !fin, !fout) !graph !start !s0 = visitNode (s0, IS.empty
       | IS.member x visits = (s, visits)
       | otherwise =
         let (!s', !visits') = visitNeighbors (fin s x, IS.insert x visits) x
-            -- !_ = traceShow (start, x, graph ! x) ()
-         in (fout s' x, visits')
+         in -- !_ = traceShow (start, x, graph ! x) ()
+            (fout s' x, visits')
 
     visitNeighbors :: (s, IS.IntSet) -> Int -> (s, IS.IntSet)
     visitNeighbors (!s, !visits) !x
       | isEnd s = (s, visits)
       | otherwise = foldl' visitNode (s, visits) (graph ! x)
-
 
 dfsEveryPath :: forall s. (s -> Bool, s -> Int -> s, s -> Int -> s) -> Graph -> Int -> s -> s
 dfsEveryPath (!isEnd, !fin, !fout) !graph !start !s0 = visitNode (s0, IS.empty) start
@@ -990,7 +1145,7 @@ dfsEveryPath (!isEnd, !fin, !fout) !graph !start !s0 = visitNode (s0, IS.empty) 
     visitNeighbors (!s, !visits) !x
       | isEnd s = s
       | otherwise =
-        foldl' (\ !s2  !n -> visitNode (s2, visits) n) s $ filter (`IS.notMember` visits) (graph ! x)
+        foldl' (\ !s2 !n -> visitNode (s2, visits) n) s $ filter (`IS.notMember` visits) (graph ! x)
 
 -- | Searches for a specific route in breadth-first order.
 -- | Returns `Just (depth, node)` if succeed.
@@ -1014,15 +1169,15 @@ bfsFind !f !graph !start =
 
     visitNeighbors :: IS.IntSet -> IS.IntSet -> (Maybe Int, IS.IntSet)
     visitNeighbors !visits !nbs =
-       foldl'
-            ( \(!result, !nbs') !x ->
-                let nbs'' = IS.union nbs' $ IS.fromList . filter (`IS.notMember` visits) $ graph ! x
-                 in if f x
-                      then (Just x, nbs'')
-                      else (result, nbs'')
-            )
-            (Nothing, IS.empty)
-            (IS.toList nbs)
+      foldl'
+        ( \(!result, !nbs') !x ->
+            let nbs'' = IS.union nbs' $ IS.fromList . filter (`IS.notMember` visits) $ graph ! x
+             in if f x
+                  then (Just x, nbs'')
+                  else (result, nbs'')
+        )
+        (Nothing, IS.empty)
+        (IS.toList nbs)
 
 dijkstra :: forall s. (s -> IHeapEntry -> s) -> s -> WGraph -> Int -> s
 dijkstra !f !s0 !graph !start = fst3 $! visitRec (s0, IS.empty, H.singleton $! H.Entry 0 start)
@@ -1042,6 +1197,10 @@ dijkstra !f !s0 !graph !start = fst3 $! visitRec (s0, IS.empty, H.singleton $! H
           !news = H.fromList . map (first (cost +)) . filter p $ graph ! x
           !p = not . (`IS.member` visits') . H.payload
        in (f s entry, visits', H.union heap news)
+
+-- }}}
+
+-- {{{ Digraph
 
 -- | Red | Green color
 type Color = Bool
@@ -1071,8 +1230,79 @@ colorize !graph !colors0 = dfs True (colors0, Just ([], []))
     applyColor :: Color -> G.Vertex -> Maybe ColorInfo -> Maybe ColorInfo
     applyColor !_ !_ Nothing = Nothing
     applyColor !color !v (Just !acc)
-      | color = Just $ first (v : ) acc
-      | otherwise = Just $ second (v : ) acc
+      | color = Just $ first (v :) acc
+      | otherwise = Just $ second (v :) acc
+
+-- }}}
+
+-- {{{ Topological sort / SCC
+
+-- | Topological sort implemented with postorder DFS.
+-- |
+-- | # Implementation note
+-- | Topological sort is for DAG, but internally it's used for `scc` where asyclic graph input can
+-- | come.
+topSort :: Array Int [Int] -> [Int]
+topSort !graph = runST $ do
+  let !bounds_ = bounds graph
+  !vis <- VUM.replicate (succ $ rangeSize bounds_) False
+
+  let dfsM !acc !v = do
+        !b <- VUM.read vis (index bounds_ v)
+        if b
+          then return acc
+          else do
+            VUM.write vis (index bounds_ v) True
+            !vs <- filterM (fmap not . VUM.read vis . index bounds_) $ graph ! v
+            -- Create postorder output:
+            (v :) <$> foldM dfsM acc vs
+
+  foldM dfsM [] $ range bounds_
+
+-- | Partial running of `scc` over topologically sorted vertices, but for sone connected components
+-- | only.
+topScc1 :: forall m. (PrimMonad m) => Array Int [Int] -> VUM.MVector (PrimState m) Bool -> Int -> m [Int]
+topScc1 !graph' !vis !v0 = do
+  let !bounds_ = bounds graph'
+
+  let dfsM !acc !v = do
+        !b <- VUM.read vis (index bounds_ v)
+        if b
+          then return acc
+          else do
+            VUM.write vis (index bounds_ v) True
+            !vs <- filterM (fmap not . VUM.read vis . index bounds_) $ graph' ! v
+            -- Create preorder output:
+            (v :) <$> foldM dfsM acc vs
+
+  dfsM [] v0
+
+-- | Retrieves a reverse graph
+revGraph :: Array Int [Int] -> Array Int [Int]
+revGraph graph = accumArray (flip (:)) [] (bounds graph) input
+  where
+    input :: [(Int, Int)]
+    input = foldl' (\ !acc (!v2, !v1s) -> foldl' (\ !acc' !v1 -> (v1, v2) : acc') acc v1s) [] $ assocs graph
+
+-- | Collectes strongly connected components, topologically sorted.
+topScc :: Array Int [Int] -> [[Int]]
+topScc graph = collectSccPreorder $ topSort graph
+  where
+    graph' = revGraph graph
+
+    collectSccPreorder :: [Int] -> [[Int]]
+    collectSccPreorder !topVerts = runST $ do
+      let !bounds_ = bounds graph'
+      !vis <- VUM.replicate (succ $ rangeSize bounds_) False
+      filter (not . null) <$> mapM (topScc1 graph' vis) topVerts
+
+-- | Collects cycles using `scc`.
+topSccCycles :: Array Int [Int] -> [[Int]]
+topSccCycles graph = filter f $ topScc graph
+  where
+    -- self-referencial loop only
+    f [!v] = [v] == graph ! v
+    f !_ = True
 
 -- }}}
 
@@ -1116,18 +1346,35 @@ components !graph !start = inner (IS.singleton start) start
 
 -- | Dijkstra template that collects all the shortest distances from one vertex to every other.
 -- | Works for weightened graphs with positive edge capacities only.
-dj :: WGraph -> Int -> IM.IntMap Int
-dj !graph !start = inner (H.singleton $! H.Entry 0 start) IM.empty
+-- |
+-- | Pro tip: Use reverse graph to collect cost from every other vertex to one (see `revDjAll`).
+djAll :: WGraph -> Int -> IM.IntMap Int
+djAll !graph !start = inner (H.singleton $! H.Entry 0 start) IM.empty
   where
     inner !heap !vis
       | H.null heap = vis
       | IM.member v vis = inner heap' vis
       | otherwise = inner heap'' vis'
       where
+        -- pop one
         (H.Entry cost v, heap') = fromJust $! H.uncons heap
+        -- visit the popped one
         vis' = IM.insert v cost vis
+        -- push neighbors
         vs = map (first (+ cost)) $! filter ((`IM.notMember` vis') . H.payload) $! graph ! v
         heap'' = foldl' (flip H.insert) heap' vs
+
+revWGraph :: WGraph -> WGraph
+revWGraph !graph = accumArray @Array (flip (:)) [] (bounds graph) $ concatMap revF $ assocs graph
+  where
+    revF (!v1, !v2s) = map (\(H.Entry !priority !v2) -> (v2, H.Entry priority v1)) v2s
+
+-- | Runs dijkstra's algorithm over a reversed graph of given graph.
+-- | It calculates
+revDjAll :: WGraph -> Int -> IM.IntMap Int
+revDjAll !graph !start =
+  let !graph' = revWGraph graph
+   in djAll graph' start
 
 -- }}}
 
@@ -1333,13 +1580,21 @@ addFlowRNEdge !rn !v1 !v2 !flow = do
 
 -- }}}
 
+data MyModulus = MyModulus
+
+instance TypeInt MyModulus where
+  typeInt _ = 1_000_000_007
+
+modInt :: Int -> ModInt MyModulus
+modInt = ModInt
+
 -- ord 'a' == 97
 -- ord 'A' == 65
--- indexString = map (subtract 65 . ord)
+-- indexString = map (subtract (ord 'A') . ord)
 
 main :: IO ()
 main = do
   [n] <- getLineIntList
-  !xs <- getLineIntVec
+  xs <- getLineIntVec
 
   print "TODO"
