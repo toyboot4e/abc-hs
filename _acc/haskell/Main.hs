@@ -184,7 +184,7 @@ flipOrder = \case
 
 {-# INLINE modifyArray #-}
 modifyArray :: (MArray a e m, Ix i) => a i e -> (e -> e) -> i -> m ()
-modifyArray ary f i = do
+modifyArray !ary !f !i = do
   !v <- f <$> readArray ary i
   writeArray ary i v
 
@@ -385,10 +385,10 @@ digits !base !x = reverse $ digitsRev base x
 
 -- | Takes a list of digits, and converts them back into a positive integer.
 unDigits :: Integral n => n -> [n] -> n
-unDigits !base = foldl' (\ !a  !b -> a * base + b) 0
+unDigits !base = foldl' (\ !a !b -> a * base + b) 0
 
 -- | <https://stackoverflow.com/questions/10028213/converting-number-base>
--- | REMARK: It returns `[]` when giben `[0]`. Be sure to convert `[]` to `[0]` if necessary.
+-- | REMARK: It returns `[]` when given `[0]`. Be sure to convert `[]` to `[0]` if necessary.
 convertBase :: Integral a => a -> a -> [a] -> [a]
 convertBase !from !to = digits to . unDigits from
 
@@ -701,9 +701,10 @@ type STUnionFind s = MUnionFind s
 -- | `MUFChild parent | MUFRoot size`. Not `Unbox` :(
 data MUFNode = MUFChild {-# UNPACK #-} !Int | MUFRoot {-# UNPACK #-} !Int
 
-derivingUnbox "MUFNode"
+derivingUnbox
+  "MUFNode"
   [t|MUFNode -> (Bool, Int)|]
-  [|\case (MUFChild !x) -> (True, x)  ; (MUFRoot !x) -> (False, x)|]
+  [|\case (MUFChild !x) -> (True, x); (MUFRoot !x) -> (False, x)|]
   [|\case (True, !x) -> MUFChild x; (False, !x) -> MUFRoot x|]
 
 -- | Creates a new Union-Find tree of the given size.
@@ -824,6 +825,8 @@ data MSegmentTree s a = MSegmentTree (a -> a -> a) (VUM.MVector s a)
 -- TODO: Generic queries and immutable segment tree (with `Show` instance)
 
 -- | Creates a new segment tree for `n` leaves.
+-- | REMARK: Always give a zero value. It fills all the nodes including parent nodes, and the parent
+-- | nodes are not updated.
 {-# INLINE newSTree #-}
 newSTree :: (VUM.Unbox a, PrimMonad m) => (a -> a -> a) -> Int -> a -> m (MSegmentTree (PrimState m) a)
 newSTree !f !n !value = MSegmentTree f <$!> VUM.replicate n' value
@@ -855,6 +858,8 @@ modifySTree tree@(MSegmentTree !_ !vec) !f !i = do
 -- | (Internal) Updates an `MSegmentTree` element (node or leaf) value and their parents up to top root.
 {-# INLINE _updateElement #-}
 _updateElement :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> a -> m ()
+_updateElement (MSegmentTree !_ !vec) 0 !value = do
+  VUM.write vec 0 value
 _updateElement tree@(MSegmentTree !_ !vec) !i !value = do
   VUM.write vec i value
   _updateParent tree ((i - 1) `div` 2)
@@ -863,7 +868,6 @@ _updateElement tree@(MSegmentTree !_ !vec) !i !value = do
 {-# INLINE _updateParent #-}
 _updateParent :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> m ()
 _updateParent _ (-1) = pure () -- REMARK: (-1) `div` 2 == -1
-_updateParent _ 0 = pure ()
 _updateParent tree@(MSegmentTree !f !vec) !iParent = do
   !c1 <- VUM.read vec (iParent * 2 + 1)
   !c2 <- VUM.read vec (iParent * 2 + 2)
@@ -872,10 +876,7 @@ _updateParent tree@(MSegmentTree !f !vec) !iParent = do
 -- | Retrieves the folding result over the inclusive range `[l, r]` from `MSegmentTree`.
 {-# INLINE querySTree #-}
 querySTree :: forall a m. (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> (Int, Int) -> m a
-querySTree (MSegmentTree !f !vec) (!lo, !hi) =
-  if hi == lo
-    then VUM.read vec (lo + (VUM.length vec `div` 2 - 1))
-    else fromJust <$!> inner 0 (0, initialHi)
+querySTree (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$!> inner 0 (0, initialHi)
   where
     !initialHi = VUM.length vec `div` 2 - 1
     inner :: Int -> (Int, Int) -> m (Maybe a)
@@ -890,20 +891,22 @@ querySTree (MSegmentTree !f !vec) (!lo, !hi) =
           (Just !a, Just !b) -> f a b
           (Just !a, _) -> a
           (_, Just !b) -> b
-          (_, _) -> error "query error (segment tree)"
+          (_, _) -> error $ "query error (segment tree): " ++ show (i, (l, h), (lo, hi))
 
 -- }}}
 
 -- {{{ Inveresion number (segment tree)
 
--- | Calculates the inversion number. Input must be zero-based
-invNumVU :: VU.Vector Int -> Int
-invNumVU xs = runST $ do
-  let !n = VU.length xs
-  !stree <- newSTree (+) (pred n) (0 :: Int)
+-- | Calculates the inversion number.
+-- |
+-- | REMARK: The implementaiton assumes that the input is in range `[0, length - 1]`.
+invNumVec :: (VG.Vector v Int) => v Int -> Int
+invNumVec xs = runST $ do
+  let !n = VG.length xs
+  !stree <- newSTree (+) n (0 :: Int)
 
   -- NOTE: foldM is better for performance
-  !ss <- VU.forM xs $ \x -> do
+  !ss <- VG.forM xs $ \x -> do
     -- count pre-inserted numbers bigger than this:
     !s <-
       if x == pred n
@@ -914,7 +917,7 @@ invNumVU xs = runST $ do
     modifySTree stree succ x
     return s
 
-  return $ VU.sum ss
+  return $ VG.sum ss
 
 -- }}}
 
