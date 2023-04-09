@@ -4,6 +4,8 @@
 --package hashable --package unordered-containers --package heaps --package utility-ht
 --package vector --package vector-th-unbox --package vector-algorithms --package primitive
 --package transformers
+
+--ghc-options "-D DEBUG"
 -}
 
 {- TODOs
@@ -12,37 +14,42 @@
   - [x] Span-based
   - [x] Expected values
   - [x] Bit-based (set-based)
-  - [ ] Digits-based?
+  - [.] Digits-based DP
 
 - [ ] More practices
-  - [ ] Chokudai Speedrun001, 002
-  - [.] Tessoku A71~, C11~
-  - [ ] Typical 90
+  - [x] Chokudai Speedrun001
+  - [.] Chokudai Speedrun002
+  - [.] Tessoku A71~
+  - [.] Tessoku C11~
+  - [.] Typical 90
 
 - [ ] PAST book (advanced)
   - [.] Binary search
   - [.] DP
 
 - [ ] Graph
-  - [ ] connections
-  - [ ] cycles
-  - [ ] scc and topological sort
+  - [x] connections
+  - [ ] tree diameter with DFS
+  - [x] scc and topological sort
+  - [x] cycles by SCC
+  - [ ] 2-SAT
   - [ ] minimum cut problem
 
 - [ ] Techniques
   - [ ] 2D index compression
-  - [ ] Better, easier rolling hash
+  - [x] Better, easier rolling hash
+  - [ ] Doubling
 
 -}
 
 {- ORMOLU_DISABLE -}
 {-# LANGUAGE BangPatterns, BlockArguments, DefaultSignatures, LambdaCase, MultiWayIf #-}
 {-# LANGUAGE NumDecimals, NumericUnderscores, PatternGuards, TupleSections #-}
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, ScopedTypeVariables #-}
-{-# LANGUAGE StrictData, TypeApplications, TypeFamilies, RankNTypes #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, InstanceSigs, MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables, StrictData, TypeApplications, TypeFamilies, RankNTypes #-}
 
 -- TODO: ditch `vector-th-unbox` and `TemplateHaskell` in 2023 environment
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE CPP, TemplateHaskell #-}
 {- ORMOLU_ENABLE -}
 
 -- {{{ Imports
@@ -58,12 +65,14 @@ import Control.Monad.Trans.State.Strict
 import Data.Bifunctor
 import Data.Bits
 import Data.Char
+import Data.Either
 import Data.Foldable
 import Data.Functor
 import Data.IORef
 import Data.List
 import Data.Maybe
 import Data.Ord
+import Data.Proxy
 import Data.Word
 import Debug.Trace
 import GHC.Event (IOCallback)
@@ -73,6 +82,9 @@ import System.IO
 import Text.Printf
 
 {- ORMOLU_DISABLE -}
+
+-- base
+import qualified Data.Ratio as Ratio
 
 -- array
 import Data.Array.IArray
@@ -89,7 +101,7 @@ import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Char8 as BS
 
 -- extra: https://www.stackage.org/lts-16.11/package/extra-1.7.6
-import Control.Monad.Extra -- foldM, ..
+import Control.Monad.Extra hiding (loop) -- foldM, ..
 import Data.IORef.Extra    -- writeIORef'
 import Data.List.Extra     -- merge, nubSort, ..
 import Data.Tuple.Extra hiding (first, second)
@@ -135,6 +147,22 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 
 {- ORMOLU_ENABLE -}
+
+-- }}}
+
+-- {{{ Debug-only utilities
+
+-- When run as a stack script, `dbg` expands to `traceShow`.
+-- Otherwise it's an empty function.
+#ifdef DEBUG
+dbg :: Show a => a -> ()
+dbg !x = let !_ = traceShow x () in ()
+
+#else
+dbg :: Show a => a -> ()
+dbg !_ = ()
+
+#endif
 
 -- }}}
 
