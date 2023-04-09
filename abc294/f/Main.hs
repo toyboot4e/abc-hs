@@ -8,26 +8,37 @@
 
 {- TODOs
 
+- [ ] DP
+  - [.] Span-based
+  - [.] Expected values
+  - [.] Bit-based?
+  - [.] EDPC
+  - [.] TDPC
+
+- [ ] More practices
+  - [.] Tessoku A71~, C11~
+  - [ ] Typical 90
+  - [ ] Chokudai Speedrun001, 002
+
+- [ ] PAST (advanced)
+
 - [ ] More templates
   - [ ] Graph
-    - [ ] connections, scc, cycles
+    - [ ] connections
+    - [ ] cycles
+    - [ ] scc and topological sort
     - [ ] try minimum cut problem
+  - [ ] 2D index compression
   - [ ] Better, easier rolling hash
-
-- [ ] Green steak
 
 - [ ] More graph
   - [ ] Dijkstra2
   - [ ] Tessoku graph B
 
-- [ ] DP
-  - [ ] Tessoku DP
-  - [ ] EDCP
+- [ ] More advanced algorithms
+  - [ ] Mo
+  - [ ] Heavy-Light Decomposition
 
-- [ ] More practices
-  - [ ] Chokudai Speedrun001, 002
-  - [ ] Tessoku A71~, C11~
-  - [ ] Typical 90
 -}
 
 {- ORMOLU_DISABLE -}
@@ -133,7 +144,27 @@ import qualified Data.HashSet as HS
 
 -- }}}
 
+-- {{{ Prelude utilities
+
+-- | From more recent GHC
+clamp :: (Ord a) => (a, a) -> a -> a
+clamp (!low, !high) !a = min high (max a low)
+
+flipOrder :: Ordering -> Ordering
+flipOrder = \case
+  GT -> LT
+  LT -> GT
+  EQ -> EQ
+
+-- }}}
+
 -- {{{ Libary complements
+
+{-# INLINE modifyArray #-}
+modifyArray :: (MArray a e m, Ix i) => a i e -> (e -> e) -> i -> m ()
+modifyArray ary f i = do
+  !v <- f <$> readArray ary i
+  writeArray ary i v
 
 {-# INLINE vLength #-}
 vLength :: (VG.Vector v e) => v e -> Int
@@ -188,6 +219,7 @@ prevPermutationVec =
 
 -- {{{ Tuples
 
+
 tuple2 :: [a] -> (a, a)
 tuple2 [!a, !b] = (a, b)
 tuple2 _ = error "not a two-item list"
@@ -196,11 +228,18 @@ tuple3 :: [a] -> (a, a, a)
 tuple3 [!a, !b, !c] = (a, b, c)
 tuple3 _ = error "not a three-item list"
 
+tuple4 :: [a] -> (a, a, a, a)
+tuple4 [!a, !b, !c, !d] = (a, b, c, d)
+tuple4 _ = error "not a four-item list"
+
 getTuple2 :: IO (Int, Int)
 getTuple2 = tuple2 <$> getLineIntList
 
 getTuple3 :: IO (Int, Int, Int)
 getTuple3 = tuple3 <$> getLineIntList
+
+getTuple4 :: IO (Int, Int, Int, Int)
+getTuple4 = tuple4 <$> getLineIntList
 
 -- | `concat` two-item tuples
 concat2 :: [(a, a)] -> [a]
@@ -274,16 +313,17 @@ instance ShowBSB Float where
 instance ShowBSB Double where
   showBSB = BSB.doubleDec
 
-printMat2D :: (IArray a e, Ix i, Show [e]) => a (i, i) e -> (i, i) -> (i, i) -> IO ()
-printMat2D !mat !ys !xs = do
-  forM_ (range ys) $ \ !y -> do
-    print $ flip map (range xs) $ \ !x -> mat ! (y, x)
+traceMat2D :: (IArray a e, Ix i, Show e) => a (i, i) e -> ()
+traceMat2D !mat = traceSubMat2D mat (bounds mat)
 
-traceMat2D :: (IArray a e, Ix i, Show e) => a (i, i) e -> (i, i) -> (i, i) -> ()
-traceMat2D !mat !ys !xs =
-  let !_ = foldl' step () (range ys) in ()
+traceSubMat2D :: (IArray a e, Ix i, Show e) => a (i, i) e -> ((i, i), (i, i)) -> ()
+traceSubMat2D !mat ((!y0, !x0), (!yEnd, !xEnd)) =
+  let !_ = foldl' step () (range ys)
+   in ()
   where
-    step _ !y = traceShow (map (\ !x -> mat ! (y, x)) (range xs)) ()
+    !xs = (y0, yEnd)
+    !ys = (x0, xEnd)
+    step !_ !y = traceShow (map (\ !x -> mat ! (y, x)) (range xs)) ()
 
 -- }}}
 
@@ -514,14 +554,6 @@ decrementMS !k (!n, !im) =
     Just 1 -> (n - 1, IM.delete k im)
     Just _ -> (n, IM.insertWith (+) k (-1) im)
     Nothing -> (n, im)
-
--- }}}
-
--- {{{ Misc utilities
-
--- | From more recent GHC
-clamp :: (Ord a) => (a, a) -> a -> a
-clamp (!low, !high) !a = min high (max a low)
 
 -- }}}
 
@@ -1242,8 +1274,18 @@ addFlowRNEdge !rn !v1 !v2 !flow = do
 
 main :: IO ()
 main = do
-  [nA, nB, k] <- getLineIntList
-  !xs <- replicateM nA (tuple2 <$> getLineIntList)
-  !ys <- replicateM nB (tuple2 <$> getLineIntList)
+  [n1, n2, kth] <- getLineIntList
+  !xs <- VU.replicateM n1 (tuple2 <$> getLineIntList)
+  !ys <- VU.replicateM n2 (tuple2 <$> getLineIntList)
 
-  print "TODO"
+  -- reversed range!:
+  let result = fromJust . snd $ bsearchF64 (100.0, 0.0) 0.000_000_000_1 check
+      check p = VU.sum (VU.map count1 xs') < kth
+        where
+          toLeft (!x, !y) = (100.0 - p) * intToDouble x - p * intToDouble y
+          !xs' = VU.modify VAI.sort $ VU.map toLeft xs
+          !ys' = VU.modify VAI.sort $ VU.map toLeft ys
+          -- !_ = traceShow (p, VU.sum (VU.map count1 xs') < kth, VU.sum $ VU.map count1 xs', VU.map count1 xs') ()
+          count1 !a = maybe 0 (n2 -) . snd $ bsearch (0, pred n2) $ \i -> a + ys' VU.! i < 0
+
+  print result

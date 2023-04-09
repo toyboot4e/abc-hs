@@ -47,6 +47,7 @@ _exe-defs: &exe-defaults
     - -Wall # all warnings
   other-modules: []
 
+# REMARK: See `README` for the langauge server support.
 executables:
   a-exe:
     <<: *exe-defaults
@@ -76,5 +77,15 @@ executables:
   f-exe:
     <<: *exe-defaults
     source-dirs: f
+    main:                Main.hs
+
+  g-exe:
+    <<: *exe-defaults
+    source-dirs: g
+    main:                Main.hs
+
+  ex-exe:
+    <<: *exe-defaults
+    source-dirs: ex
     main:                Main.hs
 
