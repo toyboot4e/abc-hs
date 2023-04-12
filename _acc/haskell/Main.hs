@@ -595,10 +595,10 @@ instance TypeInt p => Fractional (ModInt p) where
 -- | s4 - s2 * b^3 =                 b^2 c + b^1 d + b^0 e
 -- | ```
 data RollingHash b p = RollingHash
-  { sourceLeength :: Int,
+  { sourceLeength :: !Int,
     -- | $\{B^i mod p\}_{i \elem [0, n)}$
-    dimensions :: VU.Vector Int,
-    hashSum :: VU.Vector Int
+    dimensions :: !(VU.Vector Int),
+    hashSum :: !(VU.Vector Int)
   }
   deriving (Show, Eq)
 
