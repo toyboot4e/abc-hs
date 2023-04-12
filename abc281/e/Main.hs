@@ -481,23 +481,44 @@ emptyMS :: MultiSet
 emptyMS = (0, IM.empty)
 
 singletonMS :: Int -> MultiSet
-singletonMS x = (1, IM.singleton x 1)
+singletonMS !x = (1, IM.singleton x 1)
 
 fromListMS :: [Int] -> MultiSet
 fromListMS = foldl' (flip incrementMS) emptyMS
 
 incrementMS :: Int -> MultiSet -> MultiSet
-incrementMS k (n, im) =
+incrementMS !k (!n, !im) =
   if IM.member k im
     then (n, IM.insertWith (+) k 1 im)
     else (n + 1, IM.insert k 1 im)
 
 decrementMS :: Int -> MultiSet -> MultiSet
-decrementMS k (n, im) =
+decrementMS !k (!n, !im) =
   case IM.lookup k im of
     Just 1 -> (n - 1, IM.delete k im)
     Just _ -> (n, IM.insertWith (+) k (-1) im)
     Nothing -> (n, im)
+
+memberMS :: Int -> MultiSet -> Bool
+memberMS !k (!_, !im) = IM.member k im
+
+innerMS :: MultiSet -> IM.IntMap Int
+innerMS (!_, !im) = im
+
+-- }}}
+
+-- {{{ Queue (because `Seq` is too hard)
+
+enqueue :: a -> Seq.Seq a -> Seq.Seq a
+enqueue !x !s = x Seq.<| s
+
+dequeue :: Seq.Seq a -> (a, Seq.Seq a)
+dequeue (x Seq.:<| s) = (x, s)
+dequeue _ = error "unable to dequeue from empty sequence"
+
+dequeueMaybe :: Seq.Seq a -> Maybe (a, Seq.Seq a)
+dequeueMaybe (x Seq.:<| s) = Just (x, s)
+dequeueMaybe _ = Nothing
 
 -- }}}
 
@@ -630,9 +651,10 @@ type STUnionFind s = MUnionFind s
 -- | `MUFChild parent | MUFRoot size`. Not `Unbox` :(
 data MUFNode = MUFChild {-# UNPACK #-} !Int | MUFRoot {-# UNPACK #-} !Int
 
-derivingUnbox "MUFNode"
+derivingUnbox
+  "MUFNode"
   [t|MUFNode -> (Bool, Int)|]
-  [|\case (MUFChild x) -> (True, x)  ; (MUFRoot x) -> (False, x)|]
+  [|\case (MUFChild x) -> (True, x); (MUFRoot x) -> (False, x)|]
   [|\case (True, x) -> MUFChild x; (False, x) -> MUFRoot x|]
 
 -- | Creates a new Union-Find tree of the given size.
@@ -855,14 +877,13 @@ dfsEveryVertex (isEnd, fin, fout) graph start s0 = visitNode (s0, IS.empty) star
       | IS.member x visits = (s, visits)
       | otherwise =
         let (s', visits') = visitNeighbors (fin s x, IS.insert x visits) x
-            -- !_ = traceShow (start, x, graph ! x) ()
-         in (fout s' x, visits')
+         in -- !_ = traceShow (start, x, graph ! x) ()
+            (fout s' x, visits')
 
     visitNeighbors :: (s, IS.IntSet) -> Int -> (s, IS.IntSet)
     visitNeighbors (s, visits) x
       | isEnd s = (s, visits)
       | otherwise = foldl' visitNode (s, visits) (graph ! x)
-
 
 dfsEveryPath :: forall s. (s -> Bool, s -> Int -> s, s -> Int -> s) -> Graph -> Int -> s -> s
 dfsEveryPath (isEnd, fin, fout) graph start s0 = visitNode (s0, IS.empty) start
@@ -900,15 +921,15 @@ bfsFind !f !graph !start =
 
     visitNeighbors :: IS.IntSet -> IS.IntSet -> (Maybe Int, IS.IntSet)
     visitNeighbors visits !nbs =
-       foldl'
-            ( \(!result, !nbs) !x ->
-                let nbs' = IS.union nbs $ IS.fromList . filter (`IS.notMember` visits) $ graph ! x
-                 in if f x
-                      then (Just x, nbs')
-                      else (result, nbs')
-            )
-            (Nothing, IS.empty)
-            (IS.toList nbs)
+      foldl'
+        ( \(!result, !nbs) !x ->
+            let nbs' = IS.union nbs $ IS.fromList . filter (`IS.notMember` visits) $ graph ! x
+             in if f x
+                  then (Just x, nbs')
+                  else (result, nbs')
+        )
+        (Nothing, IS.empty)
+        (IS.toList nbs)
 
 dijkstra :: forall s. (s -> IHeapEntry -> s) -> s -> WGraph -> Int -> s
 dijkstra !f s0 !graph !start = fst3 $ visitRec (s0, IS.empty, H.singleton $ H.Entry 0 start)
@@ -957,9 +978,8 @@ colorize graph colors0 = dfs True (colors0, Just ([], []))
     applyColor :: Color -> G.Vertex -> Maybe ColorInfo -> Maybe ColorInfo
     applyColor _ _ Nothing = Nothing
     applyColor color v (Just acc)
-      | color = Just $ first (v : ) acc
-      | otherwise = Just $ second (v : ) acc
-
+      | color = Just $ first (v :) acc
+      | otherwise = Just $ second (v :) acc
 
 -- }}}
 
@@ -1167,15 +1187,44 @@ addFlowRNEdge !rn !v1 !v2 !flow = do
 
 main :: IO ()
 main = do
-  [n, k, d] <- getLineIntList
-  input <- getLineIntVec
+  [n, m, k] <- getLineIntList
+  !input <- getLineIntList
 
-  let result = VU.foldl' step s0 input
-      s0 = VU.replicate (-1) d
-      step xs x = VU.generate d f
+  if k == 1
+    then putStrLn $ unwords $ map show input
+    else main' n m k input
+
+main' :: Int -> Int -> Int -> [Int] -> IO ()
+main' n m k input = do
+  let (!in0, !input') = splitAt m input
+  let (!smalls0, !bigs0) = splitAt k $ sort in0
+  let sumIn0 = sum smalls0
+
+  let !result = snd $ mapAccumL (\acc x -> bipass $ step acc x) s0 input'
+      s0 = (Seq.fromList in0, sumIn0, fromListMS smalls0, fromListMS bigs0)
+      bipass acc@(!_, !x, !_, !_) = (acc, x)
+      step (q Seq.:<| queue, !sumSmall, !smalls, !bigs) x
+        | memberMS q smalls && x <= fst (IM.findMin (innerMS bigs)) =
+          -- pop `q` from smalls, push `x` to smalls
+          let smalls' = incrementMS x $ decrementMS q smalls
+           in (queue', sumSmall - q + x, smalls', bigs)
+        | memberMS q smalls =
+          -- pop `q` from smalls, push `x` to bigs
+          let moveBig = fst . IM.findMin $ innerMS bigs
+              smalls' = incrementMS moveBig $ decrementMS q smalls
+              bigs' = incrementMS x $ decrementMS moveBig bigs
+           in (queue', sumSmall - q + moveBig, smalls', bigs')
+        | otherwise =
+          -- pop `q` from bigs
+          let bigs' = decrementMS q bigs
+              s = fst . IM.findMax $ innerMS smalls
+           in if s <= x
+                then -- push `x` to bigs
+                  (queue', sumSmall, smalls, incrementMS x bigs')
+                else -- push `x` to smalls
+                  (queue', sumSmall - s + x, incrementMS x $ decrementMS s smalls, incrementMS s bigs')
         where
-          r = x `rem` d
-          f i = let lastI = (i + d - r) `rem` d
-                 in max (xs VU.! i) (xs VU.! lastI)
+          queue' = queue Seq.|> x
+      step _ _ = error "unreachable!"
 
-  print $ result VU.! d
+  forM_ (sumIn0 : result) print
