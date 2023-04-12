@@ -686,6 +686,12 @@ decrementMS !k (!n, !im) =
     Just _ -> (n, IM.insertWith (+) k (-1) im)
     Nothing -> (n, im)
 
+memberMS :: Int -> MultiSet -> Bool
+memberMS !k (!_, !im) = IM.member k im
+
+innerMS :: MultiSet -> IM.IntMap Int
+innerMS (!_, !im) = im
+
 -- }}}
 
 -- {{{ ismo 2D
