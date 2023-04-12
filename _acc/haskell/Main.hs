@@ -694,6 +694,21 @@ innerMS (!_, !im) = im
 
 -- }}}
 
+-- {{{ Queue (just for remembering how to use `Seq`)
+
+enqueue :: a -> Seq.Seq a -> Seq.Seq a
+enqueue !x !s = x Seq.<| s
+
+dequeue :: Seq.Seq a -> (a, Seq.Seq a)
+dequeue (x Seq.:<| s) = (x, s)
+dequeue _ = error "unable to dequeue from empty sequence"
+
+dequeueMaybe :: Seq.Seq a -> Maybe (a, Seq.Seq a)
+dequeueMaybe (x Seq.:<| s) = Just (x, s)
+dequeueMaybe _ = Nothing
+
+-- }}}
+
 -- {{{ ismo 2D
 
 ismo2D :: ((Int, Int), (Int, Int)) -> UArray (Int, Int) Int -> UArray (Int, Int) Int
