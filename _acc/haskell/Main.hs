@@ -252,6 +252,9 @@ getTuple3 = tuple3 <$> getLineIntList
 getTuple4 :: IO (Int, Int, Int, Int)
 getTuple4 = tuple4 <$> getLineIntList
 
+yn :: Bool -> String
+yn b = if b then "Yes" else "No"
+
 -- | `concat` two-item tuples
 concat2 :: [(a, a)] -> [a]
 concat2 [] = []
