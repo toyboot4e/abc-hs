@@ -158,9 +158,16 @@ import qualified Data.HashSet as HS
 dbg :: Show a => a -> ()
 dbg !x = let !_ = traceShow x () in ()
 
+dbgAssert :: Bool -> a -> a
+dbgAssert False !x = error "assertion failed!"
+dbgAssert True !x = x
+
 #else
 dbg :: Show a => a -> ()
 dbg !_ = ()
+
+dbgAssert :: Bool -> a -> a
+dbgAssert = flip const
 
 #endif
 
