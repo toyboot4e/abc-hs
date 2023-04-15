@@ -227,13 +227,6 @@ combinations !len !elements = comb len (length elements) elements
       | otherwise = map (x :) (comb (r - 1) (n - 1) xs) ++ comb r (n - 1) xs
     comb _ _ _ = error "unreachable"
 
--- 1D index compression: xs -> (indices, xs)
-compressIndex :: [Int] -> (VU.Vector Int, [Int])
-compressIndex xs = (indices, map (fromJust . fst . f) xs)
-  where
-    !indices = VU.fromList $ nubSort xs
-    f !x = bsearch (0, pred $ vLength indices) $ \i -> indices VU.! i <= x
-
 -- }}}
 
 -- {{{ Tuples
@@ -826,6 +819,13 @@ bsearchF64 (!low, !high) !diff !isOk = both wrap (inner (low - diff, high + diff
     wrap !x
       | x == (low - diff) || x == (low + diff) = Nothing
       | otherwise = Just x
+
+-- 1D index compression: xs -> (indices, xs)
+compressIndex :: [Int] -> (VU.Vector Int, [Int])
+compressIndex xs = (indices, map (fromJust . fst . f) xs)
+  where
+    !indices = VU.fromList $ nubSort xs
+    f !x = bsearch (0, pred $ vLength indices) $ \i -> indices VU.! i <= x
 
 -- }}}
 
@@ -1618,10 +1618,6 @@ instance TypeInt MyModulus where
 
 modInt :: Int -> ModInt MyModulus
 modInt = ModInt
-
--- ord 'a' == 97
--- ord 'A' == 65
--- indexString = map (subtract (ord 'A') . ord)
 
 main :: IO ()
 main = do
