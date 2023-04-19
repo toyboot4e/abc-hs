@@ -313,7 +313,7 @@ getWGraph !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges getLineIntL
 getWGraph0 :: Int -> Int -> IO (Array Int [H.Entry Int Int])
 getWGraph0 !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges getLineIntList
   where
-    accGraph = accumArray @Array (flip (:)) [] (0, pred nVerts)
+    accGraph = accumArray @Array (flip (:)) [] (1, nVerts)
     toInput = concatMap2 $ \[!a, !b, !cost] -> ((pred a, H.Entry cost (pred b)), (pred b, H.Entry cost (pred a)))
 
 -- }}}
@@ -499,6 +499,8 @@ primeFactors !n_ = map (\ !xs -> (head xs, length xs)) . group $ inner n_ input
 -- }}}
 
 -- {{{ Doubling
+
+-- TODO: Create a data type for doubling.
 
 -- | Extends a function to be able to be applied multiple times in a constant time (N < 2^63).
 newDoubling :: (VG.Vector v a, VG.Vector v Int) => a -> (a -> a) -> v a
@@ -1489,7 +1491,6 @@ treeDepthInfo !graph !root = runST $ do
   where
     !nVerts = rangeSize $ bounds graph
 
--- | Returns `(parents, depths, doubling)` two of which can be used for `lca`.
 lcaCache :: Graph -> Int -> (VU.Vector Int, VU.Vector Int, V.Vector (VU.Vector Int))
 lcaCache graph root = (parents, depths, doubling)
   where
@@ -1754,7 +1755,21 @@ modInt = ModInt
 main :: IO ()
 main = do
   [n] <- getLineIntList
-  xs <- getLineIntVec
+  !edges <- concatMap (\[!v1, !v2, !cost] -> [(pred v1, (pred v2, cost)), (pred v2, (pred v1, cost))]) <$> replicateM (pred n) getLineIntList
 
-  putStrLn "TODO"
+  let !graph = accumArray @Array (flip (:)) [] (0, pred n) edges
+
+  let !lens = VU.create $ do
+        !vec <- VUM.replicate n (-1 :: Int)
+        let m !len !parent !v0 = do
+              VUM.write vec v0 len
+              let !vs = filter ((/= parent) . fst) $ graph ! v0
+              let !_ = dbg (v0, vs)
+              forM_ vs $ \(!v, !cost) -> do
+                m (len + cost) v0 v
+        !_ <- m (0 :: Int) (-1 :: Int) (0 :: Int)
+        return vec
+
+  forM_ [0 .. pred n] $ \v -> do
+    print $ if even (lens VU.! v) then 0 else 1
 

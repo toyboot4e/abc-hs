@@ -313,7 +313,7 @@ getWGraph !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges getLineIntL
 getWGraph0 :: Int -> Int -> IO (Array Int [H.Entry Int Int])
 getWGraph0 !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges getLineIntList
   where
-    accGraph = accumArray @Array (flip (:)) [] (0, pred nVerts)
+    accGraph = accumArray @Array (flip (:)) [] (1, nVerts)
     toInput = concatMap2 $ \[!a, !b, !cost] -> ((pred a, H.Entry cost (pred b)), (pred b, H.Entry cost (pred a)))
 
 -- }}}
@@ -1489,7 +1489,6 @@ treeDepthInfo !graph !root = runST $ do
   where
     !nVerts = rangeSize $ bounds graph
 
--- | Returns `(parents, depths, doubling)` two of which can be used for `lca`.
 lcaCache :: Graph -> Int -> (VU.Vector Int, VU.Vector Int, V.Vector (VU.Vector Int))
 lcaCache graph root = (parents, depths, doubling)
   where
@@ -1737,8 +1736,6 @@ addFlowRNEdge !rn !v1 !v2 !flow = do
 
 -- }}}
 
--- {{{ Adhoc code
-
 data MyModulus = MyModulus
 
 instance TypeInt MyModulus where
@@ -1749,12 +1746,18 @@ type MyModInt = ModInt MyModulus
 modInt :: Int -> MyModInt
 modInt = ModInt
 
--- }}}
-
 main :: IO ()
 main = do
-  [n] <- getLineIntList
-  xs <- getLineIntVec
+  [nVerts, nQueries] <- getLineIntList
 
-  putStrLn "TODO"
+  !input <- concatMap (\[a, b] -> [(a, b), (b, a)]) <$> replicateM (pred nVerts) (map pred <$> getLineIntList)
+  let !graph = accumArray @Array (flip (:)) [] (0, pred nVerts) input
 
+  let !root = 1
+  let (!parent, !depths, !doubling) = lcaCache graph root
+
+  !queries <- replicateM nQueries (both pred <$> getTuple2)
+
+  forM_ queries $ \(!v1, !v2) -> do
+    let !len = lcaLen depths doubling v1 v2
+    putStrLn $ if even len then "Town" else "Road"
