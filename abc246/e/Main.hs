@@ -1800,7 +1800,8 @@ addFlowRNEdge !rn !v1 !v2 !flow = do
 data MyModulus = MyModulus
 
 instance TypeInt MyModulus where
-  typeInt _ = 998244353
+  -- typeInt _ = 998244353
+  typeInt _ = 1_000_000_007
 
 type MyModInt = ModInt MyModulus
 
@@ -1811,45 +1812,10 @@ modInt = ModInt
 
 main :: IO ()
 main = do
-  [n, m] <- getLineIntList
-  [a, b, c, d, e, f] <- getLineIntList
-  !input <- replicateM m getTuple2
+  [n] <- getLineIntList
+  !start <- both pred <$> getTuple2
+  !end <- both pred <$> getTuple2
+  !isBlock <- listArray @UArray ((0, 0), (pred n, pred n)) . concat <$> replicateM n (map (== '#') <$> getLine)
 
-  let !i9 = 1_000_000_000
-  let !gridBounds = ((-i9, -i9), (i9, i9))
-
-  let !blocks = IS.fromList $ map (index gridBounds) input
-  let modulus = 998244353
-
-  let isValid (!i1, !i2, !i3) =
-        let (!y, !x) = mul2 i1 (a, b) `add2` mul2 i2 (c, d) `add2` mul2 i3 (e, f)
-         in not $ inRange gridBounds (y, x) && index gridBounds (y, x) `IS.member` blocks
-
-  let !arrayBounds = ((0, 0, 0), (n, n, n))
-
-  let !result = runSTUArray $ do
-        !dp <- newArray arrayBounds (0 :: Int)
-
-        let !is = [(i1, i2, i3) | i1 <- [0 .. n], i2 <- [0 .. n], i3 <- [0 .. n], i1 + i2 + i3 <= n, isValid (i1, i2, i3)]
-        forM_ is $ \(!i1, !i2, !i3) -> do
-          !v <-
-            if (i1, i2, i3) == (0, 0, 0)
-              then return 1
-              else do
-                !v1 <- if i1 == 0 then return 0 else readArray dp (i1 - 1, i2, i3)
-                !v2 <- if i2 == 0 then return 0 else readArray dp (i1, i2 - 1, i3)
-                !v3 <- if i3 == 0 then return 0 else readArray dp (i1, i2, i3 - 1)
-                return $ (v1 + v2 + v3) `rem` modulus
-
-          -- HACK: use `(n, n, n)` as the result store
-          when (i1 + i2 + i3 == n) $ do
-            modifyArray dp (\x -> (x + v) `rem` modulus) (n, n, n)
-
-          writeArray dp (i1, i2, i3) v
-
-        return dp
-
-  let !_ = dbg (result)
-
-  print $ result ! (n, n, n)
+  putStrLn "TODO"
 

@@ -1746,6 +1746,22 @@ type MyModInt = ModInt MyModulus
 modInt :: Int -> MyModInt
 modInt = ModInt
 
+-- main :: IO ()
+-- main = do
+--   [nVerts, nQueries] <- getLineIntList
+-- 
+--   !input <- concatMap (\[a, b] -> [(a, b), (b, a)]) <$> replicateM (pred nVerts) (map pred <$> getLineIntList)
+--   let !graph = accumArray @Array (flip (:)) [] (0, pred nVerts) input
+-- 
+--   let !root = 1
+--   let (!parent, !depths, !doubling) = lcaCache graph root
+-- 
+--   !queries <- replicateM nQueries (both pred <$> getTuple2)
+-- 
+--   forM_ queries $ \(!v1, !v2) -> do
+--     let !len = lcaLen depths doubling v1 v2
+--     putStrLn $ if even len then "Town" else "Road"
+
 main :: IO ()
 main = do
   [nVerts, nQueries] <- getLineIntList
@@ -1753,11 +1769,11 @@ main = do
   !input <- concatMap (\[a, b] -> [(a, b), (b, a)]) <$> replicateM (pred nVerts) (map pred <$> getLineIntList)
   let !graph = accumArray @Array (flip (:)) [] (0, pred nVerts) input
 
-  let !root = 1
-  let (!parent, !depths, !doubling) = lcaCache graph root
+  let (!colors, !_) = colorize graph IM.empty 0
 
   !queries <- replicateM nQueries (both pred <$> getTuple2)
 
   forM_ queries $ \(!v1, !v2) -> do
-    let !len = lcaLen depths doubling v1 v2
-    putStrLn $ if even len then "Town" else "Road"
+    let !c1 = colors IM.! v1
+    let !c2 = colors IM.! v2
+    putStrLn $ if c1 == c2 then "Town" else "Road"

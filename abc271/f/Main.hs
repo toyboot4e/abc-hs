@@ -118,7 +118,6 @@ bsearch match l u
 --                    | inRightArea z = loop x z
 --                    | otherwise     = loop z y
 --               where z = (x + y) `div` 2
-accumVector v
 
 -- }}}
 

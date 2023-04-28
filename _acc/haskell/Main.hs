@@ -46,7 +46,8 @@
 {-# LANGUAGE BangPatterns, BlockArguments, DefaultSignatures, LambdaCase, MultiWayIf #-}
 {-# LANGUAGE NumDecimals, NumericUnderscores, PatternGuards, TupleSections #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, InstanceSigs, MultiParamTypeClasses #-}
-{-# LANGUAGE ScopedTypeVariables, StrictData, TypeApplications, TypeFamilies, RankNTypes #-}
+{-# LANGUAGE QuantifiedConstraints, ScopedTypeVariables, StrictData, TypeApplications #-}
+{-# LANGUAGE TypeFamilies, RankNTypes #-}
 
 -- TODO: ditch `vector-th-unbox` and `TemplateHaskell` in 2023 environment
 {-# LANGUAGE CPP, TemplateHaskell #-}
@@ -102,8 +103,8 @@ import qualified Data.ByteString.Char8 as BS
 
 -- extra: https://www.stackage.org/lts-16.11/package/extra-1.7.6
 import Control.Monad.Extra hiding (loop) -- foldM, ..
-import Data.IORef.Extra    -- writeIORef'
-import Data.List.Extra     -- merge, nubSort, ..
+import Data.IORef.Extra                  -- writeIORef'
+import Data.List.Extra hiding (merge)    -- nubSort, ..
 import Data.Tuple.Extra hiding (first, second)
 import Numeric.Extra       -- showDP, intToFloat, ..
 
@@ -189,6 +190,9 @@ flipOrder = \case
   LT -> GT
   EQ -> EQ
 
+square :: Num a => a -> a
+square !x = x * x
+
 -- }}}
 
 -- {{{ Libary complements
@@ -231,6 +235,10 @@ compress :: Eq a => [a] -> [a]
 compress [] = []
 compress (x : xs) = x : compress (dropWhile (== x) xs)
 
+-- | Runs the given function `n` times.
+times :: Int -> (a -> a) -> a -> a
+times !n !f !s0 = snd $ until ((== n) . fst) (bimap succ f) (0 :: Int, s0)
+
 -- | Returns combinations of the list taking n values.
 -- | For example, binary combinations are got by `combination 2 [0..8]`.
 -- | REMARK: This is slow. Prefer list comprehension like `x <- [1 .. n], y <- [x + 1 .. n]m ..]`.
@@ -242,6 +250,20 @@ combinations !len !elements = comb len (length elements) elements
       | n == r = [a]
       | otherwise = map (x :) (comb (r - 1) (n - 1) xs) ++ comb r (n - 1) xs
     comb _ _ _ = error "unreachable"
+
+-- | Returns inclusive ranges that satisfy the given `check`.
+-- TODO: cheaper implementation
+twoPointers :: Int -> ((Int, Int) -> Bool) -> [(Int, Int)]
+twoPointers !n !check = inner (0, 0)
+  where
+    inner (!l, !r) | l >= n = []
+    inner (!l, !r)
+      | check (l, r) =
+          let (l', r') = until (not . peekCheck) (second succ) (l, r)
+           in (l', r') : inner (succ l', max l' r')
+      | otherwise = inner (succ l, max (succ l) r)
+    peekCheck (!l, !r) | r == pred n = False
+    peekCheck (!l, !r) = check (l, succ r)
 
 -- }}}
 
@@ -285,6 +307,9 @@ add2 (!y, !x) = bimap (y +) (x +)
 sub2 :: (Int, Int) -> (Int, Int) -> (Int, Int)
 sub2 (!y, !x) = bimap (y -) (x -)
 
+mul2 :: Int -> (Int, Int) -> (Int, Int)
+mul2 !m = both (m *)
+
 -- }}}
 
 -- {{{ Input
@@ -320,11 +345,18 @@ getWGraph0 !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges getLineInt
 
 -- {{{ Output
 
+{-# INLINE endlBSB #-}
+endlBSB :: BSB.Builder
+endlBSB = BSB.char7 '\n'
+
 putBSB :: BSB.Builder -> IO ()
 putBSB = BSB.hPutBuilder stdout
 
+putLnBSB :: BSB.Builder -> IO ()
+putLnBSB = BSB.hPutBuilder stdout . (<> endlBSB)
+
 printBSB :: ShowBSB a => a -> IO ()
-printBSB = putBSB . showBSB
+printBSB = putBSB . (<> endlBSB) . showBSB
 
 -- ord8 :: Char -> Word8
 -- ord8 = fromIntegral . fromEnum
@@ -606,7 +638,8 @@ class TypeInt a where
 newtype ModInt p = ModInt {toInt :: Int}
   deriving (Eq)
 
-derivingUnbox "ModInt"
+derivingUnbox
+  "ModInt"
   [t|forall p. ModInt p -> Int|]
   [|\(ModInt !x) -> x|]
   [|\ !x -> ModInt x|]
@@ -617,7 +650,7 @@ instance Show (ModInt p) where
 instance TypeInt p => Num (ModInt p) where
   (ModInt !x1) + (ModInt !x2) = ModInt $ (x1 + x2) `mod` typeInt (Proxy @p)
   (ModInt !x1) * (ModInt !x2) = ModInt $ (x1 * x2) `mod` typeInt (Proxy @p)
-  negate (ModInt !v) = ModInt $ (- v) `mod` typeInt (Proxy @p)
+  negate (ModInt !v) = ModInt $ (-v) `mod` typeInt (Proxy @p)
   abs = id
   signum _ = 1
   fromInteger = ModInt . fromInteger
@@ -646,7 +679,7 @@ instance TypeInt p => Fractional (ModInt p) where
 -- | ```
 data RollingHash b p = RollingHash
   { sourceLeength :: !Int,
-    -- | $\{B^i mod p\}_{i \elem [0, n)}$
+    -- | \$\{B^i mod p\}_{i \elem [0, n)}$
     dimensions :: !(VU.Vector Int),
     hashSum :: !(VU.Vector Int)
   }
@@ -692,12 +725,12 @@ sliceRHash (RollingHash !_ !bn !s) !i0 !i1
   -- TODO: add debug assertion
   | i0 > i1 = HashSlice 0 0
   | otherwise =
-    let !len = i1 - i0 + 1
-        !s1 = s VU.! i1
-        !s0 = fromMaybe 0 $ s VU.!? pred i0
-        !value = (s1 - (bn VU.! len) * s0) `mod` p
-     in HashSlice value len
- where
+      let !len = i1 - i0 + 1
+          !s1 = s VU.! i1
+          !s0 = fromMaybe 0 $ s VU.!? pred i0
+          !value = (s1 - (bn VU.! len) * s0) `mod` p
+       in HashSlice value len
+  where
     !p = typeInt (Proxy @p)
 
 consHashSlice :: forall b p. (TypeInt b, TypeInt p) => RollingHash b p -> HashSlice p -> HashSlice p -> HashSlice p
@@ -738,6 +771,9 @@ decrementMS !k (!n, !im) =
 
 memberMS :: Int -> MultiSet -> Bool
 memberMS !k (!_, !im) = IM.member k im
+
+notMemberMS :: Int -> MultiSet -> Bool
+notMemberMS !k (!_, !im) = IM.notMember k im
 
 deleteFindMinMS :: MultiSet -> (Int, MultiSet)
 deleteFindMinMS ms@(!n, !im) =
@@ -830,10 +866,10 @@ bsearchM (!low, !high) !isOk = both wrap <$> inner (low - 1, high + 1)
     inner (!ok, !ng)
       | abs (ok - ng) == 1 = return (ok, ng)
       | otherwise =
-        isOk m >>= \ !yes ->
-          if yes
-            then inner (m, ng)
-            else inner (ok, m)
+          isOk m >>= \ !yes ->
+            if yes
+              then inner (m, ng)
+              else inner (ok, m)
       where
         m = (ok + ng) `div` 2
 
@@ -872,7 +908,7 @@ bsearchF64 (!low, !high) !diff !isOk = both wrap (inner (low - diff, high + diff
       | x == (low - diff) || x == (low + diff) = Nothing
       | otherwise = Just x
 
--- 1D index compression: xs -> (indices, xs)
+-- 1D index compression: xs -> (nubSorted, indices)
 compressIndex :: [Int] -> (VU.Vector Int, [Int])
 compressIndex xs = (indices, map (fromJust . fst . f) xs)
   where
@@ -897,10 +933,11 @@ type IOUnionFind = MUnionFind RealWorld
 
 type STUnionFind s = MUnionFind s
 
--- | `MUFChild parent | MUFRoot size`. Not `Unbox` :(
+-- | `MUFChild parent | MUFRoot size`.
 data MUFNode = MUFChild {-# UNPACK #-} !Int | MUFRoot {-# UNPACK #-} !Int
 
-derivingUnbox "MUFNode"
+derivingUnbox
+  "MUFNode"
   [t|MUFNode -> (Bool, Int)|]
   [|\case (MUFChild !x) -> (True, x); (MUFRoot !x) -> (False, x)|]
   [|\case (True, !x) -> MUFChild x; (False, !x) -> MUFRoot x|]
@@ -967,7 +1004,7 @@ newSUF = IM.empty
 rootSUF :: SparseUnionFind -> Int -> (Int, Int)
 rootSUF !uf !i
   | IM.notMember i uf = (i, 1)
-  | j < 0 = (i, - j)
+  | j < 0 = (i, -j)
   | otherwise = rootSUF uf j
   where
     j = uf IM.! i
@@ -1082,14 +1119,14 @@ querySTree (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$!> inner 0 (0, initial
       | lo <= l && h <= hi = Just <$> VUM.read vec i
       | h < lo || hi < l = pure Nothing
       | otherwise = do
-        let !d = (h - l) `div` 2
-        !ansL <- inner (2 * i + 1) (l, l + d)
-        !ansH <- inner (2 * i + 2) (l + d + 1, h)
-        pure . Just $ case (ansL, ansH) of
-          (Just !a, Just !b) -> f a b
-          (Just !a, _) -> a
-          (_, Just !b) -> b
-          (_, _) -> error $ "query error (segment tree): " ++ show (i, (l, h), (lo, hi))
+          let !d = (h - l) `div` 2
+          !ansL <- inner (2 * i + 1) (l, l + d)
+          !ansH <- inner (2 * i + 2) (l + d + 1, h)
+          pure . Just $ case (ansL, ansH) of
+            (Just !a, Just !b) -> f a b
+            (Just !a, _) -> a
+            (_, Just !b) -> b
+            (_, _) -> error $ "query error (segment tree): " ++ show (i, (l, h), (lo, hi))
 
 -- }}}
 
@@ -1129,15 +1166,15 @@ invNumVec xs = runST $ do
 --     f arr (i, w) = do
 
 -- {-# INLINE tabulateST #-}
-tabulateST :: forall i. (Ix i) => (forall s. MArray (STUArray s) Int (ST s) => STUArray s i Int -> i -> ST s Int) -> (i, i) -> Int -> UArray i Int
-tabulateST !f !bounds_ !e0 =
+tabulateST :: forall i e. (Ix i, forall s. MArray (STUArray s) e (ST s)) => (forall s. STUArray s i e -> i -> ST s e) -> (i, i) -> e -> UArray i e
+tabulateST f bounds_ e0 =
   runSTUArray uarray
   where
-    uarray :: forall s. MArray (STUArray s) Int (ST s) => ST s (STUArray s i Int)
+    uarray :: forall s. MArray (STUArray s) e (ST s) => ST s (STUArray s i e)
     uarray = do
-      !tbl <- newArray bounds_ e0 :: ST s (STUArray s i Int)
-      forM_ (range bounds_) $ \ !i -> do
-        !e <- f tbl i
+      tbl <- newArray bounds_ e0 :: ST s (STUArray s i e)
+      forM_ (range bounds_) $ \i -> do
+        e <- f tbl i
         writeArray tbl i e
       return tbl
 
@@ -1194,18 +1231,13 @@ dictOrderModuloVec xs modulus = runST $ do
 
 -- TODO: rewrite all
 
-type Graph = Array Int [Int]
+-- | Adjacency list representation of a graph with cost type parameter `a`.
+type Graph a = Array Int [a]
 
--- | Weighted graph (Entry priority payload)
-type WGraph = Array Int [IHeapEntry]
+-- | Weighted `Graph` (Entry priority payload).
+type WGraph a = Array Int [H.Entry a Int]
 
--- | Int heap
-type IHeap = H.Heap IHeapEntry
-
--- | Int entry (priority, payload) where priority = cost, payload = vertex
-type IHeapEntry = H.Entry Int Int
-
-dfsEveryVertex :: forall s. (s -> Bool, s -> Int -> s, s -> Int -> s) -> Graph -> Int -> s -> (s, IS.IntSet)
+dfsEveryVertex :: forall s. (s -> Bool, s -> Int -> s, s -> Int -> s) -> Graph Int -> Int -> s -> (s, IS.IntSet)
 dfsEveryVertex (!isEnd, !fin, !fout) !graph !start !s0 = visitNode (s0, IS.empty) start
   where
     visitNode :: (s, IS.IntSet) -> Int -> (s, IS.IntSet)
@@ -1213,16 +1245,16 @@ dfsEveryVertex (!isEnd, !fin, !fout) !graph !start !s0 = visitNode (s0, IS.empty
       | isEnd s = (s, visits)
       | IS.member x visits = (s, visits)
       | otherwise =
-        let (!s', !visits') = visitNeighbors (fin s x, IS.insert x visits) x
-         in -- !_ = traceShow (start, x, graph ! x) ()
-            (fout s' x, visits')
+          let (!s', !visits') = visitNeighbors (fin s x, IS.insert x visits) x
+           in -- !_ = traceShow (start, x, graph ! x) ()
+              (fout s' x, visits')
 
     visitNeighbors :: (s, IS.IntSet) -> Int -> (s, IS.IntSet)
     visitNeighbors (!s, !visits) !x
       | isEnd s = (s, visits)
       | otherwise = foldl' visitNode (s, visits) (graph ! x)
 
-dfsEveryPath :: forall s. (s -> Bool, s -> Int -> s, s -> Int -> s) -> Graph -> Int -> s -> s
+dfsEveryPath :: forall s. (s -> Bool, s -> Int -> s, s -> Int -> s) -> Graph Int -> Int -> s -> s
 dfsEveryPath (!isEnd, !fin, !fout) !graph !start !s0 = visitNode (s0, IS.empty) start
   where
     visitNode :: (s, IS.IntSet) -> Int -> s
@@ -1234,12 +1266,12 @@ dfsEveryPath (!isEnd, !fin, !fout) !graph !start !s0 = visitNode (s0, IS.empty) 
     visitNeighbors (!s, !visits) !x
       | isEnd s = s
       | otherwise =
-        foldl' (\ !s2 !n -> visitNode (s2, visits) n) s $ filter (`IS.notMember` visits) (graph ! x)
+          foldl' (\ !s2 !n -> visitNode (s2, visits) n) s $ filter (`IS.notMember` visits) (graph ! x)
 
 -- | Searches for a specific route in breadth-first order.
 -- | Returns `Just (depth, node)` if succeed.
 -- TODO: refactor / test it
-bfsFind :: (Int -> Bool) -> Graph -> Int -> Maybe (Int, Int)
+bfsFind :: (Int -> Bool) -> Graph Int -> Int -> Maybe (Int, Int)
 bfsFind !f !graph !start =
   if f start
     then Just (0, start)
@@ -1249,12 +1281,12 @@ bfsFind !f !graph !start =
     bfsRec !depth !visits !nbs
       | IS.null nbs = Nothing
       | otherwise =
-        let -- !_ = traceShow ("bfsRec", depth, nbs) ()
-            !visits' = IS.union visits nbs
-         in let (!result, !nextNbs) = visitNeighbors visits' nbs
-             in case result of
-                  Just !x -> Just (depth, x)
-                  Nothing -> bfsRec (succ depth) visits' nextNbs
+          let -- !_ = traceShow ("bfsRec", depth, nbs) ()
+              !visits' = IS.union visits nbs
+           in let (!result, !nextNbs) = visitNeighbors visits' nbs
+               in case result of
+                    Just !x -> Just (depth, x)
+                    Nothing -> bfsRec (succ depth) visits' nextNbs
 
     visitNeighbors :: IS.IntSet -> IS.IntSet -> (Maybe Int, IS.IntSet)
     visitNeighbors !visits !nbs =
@@ -1268,10 +1300,10 @@ bfsFind !f !graph !start =
         (Nothing, IS.empty)
         (IS.toList nbs)
 
-dijkstra :: forall s. (s -> IHeapEntry -> s) -> s -> WGraph -> Int -> s
+dijkstra :: forall s. (s -> H.Entry Int Int -> s) -> s -> WGraph Int -> Int -> s
 dijkstra !f !s0 !graph !start = fst3 $! visitRec (s0, IS.empty, H.singleton $! H.Entry 0 start)
   where
-    visitRec :: (s, IS.IntSet, IHeap) -> (s, IS.IntSet, IHeap)
+    visitRec :: (s, IS.IntSet, H.Heap (H.Entry Int Int)) -> (s, IS.IntSet, H.Heap (H.Entry Int Int))
     visitRec (!s, !visits, !heap) =
       case H.uncons heap of
         Just (!x, !heap') ->
@@ -1280,7 +1312,7 @@ dijkstra !f !s0 !graph !start = fst3 $! visitRec (s0, IS.empty, H.singleton $! H
             else visitRec $ visitNode (s, visits, heap') x
         Nothing -> (s, visits, heap)
 
-    visitNode :: (s, IS.IntSet, IHeap) -> IHeapEntry -> (s, IS.IntSet, IHeap)
+    visitNode :: (s, IS.IntSet, H.Heap (H.Entry Int Int)) -> H.Entry Int Int -> (s, IS.IntSet, H.Heap (H.Entry Int Int))
     visitNode (!s, !visits, !heap) entry@(H.Entry cost x) =
       let !visits' = IS.insert x visits
           !news = H.fromList . map (first (cost +)) . filter p $ graph ! x
@@ -1298,7 +1330,7 @@ type Color = Bool
 type ColorInfo = ([Int], [Int])
 
 -- | DFS with vertices given colors
-colorize :: Graph -> IM.IntMap Color -> G.Vertex -> (IM.IntMap Color, Maybe ColorInfo)
+colorize :: Graph Int -> IM.IntMap Color -> G.Vertex -> (IM.IntMap Color, Maybe ColorInfo)
 colorize !graph !colors0 = dfs True (colors0, Just ([], []))
   where
     dfs :: Color -> (IM.IntMap Color, Maybe ColorInfo) -> G.Vertex -> (IM.IntMap Color, Maybe ColorInfo)
@@ -1397,8 +1429,29 @@ topSccCycles graph = filter f $ topScc graph
 
 -- {{{ Graph search (V2)
 
+-- | Collects distances from one vertex to every other using BFS, returning a vector.
+bfsVec :: Graph Int -> Int -> VU.Vector Int
+bfsVec graph start = VU.create $ do
+  let !undef = -1 :: Int
+  !vis <- VUM.replicate (rangeSize $ bounds graph) undef
+
+  let inner !depth !vs
+        | IS.null vs = return ()
+        | otherwise = do
+            let vs' = IS.toList vs
+            forM_ vs' $ \v -> do
+              VUM.write vis v depth
+
+            !vss <- forM vs' $ \v -> do
+              filterM (\v2 -> (== undef) <$> VUM.read vis v2) $ graph ! v
+
+            inner (succ depth) $ IS.fromList $ concat vss
+
+  !_ <- inner (0 :: Int) (IS.singleton start)
+  return vis
+
 -- | BFS template for finding a shortest path from one vertex to another.
-bfsPath :: Graph -> Int -> Int -> Maybe Int
+bfsPath :: Graph Int -> Int -> Int -> Maybe Int
 bfsPath !graph !start !end = inner (-1) IS.empty (IS.singleton start)
   where
     inner :: Int -> IS.IntSet -> IS.IntSet -> Maybe Int
@@ -1411,7 +1464,7 @@ bfsPath !graph !start !end = inner (-1) IS.empty (IS.singleton start)
         vs' = IS.fromList $! filter (`IS.notMember` vis') $! concatMap (graph !) (IS.toList vs)
 
 -- | BFS template for collecting shortest paths from one vertex to every other.
-bfsVerts :: Graph -> Int -> IM.IntMap Int
+bfsVerts :: Graph Int -> Int -> IM.IntMap Int
 bfsVerts graph start = inner 0 IM.empty (IS.singleton start)
   where
     inner :: Int -> IM.IntMap Int -> IS.IntSet -> IM.IntMap Int
@@ -1423,7 +1476,7 @@ bfsVerts graph start = inner 0 IM.empty (IS.singleton start)
         vs' = IS.fromList $! filter (`IM.notMember` vis') $! concatMap (graph !) (IS.toList vs)
 
 -- | DFS where all the reachable vertices from one vertex are collcetd
-components :: Graph -> Int -> IS.IntSet
+components :: Graph Int -> Int -> IS.IntSet
 components !graph !start = inner (IS.singleton start) start
   where
     inner vis v
@@ -1437,33 +1490,37 @@ components !graph !start = inner (IS.singleton start) start
 -- | Works for weightened graphs with positive edge capacities only.
 -- |
 -- | Pro tip: Use reverse graph to collect cost from every other vertex to one (see `revDjAll`).
-djAll :: WGraph -> Int -> IM.IntMap Int
-djAll !graph !start = inner (H.singleton $! H.Entry 0 start) IM.empty
+dj :: forall a. (Num a, Ord a) => WGraph a -> Int -> IM.IntMap a
+dj !graph !start = inner (H.singleton $! H.Entry 0 start) IM.empty
   where
+    merge :: H.Entry a Int -> H.Entry a Int -> H.Entry a Int
+    merge (H.Entry !cost1 !_v1) (H.Entry !cost2 !v2) = H.Entry (cost1 + cost2) v2
+
+    inner :: H.Heap (H.Entry a Int) -> IM.IntMap a -> IM.IntMap a
     inner !heap !vis
       | H.null heap = vis
       | IM.member v vis = inner heap' vis
       | otherwise = inner heap'' vis'
       where
-        -- pop one
-        (H.Entry cost v, heap') = fromJust $! H.uncons heap
-        -- visit the popped one
+        -- pop and visit it
+        (entry@(H.Entry cost v), heap') = fromJust $! H.uncons heap
         vis' = IM.insert v cost vis
+
         -- push neighbors
-        vs = map (first (+ cost)) $! filter ((`IM.notMember` vis') . H.payload) $! graph ! v
+        vs = map (merge entry) $! filter ((`IM.notMember` vis') . H.payload) $! graph ! v
         heap'' = foldl' (flip H.insert) heap' vs
 
-revWGraph :: WGraph -> WGraph
+revWGraph :: WGraph Int -> WGraph Int
 revWGraph !graph = accumArray @Array (flip (:)) [] (bounds graph) $ concatMap revF $ assocs graph
   where
     revF (!v1, !v2s) = map (\(H.Entry !priority !v2) -> (v2, H.Entry priority v1)) v2s
 
 -- | Runs dijkstra's algorithm over a reversed graph of given graph.
 -- | It calculates
-revDjAll :: WGraph -> Int -> IM.IntMap Int
-revDjAll !graph !start =
+revDj :: WGraph Int -> Int -> IM.IntMap Int
+revDj !graph !start =
   let !graph' = revWGraph graph
-   in djAll graph' start
+   in dj graph' start
 
 -- }}}
 
@@ -1471,7 +1528,7 @@ revDjAll !graph !start =
 
 -- Returns `(parents, depths)` who maps vertices to the corresponding information.
 -- REMARK: Use 0-based index for the graph vertices.
-treeDepthInfo :: Graph -> Int -> (VU.Vector Int, VU.Vector Int)
+treeDepthInfo :: Graph Int -> Int -> (VU.Vector Int, VU.Vector Int)
 treeDepthInfo !graph !root = runST $ do
   !parents <- VUM.replicate nVerts (-1 :: Int)
   !depths <- VUM.replicate nVerts (-1 :: Int)
@@ -1490,7 +1547,7 @@ treeDepthInfo !graph !root = runST $ do
     !nVerts = rangeSize $ bounds graph
 
 -- | Returns `(parents, depths, doubling)` two of which can be used for `lca`.
-lcaCache :: Graph -> Int -> (VU.Vector Int, VU.Vector Int, V.Vector (VU.Vector Int))
+lcaCache :: Graph Int -> Int -> (VU.Vector Int, VU.Vector Int, V.Vector (VU.Vector Int))
 lcaCache graph root = (parents, depths, doubling)
   where
     (!parents, !depths) = treeDepthInfo graph root
@@ -1637,7 +1694,8 @@ data RNEdge = RNEdge
   }
   deriving (Show)
 
-derivingUnbox "RNEdge"
+derivingUnbox
+  "RNEdge"
   [t|RNEdge -> (G.Vertex, Int, Int)|]
   [|\(RNEdge !x1 !x2 !x3) -> (x1, x2, x3)|]
   [|\(!x1, !x2, !x3) -> RNEdge x1 x2 x3|]
@@ -1698,9 +1756,9 @@ augumentPath !rn !vis !v0 !goal = visitVertex v0 (maxBound @Int)
     visitVertex !v !flow
       | v == goal = return $ Just (flow, [])
       | otherwise = do
-        VM.write vis v True
-        !edges <- VM.read rn v
-        foldM (step v flow) Nothing edges
+          VM.write vis v True
+          !edges <- VM.read rn v
+          foldM (step v flow) Nothing edges
 
     step :: G.Vertex -> Int -> Maybe (Int, [(G.Vertex, G.Vertex)]) -> RNEdge -> IO (Maybe (Int, [(G.Vertex, G.Vertex)]))
     step !_ !_ r@(Just _) _ = return r
@@ -1742,6 +1800,7 @@ addFlowRNEdge !rn !v1 !v2 !flow = do
 data MyModulus = MyModulus
 
 instance TypeInt MyModulus where
+  -- typeInt _ = 998244353
   typeInt _ = 1_000_000_007
 
 type MyModInt = ModInt MyModulus

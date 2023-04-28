@@ -51,41 +51,41 @@ _exe-defs: &exe-defaults
 executables:
   a-exe:
     <<: *exe-defaults
-    source-dirs: "a"
+    source-dirs: a
     main:                Main.hs
 
   b-exe:
     <<: *exe-defaults
-    source-dirs: "b"
+    source-dirs: b
     main:                Main.hs
 
   c-exe:
     <<: *exe-defaults
-    source-dirs: "c"
+    source-dirs: c
     main:                Main.hs
 
   d-exe:
     <<: *exe-defaults
-    source-dirs: "d"
+    source-dirs: d
     main:                Main.hs
 
   e-exe:
     <<: *exe-defaults
-    source-dirs: "e"
+    source-dirs: e
     main:                Main.hs
 
   f-exe:
     <<: *exe-defaults
-    source-dirs: "f"
+    source-dirs: f
     main:                Main.hs
 
   g-exe:
     <<: *exe-defaults
-    source-dirs: "g"
+    source-dirs: g
     main:                Main.hs
 
   ex-exe:
     <<: *exe-defaults
-    source-dirs: "ex"
+    source-dirs: ex
     main:                Main.hs
 
