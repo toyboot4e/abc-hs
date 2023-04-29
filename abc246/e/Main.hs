@@ -112,6 +112,7 @@ import Numeric.Extra       -- showDP, intToFloat, ..
 import Data.Bool.HT  -- if', ..
 import qualified Data.Ix.Enum as HT
 import qualified Data.List.HT as HT -- `groupBy`, but with adjacent elements
+import qualified Control.Monad.HT as HT
 
 -- vector: https://www.stackage.org/lts-16.11/package/vector-0.12.1.2
 import qualified Data.Vector.Fusion.Bundle as VFB
@@ -1810,6 +1811,62 @@ modInt = ModInt
 
 -- }}}
 
+solve :: Int -> (Int, Int) -> (Int, Int) -> UArray (Int, Int) Bool -> Int
+solve !n !start !end !isBlock
+  | uncurry (+) start `rem` 2 /= uncurry (+) end `rem` 2 = -1
+  | otherwise = (! end) arr
+  where
+    arr = runSTUArray $ do
+      let undef = -1 :: Int
+      let !bounds_ = ((0, 0), (pred n, pred n))
+      !vis <- newArray bounds_ undef
+
+      let isTarget !yx = inRange bounds_ yx && not (isBlock ! yx)
+
+      let scanNexts !yx0 !dyx !acc0 = do
+            let m !yx !acc
+                  | not $ isTarget yx = return acc
+                  | otherwise = do
+                      !c <- readArray vis yx
+                      if c /= undef
+                        then return acc
+                        else m (add2 dyx yx) (yx : acc)
+            m (add2 dyx yx0) acc0
+
+      let bfs !_ [] [] = return ()
+          bfs !depth !yxs0 !yxs1 = do
+            -- !b <- (== undef) <$> readArray vis end
+            -- when b $ do
+              forM_ yxs0 $ \yx -> do
+                writeArray vis yx depth
+
+              forM_ yxs1 $ \yx -> do
+                writeArray vis yx depth
+
+              let scanFold !yx !acc0 dyxs = foldM (\acc dyx -> scanNexts yx dyx acc) acc0 dyxs
+              let inner !yxs !dyxs = foldM (\acc yx -> scanFold yx acc dyxs) [] yxs
+
+              -- TODO: easier fold variant of forM? (accForM)
+              -- !yxs1' <- forM yxs0 $ \yx -> do
+              --   let !dyxs = [(1, 1), (-1, -1)]
+              --   !yxs_ <- foldM (\acc dyx -> scanNexts yx dyx acc) [] dyxs
+              --   return yxs_
+
+              -- !yxs0' <- forM yxs1 $ \yx -> do
+              --   let !dyxs = [(1, -1), (-1, 1)]
+              --   !yxs_ <- foldM (\acc dyx -> scanNexts yx dyx acc) [] dyxs
+              --   return yxs_
+
+              !yxs1' <- inner yxs0 [(1, 1), (-1, -1)]
+              !yxs0' <- inner yxs1 [(1, -1), (-1, 1)]
+
+              -- bfs (succ depth) (concat yxs0') (concat yxs1')
+              bfs (succ depth) yxs0' yxs1'
+
+      !_ <- bfs 0 [start] [start]
+      return vis
+    !_ = dbg (start, end)
+
 main :: IO ()
 main = do
   [n] <- getLineIntList
@@ -1817,5 +1874,4 @@ main = do
   !end <- both pred <$> getTuple2
   !isBlock <- listArray @UArray ((0, 0), (pred n, pred n)) . concat <$> replicateM n (map (== '#') <$> getLine)
 
-  putStrLn "TODO"
-
+  print $ solve n start end isBlock
