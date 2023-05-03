@@ -1818,7 +1818,7 @@ instance TypeInt MyModulus where
 type MyModInt = ModInt MyModulus
 
 modInt :: Int -> MyModInt
-modInt = ModInt
+modInt = ModInt . (`rem` typeInt (Proxy @MyModulus))
 
 -- }}}
 
