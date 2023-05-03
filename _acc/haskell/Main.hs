@@ -208,19 +208,13 @@ vLength :: (VG.Vector v e) => v e -> Int
 vLength = VFB.length . VG.stream
 
 {-# INLINE vRange #-}
-vRange :: Int -> Int -> VU.Vector Int
-vRange !i !j = VU.enumFromN i (succ j - i)
+vRange :: (VG.Vector v Int) => Int -> Int -> v Int
+vRange !i !j = VG.enumFromN i (succ j - i)
 
 -- | `vRange` in reverse
 {-# INLINE vRangeR #-}
-vRangeR :: Int -> Int -> VU.Vector Int
-vRangeR !i !j = VU.enumFromStepN i (-1) (succ j - i)
-
--- NOTE: We can only lookup by priority (cost), not by payload (vertex)
-lookupHeapEntry :: Int -> H.Heap (H.Entry Int Int) -> Maybe (H.Entry Int Int)
-lookupHeapEntry !key !heap =
-  let !h = H.intersect heap (H.singleton $ H.Entry key (0 :: Int))
-   in if' (H.null h) Nothing $ Just (H.minimum h)
+vRangeR :: (VG.Vector v Int) => Int -> Int -> v Int
+vRangeR !i !j = VG.enumFromStepN i (-1) (succ j - i)
 
 -- }}}
 
