@@ -1054,7 +1054,7 @@ uniteSUF !uf !i !j
 -- |   3     4     5     6
 -- | 07 08 09 10 11 12 13 14
 -- | ```
-data MSegmentTree s a = MSegmentTree (a -> a -> a) (VUM.MVector s a)
+data MSegmentTree v s a = MSegmentTree (a -> a -> a) (v s a)
 
 -- TODO: Can I UNPACK? the funciton?
 -- TODO: Generic queries and immutable segment tree (with `Show` instance)
@@ -1062,62 +1062,74 @@ data MSegmentTree s a = MSegmentTree (a -> a -> a) (VUM.MVector s a)
 -- | Creates a new segment tree for `n` leaves.
 -- | REMARK: Always give a zero value. It fills all the nodes including parent nodes, and the parent
 -- | nodes are not updated.
-{-# INLINE newSTree #-}
-newSTree :: (VUM.Unbox a, PrimMonad m) => (a -> a -> a) -> Int -> a -> m (MSegmentTree (PrimState m) a)
-newSTree !f !n !value = MSegmentTree f <$!> VUM.replicate n' value
+{-# INLINE newSTreeVG #-}
+newSTreeVG :: (VGM.MVector v a, PrimMonad m) => (a -> a -> a) -> Int -> a -> m (MSegmentTree v (PrimState m) a)
+newSTreeVG !f !n !value = MSegmentTree f <$!> VGM.replicate n' value
   where
     !n' = shiftL (bitCeil n) 1
 
+-- | Creates a boxed segment tree.
+{-# INLINE newSTreeV #-}
+newSTreeV :: PrimMonad m => (a -> a -> a) -> Int -> a -> m (MSegmentTree VM.MVector (PrimState m) a)
+newSTreeV = newSTreeVG
+
+-- | Creates an unboxed segment tree.
+{-# INLINE newSTreeVU #-}
+newSTreeVU :: (VU.Unbox a, PrimMonad m) => (a -> a -> a) -> Int -> a -> m (MSegmentTree VUM.MVector (PrimState m) a)
+newSTreeVU = newSTreeVG
+
 -- | Updates an `MSegmentTree` leaf value and their parents up to top root.
 {-# INLINE insertSTree #-}
-insertSTree :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> a -> m ()
+insertSTree :: (VGM.MVector v a, PrimMonad m) => MSegmentTree v (PrimState m) a -> Int -> a -> m ()
 insertSTree tree@(MSegmentTree !_ !vec) !i !value = _updateElement tree i' value
   where
     -- length == 2 * (the number of the leaves)
-    !offset = VUM.length vec `div` 2 - 1
+    !offset = VGM.length vec `div` 2 - 1
     -- leaf index
     !i' = i + offset
 
 -- | Updates an `MSegmentTree` leaf value and their parents up to top root.
 {-# INLINE modifySTree #-}
-modifySTree :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> (a -> a) -> Int -> m ()
+modifySTree :: (VGM.MVector v a, PrimMonad m) => MSegmentTree v (PrimState m) a -> (a -> a) -> Int -> m ()
 modifySTree tree@(MSegmentTree !_ !vec) !f !i = do
-  !v <- f <$> VUM.read vec i'
+  !v <- f <$> VGM.read vec i'
   _updateElement tree i' v
   where
     -- length == 2 * (the number of the leaves)
-    !offset = VUM.length vec `div` 2 - 1
+    !offset = VGM.length vec `div` 2 - 1
     -- leaf index
     !i' = i + offset
 
 -- | (Internal) Updates an `MSegmentTree` element (node or leaf) value and their parents up to top root.
 {-# INLINE _updateElement #-}
-_updateElement :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> a -> m ()
+_updateElement :: (VGM.MVector v a, PrimMonad m) => MSegmentTree v (PrimState m) a -> Int -> a -> m ()
 _updateElement (MSegmentTree !_ !vec) 0 !value = do
-  VUM.write vec 0 value
+  VGM.write vec 0 value
 _updateElement tree@(MSegmentTree !_ !vec) !i !value = do
-  VUM.write vec i value
+  VGM.write vec i value
   _updateParent tree ((i - 1) `div` 2)
 
 -- | (Internal) Recursivelly updates the parent nodes.
 {-# INLINE _updateParent #-}
-_updateParent :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> m ()
+_updateParent :: (VGM.MVector v a, PrimMonad m) => MSegmentTree v (PrimState m) a -> Int -> m ()
 _updateParent _ (-1) = pure () -- REMARK: (-1) `div` 2 == -1
 _updateParent tree@(MSegmentTree !f !vec) !iParent = do
-  !c1 <- VUM.read vec (iParent * 2 + 1)
-  !c2 <- VUM.read vec (iParent * 2 + 2)
+  !c1 <- VGM.read vec (iParent * 2 + 1)
+  !c2 <- VGM.read vec (iParent * 2 + 2)
   _updateElement tree iParent (f c1 c2)
 
 -- | Retrieves the folding result over the inclusive range `[l, r]` from `MSegmentTree`.
 {-# INLINE querySTree #-}
-querySTree :: forall a m. (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> (Int, Int) -> m a
-querySTree (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$!> inner 0 (0, initialHi)
+querySTree :: forall v a m. (VGM.MVector v a, PrimMonad m) => MSegmentTree v (PrimState m) a -> (Int, Int) -> m (Maybe a)
+querySTree (MSegmentTree !f !vec) (!lo, !hi)
+  | lo > hi = return Nothing
+  | otherwise = inner 0 (0, initialHi)
   where
-    !initialHi = VUM.length vec `div` 2 - 1
+    !initialHi = VGM.length vec `div` 2 - 1
     inner :: Int -> (Int, Int) -> m (Maybe a)
     inner !i (!l, !h)
-      | lo <= l && h <= hi = Just <$> VUM.read vec i
-      | h < lo || hi < l = pure Nothing
+      | lo <= l && h <= hi = Just <$> VGM.read vec i
+      | h < lo || hi < l = return Nothing
       | otherwise = do
           let !d = (h - l) `div` 2
           !ansL <- inner (2 * i + 1) (l, l + d)
@@ -1138,7 +1150,7 @@ querySTree (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$!> inner 0 (0, initial
 invNumVec :: (VG.Vector v Int) => v Int -> Int
 invNumVec xs = runST $ do
   let !n = VG.length xs
-  !stree <- newSTree (+) n (0 :: Int)
+  !stree <- newSTreeVU (+) n (0 :: Int)
 
   -- NOTE: foldM is better for performance
   !ss <- VG.forM xs $ \x -> do
@@ -1146,7 +1158,7 @@ invNumVec xs = runST $ do
     !s <-
       if x == pred n
         then return 0
-        else querySTree stree (succ x, pred n)
+        else fromJust <$> querySTree stree (succ x, pred n)
 
     -- let !_ = traceShow (x, s, (succ x, pred n)) ()
     modifySTree stree succ x
@@ -1196,7 +1208,7 @@ prevPermutationVec =
 -- | WARNING: Use 0-based indices for the input.
 dictOrderModuloVec :: (VG.Vector v Int) => v Int -> Int -> Int
 dictOrderModuloVec xs modulus = runST $ do
-  !stree <- newSTree (+) (VG.length xs + 1) (0 :: Int)
+  !stree <- newSTreeVU (+) (VG.length xs + 1) (0 :: Int)
 
   -- Pre-calculate factorial numbers:
   let !facts = factMods (VG.length xs) modulus
@@ -1213,7 +1225,7 @@ dictOrderModuloVec xs modulus = runST $ do
   -- ```
   -- So each expression is given as `(the number of unused numbers smaller than this) * factMod`.
   !counts <- flip VG.imapM xs $ \i x -> do
-    !nUsed <- querySTree stree (0, x)
+    !nUsed <- fromJust <$> querySTree stree (0, x)
     let !nUnused = x - nUsed
     let !factMod = facts VG.! (VG.length xs - (i + 1))
     let !inc = nUnused * factMod `rem` modulus
