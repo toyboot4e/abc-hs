@@ -1134,26 +1134,31 @@ querySTree (MSegmentTree !f !vec) (!lo, !hi)
 -- {{{ Inveresion number (segment tree)
 
 -- | Calculates the inversion number.
--- |
--- | REMARK: The implementaiton assumes that the input is in range `[0, length - 1]`.
-invNumVec :: (VG.Vector v Int) => v Int -> Int
-invNumVec xs = runST $ do
-  let !n = VG.length xs
-  !stree <- newSTreeVU (+) n (0 :: Int)
+invNumVec :: Int -> (VG.Vector v Int) => v Int -> Int
+invNumVec xMax xs = runST $ do
+  !stree <- newSTreeVU (+) (xMax + 1) (0 :: Int)
 
   -- NOTE: foldM is better for performance
   !ss <- VG.forM xs $ \x -> do
     -- count pre-inserted numbers bigger than this:
+    let !_ = dbg (x, (succ x, xMax))
     !s <-
-      if x == pred n
+      if x == xMax
         then return 0
-        else fromJust <$> querySTree stree (succ x, pred n)
+        else fromJust <$> querySTree stree (succ x, xMax)
 
     -- let !_ = traceShow (x, s, (succ x, pred n)) ()
     modifySTree stree succ x
     return s
 
   return $ VG.sum ss
+
+-- | Calculates the inversion number after applying index compression.
+-- | It can significantly improve the performance, like in ABC 261 F.
+compressInvNum :: VU.Vector Int -> Int
+compressInvNum xs = invNumVec (pred (VU.length xs')) xs'
+  where
+    !xs' = snd $ compressVU xs
 
 -- }}}
 
