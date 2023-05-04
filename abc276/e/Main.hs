@@ -581,10 +581,10 @@ bsearchM (low, high) isOk = both wrap <$> inner (low - 1, high + 1)
     inner (ok, ng)
       | abs (ok - ng) == 1 = return (ok, ng)
       | otherwise =
-        isOk m >>= \yes ->
-          if yes
-            then inner (m, ng)
-            else inner (ok, m)
+          isOk m >>= \yes ->
+            if yes
+              then inner (m, ng)
+              else inner (ok, m)
       where
         m = (ok + ng) `div` 2
     wrap :: Int -> Maybe Int
@@ -636,9 +636,10 @@ type STUnionFind s = MUnionFind s
 -- | `MUFChild parent | MUFRoot size`. Not `Unbox` :(
 data MUFNode = MUFChild {-# UNPACK #-} !Int | MUFRoot {-# UNPACK #-} !Int
 
-derivingUnbox "MUFNode"
+derivingUnbox
+  "MUFNode"
   [t|MUFNode -> (Bool, Int)|]
-  [|\case (MUFChild x) -> (True, x)  ; (MUFRoot x) -> (False, x)|]
+  [|\case (MUFChild x) -> (True, x); (MUFRoot x) -> (False, x)|]
   [|\case (True, x) -> MUFChild x; (False, x) -> MUFRoot x|]
 
 -- | Creates a new Union-Find tree of the given size.
@@ -703,7 +704,7 @@ newSUF = IM.empty
 rootSUF :: SparseUnionFind -> Int -> (Int, Int)
 rootSUF uf i
   | IM.notMember i uf = (i, 1)
-  | j < 0 = (i, - j)
+  | j < 0 = (i, -j)
   | otherwise = rootSUF uf j
   where
     j = uf IM.! i
@@ -802,14 +803,14 @@ querySTree (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$> loop 0 (0, initialHi
       | lo <= l && h <= hi = Just <$> VUM.read vec i
       | h < lo || hi < l = pure Nothing
       | otherwise = do
-        let !d = (h - l) `div` 2
-        !ansL <- loop (2 * i + 1) (l, l + d)
-        !ansH <- loop (2 * i + 2) (l + d + 1, h)
-        pure . Just $ case (ansL, ansH) of
-          (Just !a, Just !b) -> f a b
-          (Just !a, _) -> a
-          (_, Just !b) -> b
-          (_, _) -> error "query error (segment tree)"
+          let !d = (h - l) `div` 2
+          !ansL <- loop (2 * i + 1) (l, l + d)
+          !ansH <- loop (2 * i + 2) (l + d + 1, h)
+          pure . Just $ case (ansL, ansH) of
+            (Just !a, Just !b) -> f a b
+            (Just !a, _) -> a
+            (_, Just !b) -> b
+            (_, _) -> error "query error (segment tree)"
 
 -- }}}
 
@@ -860,15 +861,14 @@ dfsEveryVertex (isEnd, fin, fout) graph start s0 = visitNode (s0, IS.empty) star
       | isEnd s = (s, visits)
       | IS.member x visits = (s, visits)
       | otherwise =
-        let (s', visits') = visitNeighbors (fin s x, IS.insert x visits) x
-            -- !_ = traceShow (start, x, graph ! x) ()
-         in (fout s' x, visits')
+          let (s', visits') = visitNeighbors (fin s x, IS.insert x visits) x
+           in -- !_ = traceShow (start, x, graph ! x) ()
+              (fout s' x, visits')
 
     visitNeighbors :: (s, IS.IntSet) -> Int -> (s, IS.IntSet)
     visitNeighbors (s, visits) x
       | isEnd s = (s, visits)
       | otherwise = foldl' visitNode (s, visits) (graph ! x)
-
 
 dfsEveryPath :: forall s. (s -> Bool, s -> Int -> s, s -> Int -> s) -> Graph -> Int -> s -> s
 dfsEveryPath (isEnd, fin, fout) graph start s0 = visitNode (s0, IS.empty) start
@@ -882,7 +882,7 @@ dfsEveryPath (isEnd, fin, fout) graph start s0 = visitNode (s0, IS.empty) start
     visitNeighbors (s, visits) x
       | isEnd s = s
       | otherwise =
-        foldl' (\s2 n -> visitNode (s2, visits) n) s $ filter (`IS.notMember` visits) (graph ! x)
+          foldl' (\s2 n -> visitNode (s2, visits) n) s $ filter (`IS.notMember` visits) (graph ! x)
 
 -- | Searches for a specific route in breadth-first order.
 -- | Returns `Just (depth, node)` if succeed.
@@ -897,24 +897,24 @@ bfsFind !f !graph !start =
     bfsRec depth !visits !nbs
       | IS.null nbs = Nothing
       | otherwise =
-        let -- !_ = traceShow ("bfsRec", depth, nbs) ()
-            !visits' = IS.union visits nbs
-         in let (result, nextNbs) = visitNeighbors visits' nbs
-             in case result of
-                  Just x -> Just (depth, x)
-                  Nothing -> bfsRec (succ depth) visits' nextNbs
+          let -- !_ = traceShow ("bfsRec", depth, nbs) ()
+              !visits' = IS.union visits nbs
+           in let (result, nextNbs) = visitNeighbors visits' nbs
+               in case result of
+                    Just x -> Just (depth, x)
+                    Nothing -> bfsRec (succ depth) visits' nextNbs
 
     visitNeighbors :: IS.IntSet -> IS.IntSet -> (Maybe Int, IS.IntSet)
     visitNeighbors visits !nbs =
-       foldl'
-            ( \(!result, !nbs) !x ->
-                let nbs' = IS.union nbs $ IS.fromList . filter (`IS.notMember` visits) $ graph ! x
-                 in if f x
-                      then (Just x, nbs')
-                      else (result, nbs')
-            )
-            (Nothing, IS.empty)
-            (IS.toList nbs)
+      foldl'
+        ( \(!result, !nbs) !x ->
+            let nbs' = IS.union nbs $ IS.fromList . filter (`IS.notMember` visits) $ graph ! x
+             in if f x
+                  then (Just x, nbs')
+                  else (result, nbs')
+        )
+        (Nothing, IS.empty)
+        (IS.toList nbs)
 
 dijkstra :: forall s. (s -> IHeapEntry -> s) -> s -> WGraph -> Int -> s
 dijkstra !f s0 !graph !start = fst3 $ visitRec (s0, IS.empty, H.singleton $ H.Entry 0 start)
@@ -963,9 +963,8 @@ colorize graph colors0 = dfs True (colors0, Just ([], []))
     applyColor :: Color -> G.Vertex -> Maybe ColorInfo -> Maybe ColorInfo
     applyColor _ _ Nothing = Nothing
     applyColor color v (Just acc)
-      | color = Just $ first (v : ) acc
-      | otherwise = Just $ second (v : ) acc
-
+      | color = Just $ first (v :) acc
+      | otherwise = Just $ second (v :) acc
 
 -- }}}
 
@@ -1128,9 +1127,9 @@ augumentPath !rn !vis !v0 !goal = visitVertex v0 (maxBound @Int)
     visitVertex !v !flow
       | v == goal = return $ Just (flow, [])
       | otherwise = do
-        VM.write vis v True
-        !edges <- VM.read rn v
-        foldM (step v flow) Nothing edges
+          VM.write vis v True
+          !edges <- VM.read rn v
+          foldM (step v flow) Nothing edges
 
     step :: G.Vertex -> Int -> Maybe (Int, [(G.Vertex, G.Vertex)]) -> RNEdge -> IO (Maybe (Int, [(G.Vertex, G.Vertex)]))
     step !_ !_ r@(Just _) _ = return r
@@ -1192,14 +1191,14 @@ main = do
   forM_ (filter (graph !) $ range bounds_) $ \(y, x) -> do
     -- let !_ = traceShow ("unite", y, x, inRange bounds_ (y, x)) ()
     let vs = neighbors (y, x)
-    forM_ vs $ uniteMUF uf (indexIt (y, x) ) . indexIt
+    forM_ vs $ uniteMUF uf (indexIt (y, x)) . indexIt
 
   -- any of the two have the same root?
   let vs = neighbors (sy, sx)
   let vs' = do
-        v1 <- vs;
-        v2 <- vs;
-        guard $ v1 /= v2;
+        v1 <- vs
+        v2 <- vs
+        guard $ v1 /= v2
         -- let !_ = traceShow (v1, v2) ()
         return (v1, v2)
   b <- anyM (uncurry $ sameMUF uf) $ map (both indexIt) vs'
