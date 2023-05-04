@@ -11,34 +11,8 @@
 {- TODOs
 
 - [ ] EDPC / TDPC
-  - [x] Span-based
-  - [x] Expected values
-  - [x] Bit-based (set-based)
-  - [.] Digits-based DP
-
-- [ ] More practices
-  - [x] Chokudai Speedrun001
-  - [.] Chokudai Speedrun002
-  - [.] Tessoku A71~
-  - [.] Tessoku C11~
-  - [.] Typical 90
-
+- [.] Typical 90
 - [ ] PAST book (advanced)
-  - [.] Binary search
-  - [.] DP
-
-- [ ] Graph
-  - [x] connections
-  - [ ] tree diameter with DFS
-  - [x] scc and topological sort
-  - [x] cycles by SCC
-  - [ ] 2-SAT
-  - [ ] minimum cut problem
-
-- [ ] Techniques
-  - [ ] 2D index compression
-  - [x] Better, easier rolling hash
-  - [ ] Doubling
 
 -}
 
@@ -491,21 +465,42 @@ wrappingMul !x !y =
 
 -- {{{ Prime factors
 
--- @gotoki_no_joe
+-- -- @gotoki_no_joe
+-- primes :: [Int]
+-- primes = 2 : 3 : sieve q0 [5, 7 ..]
+--   where
+--     q0 = H.insert (H.Entry 9 6) H.empty
+--     sieve queue xxs@(x : xs) =
+--       case compare np x of
+--         LT -> sieve queue1 xxs
+--         EQ -> sieve queue1 xs
+--         GT -> x : sieve queue2 xs
+--       where
+--         H.Entry np p2 = H.minimum queue
+--         queue1 = H.insert (H.Entry (np + p2) p2) $ H.deleteMin queue
+--         queue2 = H.insert (H.Entry (x * x) (x * 2)) queue
+--     sieve _ _ = error "unreachale"
+
 primes :: [Int]
-primes = 2 : 3 : sieve q0 [5, 7 ..]
+primes = 2 : 3 : minus [5, 7 ..] (unionAll [[p * p, p * p + 2 * p ..] | p <- tail primes])
   where
-    q0 = H.insert (H.Entry 9 6) H.empty
-    sieve queue xxs@(x : xs) =
-      case compare np x of
-        LT -> sieve queue1 xxs
-        EQ -> sieve queue1 xs
-        GT -> x : sieve queue2 xs
+    minus (x : xs) (y : ys) = case (compare x y) of
+      LT -> x : minus xs (y : ys)
+      EQ -> minus xs ys
+      GT -> minus (x : xs) ys
+    minus xs _ = xs
+
+    union (x : xs) (y : ys) = case (compare x y) of
+      LT -> x : union xs (y : ys)
+      EQ -> x : union xs ys
+      GT -> y : union (x : xs) ys
+    union xs [] = xs
+    union [] ys = ys
+
+    unionAll :: Ord a => [[a]] -> [a]
+    unionAll ((x : xs) : t) = x : union xs (unionAll $ pairs t)
       where
-        H.Entry np p2 = H.minimum queue
-        queue1 = H.insert (H.Entry (np + p2) p2) $ H.deleteMin queue
-        queue2 = H.insert (H.Entry (x * x) (x * 2)) queue
-    sieve _ _ = error "unreachale"
+        pairs ((x : xs) : ys : t) = (x : union xs ys) : pairs t
 
 -- | Returns `[(prime, count)]`
 -- TODO: reuse `primes`
@@ -621,7 +616,7 @@ bcMod !n !r !modulus = foldl' (\ !x !y -> divModF x y modulus) (facts VU.! n) [f
 
 -- }}}
 
--- {{{ IntMod
+-- {{{ ModInt
 
 -- | Type level constant `Int` value.
 -- | TODO: Replace with `GHC.TypeNats`
