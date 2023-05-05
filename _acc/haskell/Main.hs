@@ -847,6 +847,14 @@ bsearch (!low, !high) !isOk = both wrap (inner (low - 1, high + 1))
       | inRange (low, high) x = Just x
       | otherwise = Nothing
 
+-- | Also known as lower bound.
+bsearchL :: (Int, Int) -> (Int -> Bool) -> Maybe Int
+bsearchL !lh !isOk = fst $ bsearch lh isOk
+
+-- | Also known as upper bound.
+bsearchR :: (Int, Int) -> (Int -> Bool) -> Maybe Int
+bsearchR !lh !isOk = snd $ bsearch lh isOk
+
 -- | Monadic variant of `bsearch`
 bsearchM :: forall m. (Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int, Maybe Int)
 bsearchM (!low, !high) !isOk = both wrap <$> inner (low - 1, high + 1)
@@ -867,6 +875,12 @@ bsearchM (!low, !high) !isOk = both wrap <$> inner (low - 1, high + 1)
       | inRange (low, high) x = Just x
       | otherwise = Nothing
 
+bsearchML :: forall m. (Applicative m,Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int)
+bsearchML !lh !isOk = fst <$> bsearchM lh isOk
+
+bsearchMR :: forall m. (Applicative m,Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int)
+bsearchMR !lh !isOk = snd <$> bsearchM lh isOk
+
 bsearchF32 :: (Float, Float) -> Float -> (Float -> Bool) -> (Maybe Float, Maybe Float)
 bsearchF32 (!low, !high) !diff !isOk = both wrap (inner (low - diff, high + diff))
   where
@@ -882,6 +896,12 @@ bsearchF32 (!low, !high) !diff !isOk = both wrap (inner (low - diff, high + diff
       | x == (low - diff) || x == (low + diff) = Nothing
       | otherwise = Just x
 
+bsearchF32L :: (Float, Float) -> Float -> (Float -> Bool) -> Maybe Float
+bsearchF32L !a !b !c = fst $ bsearchF32 a b c
+
+bsearchF32R :: (Float, Float) -> Float -> (Float -> Bool) -> Maybe Float
+bsearchF32R !a !b !c = fst $ bsearchF32 a b c
+
 bsearchF64 :: (Double, Double) -> Double -> (Double -> Bool) -> (Maybe Double, Maybe Double)
 bsearchF64 (!low, !high) !diff !isOk = both wrap (inner (low - diff, high + diff))
   where
@@ -896,6 +916,12 @@ bsearchF64 (!low, !high) !diff !isOk = both wrap (inner (low - diff, high + diff
     wrap !x
       | x == (low - diff) || x == (low + diff) = Nothing
       | otherwise = Just x
+
+bsearchF64L :: (Double, Double) -> Double -> (Double -> Bool) -> Maybe Double
+bsearchF64L !a !b !c = fst $ bsearchF64 a b c
+
+bsearchF64R :: (Double, Double) -> Double -> (Double -> Bool) -> Maybe Double
+bsearchF64R !a !b !c = fst $ bsearchF64 a b c
 
 -- 1D index compression: xs -> (nubSorted, indices)
 compressIndex :: [Int] -> (VU.Vector Int, [Int])
