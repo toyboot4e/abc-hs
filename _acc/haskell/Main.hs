@@ -1093,6 +1093,14 @@ newSTreeV = newSTreeVG
 newSTreeVU :: (VU.Unbox a, PrimMonad m) => (a -> a -> a) -> Int -> a -> m (MSegmentTree VUM.MVector (PrimState m) a)
 newSTreeVU = newSTreeVG
 
+-- | Sets all the internal values of a segment tree to the given value which has to be zero.
+-- |
+-- | REMARK: It takes lots of time. Consider a much more efficient resettiong strategy such as
+-- | re-inserting zeros to used slots, or maybe use | `compressInvNumVG` when you just need
+-- | inversion number.
+resetSTree :: (VGM.MVector v a, PrimMonad m) => (MSegmentTree v (PrimState m) a) -> a -> m ()
+resetSTree (MSegmentTree !_ !vec) !zero = VGM.set vec zero
+
 -- | Updates an `MSegmentTree` leaf value and their parents up to top root.
 {-# INLINE insertSTree #-}
 insertSTree :: (VGM.MVector v a, PrimMonad m) => MSegmentTree v (PrimState m) a -> Int -> a -> m ()
@@ -1160,8 +1168,8 @@ querySTree (MSegmentTree !f !vec) (!lo, !hi)
 -- {{{ Inveresion number (segment tree)
 
 -- | Calculates the inversion number.
-invNumVec :: Int -> (VG.Vector v Int) => v Int -> Int
-invNumVec xMax xs = runST $ do
+invNumVG :: Int -> (VG.Vector v Int) => v Int -> Int
+invNumVG xMax xs = runST $ do
   !stree <- newSTreeVU (+) (xMax + 1) (0 :: Int)
 
   -- NOTE: foldM is better for performance
@@ -1181,8 +1189,8 @@ invNumVec xMax xs = runST $ do
 
 -- | Calculates the inversion number after applying index compression.
 -- | It can significantly improve the performance, like in ABC 261 F.
-compressInvNum :: VU.Vector Int -> Int
-compressInvNum xs = invNumVec (pred (VU.length xs')) xs'
+compressInvNumVG :: VU.Vector Int -> Int
+compressInvNumVG xs = invNumVG (pred (VU.length xs')) xs'
   where
     !xs' = snd $ compressVU xs
 
