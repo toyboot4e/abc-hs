@@ -1,7 +1,7 @@
 = Atcoder beginner contest in Haskell
 :acc: https://github.com/Tatamo/atcoder-cli[acc]
 
-Based on {acc}.
+Based on {acc}. My template can be found in link:./_acc/haskell/Main.hs[].
 
 == Setting up
 
