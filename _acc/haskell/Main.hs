@@ -10,9 +10,10 @@
 
 {- TODOs
 
-- [ ] EDPC / TDPC
+- [.] Light blue diff problems up to ABC 255
+- [.] EDPC / TDPC
 - [.] Typical 90
-- [ ] PAST book (advanced)
+- [.] PAST book (advanced)
 
 -}
 
@@ -53,6 +54,7 @@ import Debug.Trace
 import GHC.Event (IOCallback)
 import GHC.Exts
 import GHC.Float (int2Float)
+import System.Exit (exitSuccess)
 import System.IO
 import Text.Printf
 
