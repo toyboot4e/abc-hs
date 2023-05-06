@@ -251,14 +251,14 @@ tuple4 :: [a] -> (a, a, a, a)
 tuple4 [!a, !b, !c, !d] = (a, b, c, d)
 tuple4 _ = error "not a four-item list"
 
-getTuple2 :: IO (Int, Int)
-getTuple2 = tuple2 <$> getLineIntList
+ints2 :: IO (Int, Int)
+ints2 = tuple2 <$> ints
 
-getTuple3 :: IO (Int, Int, Int)
-getTuple3 = tuple3 <$> getLineIntList
+ints3 :: IO (Int, Int, Int)
+ints3 = tuple3 <$> ints
 
-getTuple4 :: IO (Int, Int, Int, Int)
-getTuple4 = tuple4 <$> getLineIntList
+ints4 :: IO (Int, Int, Int, Int)
+ints4 = tuple4 <$> ints
 
 yn :: Bool -> String
 yn b = if b then "Yes" else "No"
@@ -284,29 +284,35 @@ mul2 !m = both (m *)
 
 -- {{{ Input
 
-getLineIntList :: IO [Int]
-getLineIntList = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
+ints :: IO [Int]
+ints = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 
-getLineIntVec :: IO (VU.Vector Int)
-getLineIntVec = VU.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
+intsVG :: VG.Vector v Int => IO (v Int)
+intsVG = VG.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
+
+intsV :: IO (V.Vector Int)
+intsV = intsVG
+
+intsVU :: IO (VU.Vector Int)
+intsVU = intsVG
 
 -- | Creates a graph from 1-based vertices
 getGraph :: Int -> Int -> IO (Array Int [Int])
-getGraph !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges getLineIntList
+getGraph !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges ints
   where
     accGraph = accumArray @Array (flip (:)) [] (1, nVerts)
     toInput = concatMap2 $ second swap . dupe . tuple2
 
 -- | Creates a weightend graph from 1-based vertices
 getWGraph :: Int -> Int -> IO (Array Int [H.Entry Int Int])
-getWGraph !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges getLineIntList
+getWGraph !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges ints
   where
     accGraph = accumArray @Array (flip (:)) [] (1, nVerts)
     toInput = concatMap2 $ \[!a, !b, !cost] -> ((a, H.Entry cost b), (b, H.Entry cost a))
 
 -- | Creates a weightend graph from 1-based vertices
 getWGraph0 :: Int -> Int -> IO (Array Int [H.Entry Int Int])
-getWGraph0 !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges getLineIntList
+getWGraph0 !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges ints
   where
     accGraph = accumArray @Array (flip (:)) [] (0, pred nVerts)
     toInput = concatMap2 $ \[!a, !b, !cost] -> ((pred a, H.Entry cost (pred b)), (pred b, H.Entry cost (pred a)))
@@ -1854,8 +1860,8 @@ modInt = ModInt . (`rem` typeInt (Proxy @MyModulus))
 
 main :: IO ()
 main = do
-  [n] <- getLineIntList
-  xs <- getLineIntVec
+  [n] <- ints
+  !xs <- intsVU
 
   putStrLn "TODO"
 
