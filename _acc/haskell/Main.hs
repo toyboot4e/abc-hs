@@ -877,10 +877,10 @@ bsearchM (!low, !high) !isOk = both wrap <$> inner (low - 1, high + 1)
       | inRange (low, high) x = Just x
       | otherwise = Nothing
 
-bsearchML :: forall m. (Applicative m,Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int)
+bsearchML :: forall m. (Applicative m, Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int)
 bsearchML !lh !isOk = fst <$> bsearchM lh isOk
 
-bsearchMR :: forall m. (Applicative m,Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int)
+bsearchMR :: forall m. (Applicative m, Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int)
 bsearchMR !lh !isOk = snd <$> bsearchM lh isOk
 
 bsearchF32 :: (Float, Float) -> Float -> (Float -> Bool) -> (Maybe Float, Maybe Float)
