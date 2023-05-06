@@ -1046,6 +1046,14 @@ newSTreeV = newSTreeVG
 newSTreeVU :: (VU.Unbox a, PrimMonad m) => (a -> a -> a) -> Int -> a -> m (MSegmentTree VUM.MVector (PrimState m) a)
 newSTreeVU = newSTreeVG
 
+-- | Sets all the internal values of a segment tree to the given value which has to be zero.
+-- |
+-- | REMARK: It takes lots of time. Consider a much more efficient resettiong strategy such as
+-- | re-inserting zeros to used slots, or maybe use | `compressInvNumVG` when you just need
+-- | inversion number.
+resetSTree :: (VGM.MVector v a, PrimMonad m) => (MSegmentTree v (PrimState m) a) -> a -> m ()
+resetSTree (MSegmentTree !_ !vec) !zero = VGM.set vec zero
+
 -- | Updates an `MSegmentTree` leaf value and their parents up to top root.
 {-# INLINE insertSTree #-}
 insertSTree :: (VGM.MVector v a, PrimMonad m) => MSegmentTree v (PrimState m) a -> Int -> a -> m ()
@@ -1113,8 +1121,8 @@ querySTree (MSegmentTree !f !vec) (!lo, !hi)
 -- {{{ Inveresion number (segment tree)
 
 -- | Calculates the inversion number.
-invNumVec :: Int -> (VG.Vector v Int) => v Int -> Int
-invNumVec !xMax !xs = runST $ do
+invNumVG :: Int -> (VG.Vector v Int) => v Int -> Int
+invNumVG !xMax !xs = runST $ do
   !stree <- newSTreeVU (+) (xMax + 1) (0 :: Int)
 
   -- NOTE: foldM is better for performance
@@ -1133,8 +1141,8 @@ invNumVec !xMax !xs = runST $ do
   return $ VG.sum ss
 
 -- | Calculates the inversion number after applying index compression.
-compressInvNum :: VU.Vector Int -> Int
-compressInvNum xs = invNumVec (pred (VU.length xs')) xs'
+compressInvNumVG :: VU.Vector Int -> Int
+compressInvNumVG xs = invNumVG (pred (VU.length xs')) xs'
   where
     !xs' = snd $ compressVU xs
 
@@ -1794,25 +1802,34 @@ modInt = ModInt . (`rem` typeInt (Proxy @MyModulus))
 
 -- }}}
 
--- | Calculates the inversion number after applying index compression.
-compressInvNum :: VU.Vector Int -> Int
-compressInvNum xs = invNumVec (pred (VU.length xs')) xs'
-  where
-    !xs' = snd $ compressVU xs
-
 main :: IO ()
 main = do
   [nValues] <- getLineIntList
   !colors <- VU.map pred <$> getLineIntVec
   !values <- VU.map pred <$> getLineIntVec
 
-  let invNum = invNumVec (pred nValues) values
+  let invNum = invNumVG (pred nValues) values
   let !_ = dbg ("invNum", invNum)
 
   -- colors -> (unfortunatelly) reversed list
   let !input = VU.toList $ VU.zip colors values
   let !byColor = IM.fromListWith (\[!x] !xs -> x : xs) $ map (\(!c, !x) -> (c, [x])) input
-  let !invNumsByColor = map (compressInvNum . VU.fromList . reverse) $ map snd $ IM.toList byColor
+
+  -- -- pure version (index compression is required!)
+  -- let !invNumsByColor = map (compressInvNumVG . VU.fromList . reverse) $ map snd $ IM.toList byColor
+
+  -- reset version (I prefer the pure version)
+  !stree <- newSTreeVU (+) (nValues) (0 :: Int)
+  !invNumsByColor <- forM (reverse . map snd $ IM.toList byColor) $ \xs -> do
+    !ss <- forM (reverse xs) $ \x -> do
+      !s <- fromMaybe 0 <$> querySTree stree (succ x, pred nValues)
+      modifySTree stree succ x
+      return s
+
+    -- efficient reset strategy.
+    forM_ xs $ \x -> do
+      insertSTree stree x 0
+
+    return $ sum ss
 
   print $ invNum - sum invNumsByColor
-

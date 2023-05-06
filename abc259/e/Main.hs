@@ -1802,23 +1802,40 @@ modInt = ModInt . (`rem` typeInt (Proxy @MyModulus))
 
 main :: IO ()
 main = do
-  [n] <- getLineIntList
+  [nInput] <- getLineIntList
 
-  !input <- V.replicateM n $ do
+  -- Vector [(p, n)]
+  !input <- V.replicateM nInput $ do
     [m] <- getLineIntList
-    IM.fromList <$> replicateM m getTuple2
+    replicateM m getTuple2
+
   let !_ = dbg ("input", input)
 
-  let !lsum = V.scanl' (IM.unionWith max) IM.empty input
-  let !rsum = V.scanl' (IM.unionWith max) IM.empty $ V.reverse input
-  let !_ = dbg (lsum)
-  let !_ = dbg (rsum)
+  -- IntMap (nMax1, nMax2)
+  let !primeMaxes = V.foldl' step IM.empty input :: IM.IntMap (Int, Int)
+        where
+          step :: IM.IntMap (Int, Int) -> [(Int, Int)] -> IM.IntMap (Int, Int)
+          step !im0 !xs = IM.unionWith merge im0 (IM.fromList $ map (\(!p, !n) -> (p, (n, 0))) xs)
+          merge (n1, 0) (n2, 0) = (max n1 n2, min n1 n2)
+          merge (n1, n2) (n3, 0) =
+            let ns = sort [n1, n2, n3]
+             in (ns !! 2, ns !! 1)
+          merge _ _ = error "unreachable!"
 
-  let !pns = flip map [0 .. pred n] $ \iDiscard ->
-        let !_ = dbg (iDiscard, (n - 1) - iDiscard)
-            !pns1 = lsum V.! iDiscard
-            !pns2 = rsum V.! ((n - 1) - iDiscard)
-         in IM.unionWith max pns1 pns2
+  let !variations = V.map feature input
+        where
+          feature :: [(Int, Int)] -> [(Int, Int)]
+          feature !pns = foldl' step [] pns
 
-  let !_ = dbg ("answers", pns)
-  print $ S.size $ S.fromList pns
+          step :: [(Int, Int)] -> (Int, Int) -> [(Int, Int)]
+          step !acc (!p, !n)
+            | nMax1 == nMax2 = acc
+            | n == nMax1 = (p, nMax2) : acc
+            | otherwise = acc
+            where
+              (!nMax1, !nMax2) = primeMaxes IM.! p
+
+  let !_ = dbg (primeMaxes)
+  let !_ = dbg (variations)
+
+  print $ S.size $ S.fromList $ V.toList variations
