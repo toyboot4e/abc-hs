@@ -8,15 +8,6 @@
 --ghc-options "-D DEBUG"
 -}
 
-{- TODOs
-
-- [.] Light blue diff problems up to ABC 255
-- [.] EDPC / TDPC
-- [.] Typical 90
-- [.] PAST book (advanced)
-
--}
-
 {- ORMOLU_DISABLE -}
 {-# LANGUAGE BangPatterns, BlockArguments, DefaultSignatures, LambdaCase, MultiWayIf #-}
 {-# LANGUAGE NumDecimals, NumericUnderscores, PatternGuards, TupleSections #-}
@@ -279,6 +270,13 @@ sub2 (!y, !x) = bimap (y -) (x -)
 
 mul2 :: Int -> (Int, Int) -> (Int, Int)
 mul2 !m = both (m *)
+
+-- 180.0 degree = \p radian
+toRadian :: Double -> Double
+toRadian degree = degree / 180.0 * pi
+
+toDegree :: Double -> Double
+toDegree rad = rad / pi * 180.0
 
 -- }}}
 
