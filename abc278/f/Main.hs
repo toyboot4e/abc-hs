@@ -1856,10 +1856,44 @@ modInt = ModInt . (`rem` typeInt (Proxy @MyModulus))
 
 -- }}}
 
+getEdge :: IO (Int, Int)
+getEdge = bimap head last . dupe . map ord <$> getLine
+
+-- graph search consuming edges
+check :: IM.IntMap MultiSet -> Int -> Bool
+check !g0 !start = inner 0 g0 start
+  where
+    inner :: Int -> IM.IntMap MultiSet -> Int -> Bool
+    inner !d !g !v1 =
+      let !v2s = fromMaybe emptyMS $ IM.lookup v1 g
+          !bs =
+            map
+              ( \v2 ->
+                  -- consume the edge
+                  let !ms' = decrementMS v2 v2s
+                      !g' = IM.insert v1 ms' g
+                      -- !_ = dbg (d, v2, g, g')
+                   in inner (succ d) g' v2
+              )
+              $ IM.keys (innerMS v2s)
+       in if
+              -- win if odd number of edges are used
+              | null bs -> odd d
+              -- on first player's branch, select the winning route
+              | even d -> any id bs
+              -- on second player's branch, can't select a winning route
+              | otherwise -> all id bs
+
 main :: IO ()
 main = do
   [n] <- ints
-  !xs <- intsVU
+  !input <- replicateM n getEdge
 
-  putStrLn "TODO"
+  -- REMARK: use multiset to not distinguish edges
+  let !graph = IM.fromListWith (\ms2 ms1 -> incrementMS (head $ IM.keys $ innerMS ms2) ms1) $ map (\(!v1, !v2) -> (v1, singletonMS v2)) input
+  let !_ = dbg (graph)
 
+  let !results = map (check graph) (IM.keys graph)
+  let !_ = dbg (results)
+
+  putStrLn $ if any id results then "First" else "Second"
