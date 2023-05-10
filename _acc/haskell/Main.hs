@@ -35,6 +35,7 @@ import Data.Char
 import Data.Either
 import Data.Foldable
 import Data.Functor
+import Data.Functor.Identity
 import Data.IORef
 import Data.List
 import Data.Maybe
@@ -821,7 +822,22 @@ ismo2D !bounds_ !seeds = runSTUArray $ do
 
 -- TODO: Use typeclass for getting middle and detecting end
 
--- | Binary search for sorted items in an inclusive range (from left to right only)
+-- | Pure variant of [`bsearchM`].
+{-# INLINE bsearch #-}
+bsearch :: (Int, Int) -> (Int -> Bool) -> (Maybe Int, Maybe Int)
+bsearch (!low, !high) !isOk = runIdentity $ bsearchM (low, high) (return . isOk)
+
+-- | Also known as lower bound.
+{-# INLINE bsearchL #-}
+bsearchL :: (Int, Int) -> (Int -> Bool) -> Maybe Int
+bsearchL !lh !isOk = fst $ bsearch lh isOk
+
+-- | Also known as upper bound.
+{-# INLINE bsearchR #-}
+bsearchR :: (Int, Int) -> (Int -> Bool) -> Maybe Int
+bsearchR !lh !isOk = snd $ bsearch lh isOk
+
+-- | Monadic binary search for sorted items in an inclusive range (from left to right only).
 -- |
 -- | It returns an `(ok, ng)` index pair at the boundary.
 -- |
@@ -838,30 +854,7 @@ ismo2D !bounds_ !seeds = runSTUArray $ do
 -- | > > let xs = [0..9] in do
 -- | > >   print $ bsearch (0, 9) (\i -> xs !! i <= 5)
 -- | > (5, 6)
-bsearch :: (Int, Int) -> (Int -> Bool) -> (Maybe Int, Maybe Int)
-bsearch (!low, !high) !isOk = both wrap (inner (low - 1, high + 1))
-  where
-    inner :: (Int, Int) -> (Int, Int)
-    inner (!ok, !ng)
-      | abs (ok - ng) == 1 = (ok, ng)
-      | isOk m = inner (m, ng)
-      | otherwise = inner (ok, m)
-      where
-        m = (ok + ng) `div` 2
-    wrap :: Int -> Maybe Int
-    wrap !x
-      | inRange (low, high) x = Just x
-      | otherwise = Nothing
-
--- | Also known as lower bound.
-bsearchL :: (Int, Int) -> (Int -> Bool) -> Maybe Int
-bsearchL !lh !isOk = fst $ bsearch lh isOk
-
--- | Also known as upper bound.
-bsearchR :: (Int, Int) -> (Int -> Bool) -> Maybe Int
-bsearchR !lh !isOk = snd $ bsearch lh isOk
-
--- | Monadic variant of `bsearch`
+{-# INLINE bsearchM #-}
 bsearchM :: forall m. (Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int, Maybe Int)
 bsearchM (!low, !high) !isOk = both wrap <$> inner (low - 1, high + 1)
   where
@@ -869,24 +862,26 @@ bsearchM (!low, !high) !isOk = both wrap <$> inner (low - 1, high + 1)
     inner (!ok, !ng)
       | abs (ok - ng) == 1 = return (ok, ng)
       | otherwise =
-          isOk m >>= \ !yes ->
-            if yes
-              then inner (m, ng)
-              else inner (ok, m)
+          isOk m >>= \case
+            True -> inner (m, ng)
+            False -> inner (ok, m)
       where
         m = (ok + ng) `div` 2
 
     wrap :: Int -> Maybe Int
     wrap !x
-      | inRange (low, high) x = Just x
+      | x == low || x == high = Just x
       | otherwise = Nothing
 
+{-# INLINE bsearchML #-}
 bsearchML :: forall m. (Applicative m, Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int)
 bsearchML !lh !isOk = fst <$> bsearchM lh isOk
 
+{-# INLINE bsearchMR #-}
 bsearchMR :: forall m. (Applicative m, Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int)
 bsearchMR !lh !isOk = snd <$> bsearchM lh isOk
 
+{-# INLINE bsearchF32 #-}
 bsearchF32 :: (Float, Float) -> Float -> (Float -> Bool) -> (Maybe Float, Maybe Float)
 bsearchF32 (!low, !high) !diff !isOk = both wrap (inner (low - diff, high + diff))
   where
@@ -899,15 +894,18 @@ bsearchF32 (!low, !high) !diff !isOk = both wrap (inner (low - diff, high + diff
         m = (ok + ng) / 2
     wrap :: Float -> Maybe Float
     wrap !x
-      | x == (low - diff) || x == (low + diff) = Nothing
+      | x == (low - diff) || x == (high + diff) = Nothing
       | otherwise = Just x
 
+{-# INLINE bsearchF32L #-}
 bsearchF32L :: (Float, Float) -> Float -> (Float -> Bool) -> Maybe Float
 bsearchF32L !a !b !c = fst $ bsearchF32 a b c
 
+{-# INLINE bsearchF32R #-}
 bsearchF32R :: (Float, Float) -> Float -> (Float -> Bool) -> Maybe Float
 bsearchF32R !a !b !c = fst $ bsearchF32 a b c
 
+{-# INLINE bsearchF64 #-}
 bsearchF64 :: (Double, Double) -> Double -> (Double -> Bool) -> (Maybe Double, Maybe Double)
 bsearchF64 (!low, !high) !diff !isOk = both wrap (inner (low - diff, high + diff))
   where
@@ -920,12 +918,14 @@ bsearchF64 (!low, !high) !diff !isOk = both wrap (inner (low - diff, high + diff
         m = (ok + ng) / 2
     wrap :: Double -> Maybe Double
     wrap !x
-      | x == (low - diff) || x == (low + diff) = Nothing
+      | x == (low - diff) || x == (high + diff) = Nothing
       | otherwise = Just x
 
+{-# INLINE bsearchF64L #-}
 bsearchF64L :: (Double, Double) -> Double -> (Double -> Bool) -> Maybe Double
 bsearchF64L !a !b !c = fst $ bsearchF64 a b c
 
+{-# INLINE bsearchF64R #-}
 bsearchF64R :: (Double, Double) -> Double -> (Double -> Bool) -> Maybe Double
 bsearchF64R !a !b !c = fst $ bsearchF64 a b c
 
