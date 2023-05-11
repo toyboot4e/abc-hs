@@ -229,7 +229,7 @@ twoPointers !n !check = inner (0, 0)
     inner (!l, !r) | l >= n = []
     inner (!l, !r)
       | check (l, r) =
-          let (l', r') = until (not . peekCheck) (second succ) (l, r)
+          let (!l', !r') = until (not . peekCheck) (second succ) (l, r)
            in (l', r') : inner (succ l', max l' r')
       | otherwise = inner (succ l, max (succ l) r)
     peekCheck (!l, !r) | r == pred n = False
@@ -446,8 +446,8 @@ log2 !x = finiteBitSize x - 1 - countLeadingZeros x
 log2CeilInt :: Int -> Int
 log2CeilInt !x = msb + ceiling_
   where
-    msb = log2 x
-    ceiling_ = if clearBit x msb > 0 then 1 else 0
+    !msb = log2 x
+    !ceiling_ = if clearBit x msb > 0 then 1 else 0
 
 -- | Calculates the smallest integral power of two that is not smaller than `x`.
 -- |
