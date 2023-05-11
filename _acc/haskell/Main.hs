@@ -161,6 +161,14 @@ flipOrder = \case
 square :: Num a => a -> a
 square !x = x * x
 
+-- | Two-variable function compositon.
+(.:) :: (b -> c) -> (a1 -> a2 -> b) -> (a1 -> a2 -> c)
+(.:) = (.) . (.)
+
+-- | Three-variable function compositon.
+(.:.) :: (b -> c) -> (a1 -> a2 -> a3 -> b) -> (a1 -> a2 -> a3 -> c)
+(.:.) = (.) . (.) . (.)
+
 -- }}}
 
 -- {{{ Libary complements
@@ -825,17 +833,17 @@ ismo2D !bounds_ !seeds = runSTUArray $ do
 -- | Pure variant of [`bsearchM`].
 {-# INLINE bsearch #-}
 bsearch :: (Int, Int) -> (Int -> Bool) -> (Maybe Int, Maybe Int)
-bsearch (!low, !high) !isOk = runIdentity $ bsearchM (low, high) (return . isOk)
+bsearch !rng = runIdentity . bsearchM rng . (return .)
 
 -- | Also known as lower bound.
 {-# INLINE bsearchL #-}
 bsearchL :: (Int, Int) -> (Int -> Bool) -> Maybe Int
-bsearchL !lh !isOk = fst $ bsearch lh isOk
+bsearchL = fst .: bsearch
 
 -- | Also known as upper bound.
 {-# INLINE bsearchR #-}
 bsearchR :: (Int, Int) -> (Int -> Bool) -> Maybe Int
-bsearchR !lh !isOk = snd $ bsearch lh isOk
+bsearchR = sbd .: bsearch
 
 -- | Monadic binary search for sorted items in an inclusive range (from left to right only).
 -- |
@@ -875,11 +883,11 @@ bsearchM (!low, !high) !isOk = both wrap <$> inner (low - 1, high + 1)
 
 {-# INLINE bsearchML #-}
 bsearchML :: forall m. (Applicative m, Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int)
-bsearchML !lh !isOk = fst <$> bsearchM lh isOk
+bsearchML = fmap fst .: bsearchM
 
 {-# INLINE bsearchMR #-}
 bsearchMR :: forall m. (Applicative m, Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int)
-bsearchMR !lh !isOk = snd <$> bsearchM lh isOk
+bsearchML = fmap snd .: bsearchM
 
 {-# INLINE bsearchF32 #-}
 bsearchF32 :: (Float, Float) -> Float -> (Float -> Bool) -> (Maybe Float, Maybe Float)
@@ -899,11 +907,11 @@ bsearchF32 (!low, !high) !diff !isOk = both wrap (inner (low - diff, high + diff
 
 {-# INLINE bsearchF32L #-}
 bsearchF32L :: (Float, Float) -> Float -> (Float -> Bool) -> Maybe Float
-bsearchF32L !a !b !c = fst $ bsearchF32 a b c
+bsearchF32L = fst .:. bsearchF32
 
 {-# INLINE bsearchF32R #-}
 bsearchF32R :: (Float, Float) -> Float -> (Float -> Bool) -> Maybe Float
-bsearchF32R !a !b !c = fst $ bsearchF32 a b c
+bsearchF32R = fst .:. bsearchF32
 
 {-# INLINE bsearchF64 #-}
 bsearchF64 :: (Double, Double) -> Double -> (Double -> Bool) -> (Maybe Double, Maybe Double)
@@ -1231,11 +1239,7 @@ tabulateST f bounds_ e0 =
 prevPermutationVec :: (Ord e, VG.Vector v e, VG.Vector v (Down e)) => v e -> v e
 prevPermutationVec =
   VG.map (\case Down !x -> x)
-    . VG.modify
-      ( \ !vec -> do
-          _ <- VGM.nextPermutation vec
-          return ()
-      )
+    . VG.modify ((>> return ()) . VGM.nextPermutation)
     . VG.map Down
 
 -- | Returns 1-based dictionary order for the given array.
