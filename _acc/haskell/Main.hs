@@ -496,6 +496,8 @@ wrappingMul !x !y =
 --         queue2 = H.insert (H.Entry (x * x) (x * 2)) queue
 --     sieve _ _ = error "unreachale"
 
+-- | @0xYusuke
+-- | https://zenn.dev/link/comments/1022553732563c
 primes :: [Int]
 primes = 2 : 3 : minus [5, 7 ..] (unionAll [[p * p, p * p + 2 * p ..] | p <- tail primes])
   where
