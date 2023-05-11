@@ -676,6 +676,7 @@ instance TypeInt p => Fractional (ModInt p) where
 -- | Rolling hash of a string.
 -- |
 -- | # Example
+-- |
 -- | Slice (2, 4) of "abcdef" is given as this:
 -- | ```
 -- |            s :=     a       b       c       d       e
@@ -1056,6 +1057,8 @@ uniteSUF !uf !i !j
 
 -- {{{ Segment tree
 
+-- TODO: refactor
+
 -- | A mutable segment tree backed by a complete binary tree.
 -- |
 -- | # Overview
@@ -1088,7 +1091,7 @@ uniteSUF !uf !i !j
 data MSegmentTree v s a = MSegmentTree (a -> a -> a) (v s a)
 
 -- TODO: Can I UNPACK? the funciton?
--- TODO: Generic queries and immutable segment tree (with `Show` instance)
+-- TODO: Possibly a show instance?
 
 -- | Creates a new segment tree for `n` leaves.
 -- | REMARK: Always give a zero value. It fills all the nodes including parent nodes, and the parent
@@ -1097,6 +1100,8 @@ data MSegmentTree v s a = MSegmentTree (a -> a -> a) (v s a)
 newSTreeVG :: (VGM.MVector v a, PrimMonad m) => (a -> a -> a) -> Int -> a -> m (MSegmentTree v (PrimState m) a)
 newSTreeVG !f !n !value = MSegmentTree f <$!> VGM.replicate n' value
   where
+    -- TODO: try this:
+    -- !n' = until (>= n) (* 2) 2
     !n' = shiftL (bitCeil n) 1
 
 -- | Creates a boxed segment tree.
@@ -1146,16 +1151,14 @@ _updateElement (MSegmentTree !_ !vec) 0 !value = do
   VGM.write vec 0 value
 _updateElement tree@(MSegmentTree !_ !vec) !i !value = do
   VGM.write vec i value
-  _updateParent tree ((i - 1) `div` 2)
-
--- | (Internal) Recursivelly updates the parent nodes.
-{-# INLINE _updateParent #-}
-_updateParent :: (VGM.MVector v a, PrimMonad m) => MSegmentTree v (PrimState m) a -> Int -> m ()
-_updateParent _ (-1) = pure () -- REMARK: (-1) `div` 2 == -1
-_updateParent tree@(MSegmentTree !f !vec) !iParent = do
-  !c1 <- VGM.read vec (iParent * 2 + 1)
-  !c2 <- VGM.read vec (iParent * 2 + 2)
-  _updateElement tree iParent (f c1 c2)
+  case ((i - 1) `div` 2) of
+    -- REMARK: (-1) `div` 2 == -1
+    -- TODO: This case never happens, right?
+    (-1) -> return  ()
+    !iParent -> do
+      !c1 <- VGM.read vec (iParent * 2 + 1)
+      !c2 <- VGM.read vec (iParent * 2 + 2)
+      _updateElement tree iParent (f c1 c2)
 
 -- | Retrieves the folding result over the inclusive range `[l, r]` from `MSegmentTree`.
 {-# INLINE querySTree #-}
@@ -1221,10 +1224,10 @@ compressInvNumVG xs = invNumVG (pred (VU.length xs')) xs'
 --     f _ (0, _) = return 0
 --     f arr (i, w) = do
 
+-- | REMARK: Very slow (somehow..). Maybe `Data.Ix` is not fast enough, or `f` is not inlined?
 -- {-# INLINE tabulateST #-}
 tabulateST :: forall i e. (Ix i, forall s. MArray (STUArray s) e (ST s)) => (forall s. STUArray s i e -> i -> ST s e) -> (i, i) -> e -> UArray i e
-tabulateST f bounds_ e0 =
-  runSTUArray uarray
+tabulateST f bounds_ e0 = runSTUArray uarray
   where
     uarray :: forall s. MArray (STUArray s) e (ST s) => ST s (STUArray s i e)
     uarray = do
