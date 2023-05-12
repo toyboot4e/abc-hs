@@ -859,7 +859,7 @@ bsearchL = fst .: bsearch
 -- | Also known as upper bound.
 {-# INLINE bsearchR #-}
 bsearchR :: (Int, Int) -> (Int -> Bool) -> Maybe Int
-bsearchR = sbd .: bsearch
+bsearchR = snd .: bsearch
 
 -- | Monadic binary search for sorted items in an inclusive range (from left to right only).
 -- |
@@ -903,7 +903,7 @@ bsearchML = fmap fst .: bsearchM
 
 {-# INLINE bsearchMR #-}
 bsearchMR :: forall m. (Applicative m, Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int)
-bsearchML = fmap snd .: bsearchM
+bsearchMR = fmap snd .: bsearchM
 
 {-# INLINE bsearchF32 #-}
 bsearchF32 :: (Float, Float) -> Float -> (Float -> Bool) -> (Maybe Float, Maybe Float)
