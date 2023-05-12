@@ -720,8 +720,8 @@ newRHash !source = RollingHash n bn hashSum
     !bn = VU.create $ do
       !vec <- VUM.replicate n (1 :: Int)
       VU.forM_ (vRange 1 (pred n)) $ \i -> do
-        !lastB <- VUM.read vec (pred i)
-        VUM.write vec i (b * lastB `mod` p)
+        !lastB <- VUM.unsafeRead vec (pred i)
+        VUM.unsafeWrite vec i (b * lastB `mod` p)
       return vec
     !hashSum = evalState (VU.mapM (\ !ch -> state $ \ !acc -> f ch acc) $ VU.fromList source) (0 :: Int)
       where
@@ -996,13 +996,13 @@ newMUF !n = MUnionFind <$> VUM.replicate n (MUFRoot 1)
 {-# INLINE rootMUF #-}
 rootMUF :: (PrimMonad m) => MUnionFind (PrimState m) -> Int -> m Int
 rootMUF uf@(MUnionFind !vec) i = do
-  !node <- VUM.read vec i
+  !node <- VUM.unsafeRead vec i
   case node of
     MUFRoot _ -> return i
     MUFChild p -> do
       !r <- rootMUF uf p
       -- NOTE(perf): path compression (move the queried node to just under the root, recursivelly)
-      VUM.write vec i (MUFChild r)
+      VUM.unsafeWrite vec i (MUFChild r)
       return r
 
 -- | Checks if the two nodes are under the same root.
@@ -1022,19 +1022,19 @@ uniteMUF uf@(MUnionFind !vec) !x !y = do
   !px <- rootMUF uf x
   !py <- rootMUF uf y
   when (px /= py) $! do
-    !sx <- _unwrapMUFRoot <$!> VUM.read vec px
-    !sy <- _unwrapMUFRoot <$!> VUM.read vec py
+    !sx <- _unwrapMUFRoot <$!> VUM.unsafeRead vec px
+    !sy <- _unwrapMUFRoot <$!> VUM.unsafeRead vec py
     -- NOTE(perf): union by rank (choose smaller one for root)
     let (!par, !chld) = if sx < sy then (px, py) else (py, px)
-    VUM.write vec chld (MUFChild par)
-    VUM.write vec par (MUFRoot (sx + sy))
+    VUM.unsafeWrite vec chld (MUFChild par)
+    VUM.unsafeWrite vec par (MUFRoot (sx + sy))
 
 -- | Returns the size of the root node, starting with `1`.
 {-# INLINE sizeMUF #-}
 sizeMUF :: (PrimMonad m) => MUnionFind (PrimState m) -> Int -> m Int
 sizeMUF uf@(MUnionFind !vec) !x = do
   !px <- rootMUF uf x
-  _unwrapMUFRoot <$!> VUM.read vec px
+  _unwrapMUFRoot <$!> VUM.unsafeRead vec px
 
 -- }}}
 
@@ -1149,7 +1149,7 @@ insertSTree tree@(MSegmentTree !_ !vec) !i !value = _updateElement tree i' value
 {-# INLINE modifySTree #-}
 modifySTree :: (VGM.MVector v a, PrimMonad m) => MSegmentTree v (PrimState m) a -> (a -> a) -> Int -> m ()
 modifySTree tree@(MSegmentTree !_ !vec) !f !i = do
-  !v <- f <$> VGM.read vec i'
+  !v <- f <$> VGM.unsafeRead vec i'
   _updateElement tree i' v
   where
     -- length == 2 * (the number of the leaves)
@@ -1158,19 +1158,19 @@ modifySTree tree@(MSegmentTree !_ !vec) !f !i = do
     !i' = i + offset
 
 -- | (Internal) Updates an `MSegmentTree` element (node or leaf) value and their parents up to top root.
-{-# INLINE _updateElement #-}
+-- REMARK: It's faster to not INLINE the recursive function:
 _updateElement :: (VGM.MVector v a, PrimMonad m) => MSegmentTree v (PrimState m) a -> Int -> a -> m ()
 _updateElement (MSegmentTree !_ !vec) 0 !value = do
-  VGM.write vec 0 value
-_updateElement tree@(MSegmentTree !_ !vec) !i !value = do
-  VGM.write vec i value
+  VGM.unsafeWrite vec 0 value
+_updateElement tree@(MSegmentTree !f !vec) !i !value = do
+  VGM.unsafeWrite vec i value
   case ((i - 1) `div` 2) of
     -- REMARK: (-1) `div` 2 == -1
     -- TODO: This case never happens, right?
     (-1) -> return  ()
     !iParent -> do
-      !c1 <- VGM.read vec (iParent * 2 + 1)
-      !c2 <- VGM.read vec (iParent * 2 + 2)
+      !c1 <- VGM.unsafeRead vec (iParent * 2 + 1)
+      !c2 <- VGM.unsafeRead vec (iParent * 2 + 2)
       _updateElement tree iParent (f c1 c2)
 
 -- | Retrieves the folding result over the inclusive range `[l, r]` from `MSegmentTree`.
@@ -1183,7 +1183,7 @@ querySTree (MSegmentTree !f !vec) (!lo, !hi)
     !initialHi = VGM.length vec `div` 2 - 1
     inner :: Int -> (Int, Int) -> m (Maybe a)
     inner !i (!l, !h)
-      | lo <= l && h <= hi = Just <$> VGM.read vec i
+      | lo <= l && h <= hi = Just <$> VGM.unsafeRead vec i
       | h < lo || hi < l = return Nothing
       | otherwise = do
           let !d = (h - l) `div` 2
@@ -1437,12 +1437,12 @@ topSort !graph = runST $ do
   !vis <- VUM.replicate (succ $ rangeSize bounds_) False
 
   let dfsM !acc !v = do
-        !b <- VUM.read vis (index bounds_ v)
+        !b <- VUM.unsafeRead vis (index bounds_ v)
         if b
           then return acc
           else do
-            VUM.write vis (index bounds_ v) True
-            !vs <- filterM (fmap not . VUM.read vis . index bounds_) $ graph ! v
+            VUM.unsafeWrite vis (index bounds_ v) True
+            !vs <- filterM (fmap not . VUM.unsafeRead vis . index bounds_) $ graph ! v
             -- Create postorder output:
             (v :) <$> foldM dfsM acc vs
 
@@ -1455,12 +1455,12 @@ topScc1 !graph' !vis !v0 = do
   let !bounds_ = bounds graph'
 
   let dfsM !acc !v = do
-        !b <- VUM.read vis (index bounds_ v)
+        !b <- VUM.unsafeRead vis (index bounds_ v)
         if b
           then return acc
           else do
-            VUM.write vis (index bounds_ v) True
-            !vs <- filterM (fmap not . VUM.read vis . index bounds_) $ graph' ! v
+            VUM.unsafeWrite vis (index bounds_ v) True
+            !vs <- filterM (fmap not . VUM.unsafeRead vis . index bounds_) $ graph' ! v
             -- Create preorder output:
             (v :) <$> foldM dfsM acc vs
 
@@ -1508,10 +1508,10 @@ bfsVec graph start = VU.create $ do
         | otherwise = do
             let vs' = IS.toList vs
             forM_ vs' $ \v -> do
-              VUM.write vis v depth
+              VUM.unsafeWrite vis v depth
 
             !vss <- forM vs' $ \v -> do
-              filterM (\v2 -> (== undef) <$> VUM.read vis v2) $ graph ! v
+              filterM (\v2 -> (== undef) <$> VUM.unsafeRead vis v2) $ graph ! v
 
             inner (succ depth) $ IS.fromList $ concat vss
 
@@ -1603,8 +1603,8 @@ treeDepthInfo !graph !root = runST $ do
 
   let m (!depth, !parent, !vs) = do
         forM_ vs $ \v -> do
-          VUM.write depths v depth
-          VUM.write parents v parent
+          VUM.unsafeWrite depths v depth
+          VUM.unsafeWrite parents v parent
           let !vs' = filter (/= parent) $ graph ! v
           m (succ depth, v, vs')
 
@@ -1684,14 +1684,14 @@ newFW (!getCost, !zeroCost, !maxCost) !nVerts !edges = do
 
   -- diagnonal components
   forM_ [0 .. pred nVerts] $ \ !v ->
-    VUM.write dp (ix (v, v)) zeroCost
+    VUM.unsafeWrite dp (ix (v, v)) zeroCost
 
   -- directly connected vertices
   forM_ edges $ \(!v1, !v2) -> do
     -- let !_ = traceShow (v1, v2, values VU.! v2) ()
     -- (distance, value)
     let !cost = getCost v2
-    VUM.write dp (ix (v1, v2)) cost
+    VUM.unsafeWrite dp (ix (v1, v2)) cost
 
   return dp
   where
@@ -1703,10 +1703,10 @@ runFW :: (PrimMonad m, VU.Unbox cost) => (cost -> cost -> cost, cost -> cost -> 
 runFW (!mergeCost, !minCost) !nVerts !dp = do
   let !ve = pred nVerts
   forM_ (range ((0, 0, 0), (ve, ve, ve))) $ \(!v3, !v1, !v2) -> do
-    !cost1 <- VUM.read dp (ix (v1, v2))
-    !cost2 <- mergeCost <$> VUM.read dp (ix (v1, v3)) <*> VUM.read dp (ix (v3, v2))
+    !cost1 <- VUM.unsafeRead dp (ix (v1, v2))
+    !cost2 <- mergeCost <$> VUM.unsafeRead dp (ix (v1, v3)) <*> VUM.unsafeRead dp (ix (v3, v2))
     -- let !_ = traceShow ((v3, v2, v1), cost1, cost2, mergeCost cost1 cost2) ()
-    VUM.write dp (ix (v1, v2)) $ minCost cost1 cost2
+    VUM.unsafeWrite dp (ix (v1, v2)) $ minCost cost1 cost2
   where
     ix :: (Int, Int) -> Int
     ix = index ((0, 0), (nVerts - 1, nVerts - 1))
