@@ -1876,6 +1876,9 @@ type MyModInt = ModInt MyModulus
 modInt :: Int -> MyModInt
 modInt = ModInt . (`rem` typeInt (Proxy @MyModulus))
 
+undef :: Int
+undef = -1
+
 -- }}}
 
 main :: IO ()
