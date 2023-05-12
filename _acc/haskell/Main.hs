@@ -338,9 +338,6 @@ putBSB = BSB.hPutBuilder stdout
 putLnBSB :: BSB.Builder -> IO ()
 putLnBSB = BSB.hPutBuilder stdout . (<> endlBSB)
 
-printBSB :: ShowBSB a => a -> IO ()
-printBSB = putBSB . (<> endlBSB) . showBSB
-
 -- ord8 :: Char -> Word8
 -- ord8 = fromIntegral . fromEnum
 --
@@ -364,6 +361,22 @@ instance ShowBSB Float where
 
 instance ShowBSB Double where
   showBSB = BSB.doubleDec
+
+showLnBSB :: ShowBSB a => a -> BSB.Builder
+showLnBSB = (<> endlBSB) . showBSB
+
+printBSB :: ShowBSB a => a -> IO ()
+printBSB = putBSB . showBSB
+
+-- | Often used as `concatBSB showBSB xs` or `concatB showLnBSB xs`.
+concatBSB :: (VG.Vector v a) => (a -> BSB.Builder) -> v a -> BSB.Builder
+concatBSB f = VG.foldr ((<>) . f) mempty
+
+-- }}}
+
+-- {{{ Trace
+
+-- TODO: merge them with `dbg` series.
 
 traceMat2D :: (IArray a e, Ix i, Show e) => a (i, i) e -> ()
 traceMat2D !mat = traceSubMat2D mat (bounds mat)
