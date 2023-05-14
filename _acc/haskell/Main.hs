@@ -15,9 +15,14 @@
 {-# LANGUAGE QuantifiedConstraints, ScopedTypeVariables, StrictData, TypeApplications #-}
 {-# LANGUAGE TypeFamilies, RankNTypes #-}
 
--- TODO: ditch `vector-th-unbox` and `TemplateHaskell` in 2023 environment
 {-# LANGUAGE CPP, TemplateHaskell #-}
 {- ORMOLU_ENABLE -}
+
+{- TODO: on 2023 langauge update,
+  - ditch `vector-th-unbox` and `TemplateHaskell`
+  - remove `vLength`
+  - refactor `primes` with new Prelude
+-}
 
 -- {{{ Imports
 
@@ -41,6 +46,7 @@ import Data.List
 import Data.Maybe
 import Data.Ord
 import Data.Proxy
+import Data.STRef
 import Data.Word
 import Debug.Trace
 import GHC.Event (IOCallback)
@@ -183,14 +189,40 @@ modifyArray !ary !f !i = do
 vLength :: (VG.Vector v e) => v e -> Int
 vLength = VFB.length . VG.stream
 
-{-# INLINE vRange #-}
-vRange :: (VG.Vector v Int) => Int -> Int -> v Int
-vRange !i !j = VG.enumFromN i (succ j - i)
+{-# INLINE rangeVG #-}
+rangeVG :: (VG.Vector v Int) => Int -> Int -> v Int
+rangeVG !i !j = VG.enumFromN i (succ j - i)
 
--- | `vRange` in reverse
-{-# INLINE vRangeR #-}
-vRangeR :: (VG.Vector v Int) => Int -> Int -> v Int
-vRangeR !i !j = VG.enumFromStepN i (-1) (succ j - i)
+-- | `rangeVG` in reverse.
+{-# INLINE rangeVGR #-}
+rangeVGR :: (VG.Vector v Int) => Int -> Int -> v Int
+rangeVGR !i !j = VG.enumFromStepN i (-1) (succ j - i)
+
+-- | @cojna (`stream`)
+{-# INLINE [1] rangeMS #-}
+rangeMS :: (Monad m) => Int -> Int -> MS.Stream m Int
+rangeMS !l !r = MS.Stream step l
+  where
+    {-# INLINE [0] step #-}
+    step x
+      | x <= r = return $ MS.Yield x (x + 1)
+      | otherwise = return MS.Done
+
+-- | @cojna (`streamR`)
+{-# INLINE [1] rangeMSR #-}
+rangeMSR :: (Monad m) => Int -> Int -> MS.Stream m Int
+rangeMSR !l !r = MS.Stream step r
+  where
+    {-# INLINE [0] step #-}
+    step x
+      | x >= l = return $ MS.Yield x (x - 1)
+      | otherwise = return MS.Done
+
+-- | `forM` over monadic stream in the vector package.
+-- | NOTE: This is for side effects only. I don't know how to use `MS.mapM` yet.
+{-# INLINE forMS #-}
+forMS :: (Monad m) => MS.Stream m Int -> (Int -> m ()) -> m ()
+forMS = flip MS.mapM_
 
 -- }}}
 
@@ -609,7 +641,7 @@ divModF !x !d !modulus = divModFC x (powerModCache d modulus) `rem` modulus
 powerModCache :: Int -> Int -> (Int, VU.Vector Int)
 powerModCache !base !modulo = (modulo, doubling)
   where
-    -- doubling = VU.scanl' (\ !x _ -> x * x `rem` modulo) base $ vRange (1 :: Int) 62
+    -- doubling = VU.scanl' (\ !x _ -> x * x `rem` modulo) base $ rangeVG (1 :: Int) 62
     doubling = newDoubling base (\x -> x * x `rem` modulo)
 
 -- | Calculates base^i (mod p) from a cache
@@ -698,7 +730,7 @@ instance TypeInt p => Fractional (ModInt p) where
 -- | s4 - s2 * b^3 =                 b^2 c + b^1 d + b^0 e
 -- | ```
 data RollingHash b p = RollingHash
-  { sourceLeength :: !Int,
+  { sourceLength :: !Int,
     -- | \$\{B^i mod p\}_{i \elem [0, n)}$
     dimensions :: !(VU.Vector Int),
     hashSum :: !(VU.Vector Int)
@@ -719,7 +751,7 @@ newRHash !source = RollingHash n bn hashSum
     !n = length source
     !bn = VU.create $ do
       !vec <- VUM.replicate n (1 :: Int)
-      VU.forM_ (vRange 1 (pred n)) $ \i -> do
+      VU.forM_ (rangeVG 1 (pred n)) $ \i -> do
         !lastB <- VUM.unsafeRead vec (pred i)
         VUM.unsafeWrite vec i (b * lastB `mod` p)
       return vec
@@ -1167,7 +1199,7 @@ _updateElement tree@(MSegmentTree !f !vec) !i !value = do
   case ((i - 1) `div` 2) of
     -- REMARK: (-1) `div` 2 == -1
     -- TODO: This case never happens, right?
-    (-1) -> return  ()
+    (-1) -> return ()
     !iParent -> do
       !c1 <- VGM.unsafeRead vec (iParent * 2 + 1)
       !c2 <- VGM.unsafeRead vec (iParent * 2 + 2)
