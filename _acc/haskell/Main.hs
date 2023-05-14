@@ -231,7 +231,7 @@ forMS_ = flip MS.mapM_
 -- Option - Maybe cheatsheet
 -- https://notes.iveselov.info/programming/cheatsheet-rust-option-vs-haskell-maybe
 
--- compress duduplicates sorted list, nub deduplicates non-sorted list
+-- compress deduplicates sorted list, nub deduplicates non-sorted list
 -- TODO: std?
 compress :: Eq a => [a] -> [a]
 compress [] = []
@@ -1608,8 +1608,48 @@ bfsGrid !grid !start = runSTUArray $ do
   !_ <- inner (0 :: Int) (IS.singleton $ ix start)
   return vis
 
+-- 01-BFS: <https://atcoder.jp/contests/typical90/tasks/typical90_aq>
+-- It's slow, but could be applied easily.
+bfsGrid01 :: (Int, Int) -> UArray (Int, Int) Bool -> UArray (Int, Int, Int) Int
+bfsGrid01 !start !isBlock = runSTUArray $ do
+  -- dp ! (y, x, iDir). The third dimension is required!
+  !dp <- newArray ((0, 0, 0), (pred h, pred w, pred 4)) undef
 
--- | DFS where all the reachable vertices from one vertex are collcetd
+  forM_ [0 .. 3] $ \iDir -> do
+    writeArray dp (fst start, snd start, iDir) 0
+
+  let popLoop Seq.Empty = return ()
+      popLoop (((!y0, !x0, !iDir0), d0) Seq.:<| seq0) =
+        foldM step seq0 [0 .. 3] >>= popLoop
+        where
+          -- collects neighbors
+          step !acc !iDir
+            | not (inRange bounds_ (y, x)) || isBlock ! (y, x) = return acc
+            | otherwise = do
+                !lastD <- readArray dp (y, x, iDir)
+                -- REMARK: we can come to the same point in same direction in different ways:
+                if lastD /= undef && lastD <= d'
+                  then return acc
+                  else do
+                    writeArray dp (y, x, iDir) d'
+                    if iDir == iDir0
+                      then return $ nextItem Seq.<| acc
+                      else return $ acc Seq.|> nextItem
+            where
+              (!y, !x) = add2 (y0, x0) (dyxs VU.! iDir)
+              !d'
+                | iDir == iDir0 = d0
+                | otherwise = succ d0
+              !nextItem = ((y, x, iDir), d')
+
+  popLoop . Seq.fromList $ map (\iDir -> ((fst start, snd start, iDir), 0)) [0 .. 3]
+  return dp
+  where
+    !bounds_ = bounds isBlock
+    (!h, !w) = both succ . snd $ bounds isBlock
+    !dyxs = VU.fromList $ [(1, 0), (-1, 0), (0, 1), (0, -1)]
+
+-- | DFS where all the reachable vertices from one vertex are collcetd.
 components :: Graph Int -> Int -> IS.IntSet
 components !graph !start = inner (IS.singleton start) start
   where
@@ -1644,17 +1684,17 @@ dj !graph !start = inner (H.singleton $! H.Entry 0 start) IM.empty
         vs = map (merge entry) $! filter ((`IM.notMember` vis') . H.payload) $! graph ! v
         heap'' = foldl' (flip H.insert) heap' vs
 
-revWGraph :: WGraph Int -> WGraph Int
-revWGraph !graph = accumArray @Array (flip (:)) [] (bounds graph) $ concatMap revF $ assocs graph
-  where
-    revF (!v1, !v2s) = map (\(H.Entry !priority !v2) -> (v2, H.Entry priority v1)) v2s
-
 -- | Runs dijkstra's algorithm over a reversed graph of given graph.
 -- | It calculates
 revDj :: WGraph Int -> Int -> IM.IntMap Int
 revDj !graph !start =
   let !graph' = revWGraph graph
    in dj graph' start
+
+revWGraph :: WGraph Int -> WGraph Int
+revWGraph !graph = accumArray @Array (flip (:)) [] (bounds graph) $ concatMap revF $ assocs graph
+  where
+    revF (!v1, !v2s) = map (\(H.Entry !priority !v2) -> (v2, H.Entry priority v1)) v2s
 
 -- }}}
 
