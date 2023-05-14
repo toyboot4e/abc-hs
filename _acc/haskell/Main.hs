@@ -143,7 +143,7 @@ dbgAssert True !x = x
 
 #else
 dbg :: Show a => a -> ()
-dbg !_ = ()
+dbg _ = ()
 
 dbgAssert :: Bool -> a -> a
 dbgAssert = flip const
@@ -220,9 +220,9 @@ rangeMSR !l !r = MS.Stream step r
 
 -- | `forM` over monadic stream in the vector package.
 -- | NOTE: This is for side effects only. I don't know how to use `MS.mapM` yet.
-{-# INLINE forMS #-}
-forMS :: (Monad m) => MS.Stream m Int -> (Int -> m ()) -> m ()
-forMS = flip MS.mapM_
+{-# INLINE forMS_ #-}
+forMS_ :: (Monad m) => MS.Stream m Int -> (Int -> m ()) -> m ()
+forMS_ = flip MS.mapM_
 
 -- }}}
 
@@ -751,7 +751,7 @@ newRHash !source = RollingHash n bn hashSum
     !n = length source
     !bn = VU.create $ do
       !vec <- VUM.replicate n (1 :: Int)
-      forMS (rangeMS 1 (pred n)) $ \i -> do
+      forMS_ (rangeMS 1 (pred n)) $ \i -> do
         !lastB <- VUM.unsafeRead vec (pred i)
         VUM.unsafeWrite vec i (b * lastB `mod` p)
       return vec
@@ -1749,7 +1749,7 @@ newFW (!getCost, !zeroCost, !maxCost) !nVerts !edges = do
   !dp <- VUM.replicate (nVerts * nVerts) maxCost
 
   -- diagnonal components
-  forMS (rangeMS 0 (pred nVerts)) $ \ !v ->
+  forMS_ (rangeMS 0 (pred nVerts)) $ \ !v ->
     VUM.unsafeWrite dp (ix (v, v)) zeroCost
 
   -- directly connected vertices
