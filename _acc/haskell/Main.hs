@@ -1575,6 +1575,40 @@ bfsVerts graph start = inner 0 IM.empty (IS.singleton start)
         vis' = IM.union vis $! IM.fromSet (const depth) vs
         vs' = IS.fromList $! filter (`IM.notMember` vis') $! concatMap (graph !) (IS.toList vs)
 
+-- | BFS over grid. Not generalized (yet).
+bfsGrid :: UArray (Int, Int) Char -> (Int, Int) -> UArray (Int, Int) Int
+bfsGrid !grid !start = runSTUArray $ do
+  let bounds_ = bounds grid
+  let (!h, !w) = both succ $ snd bounds_
+  let isBlock !yx = grid ! yx == '#'
+
+  let ix = index bounds_
+  let unIndex !i = i `divMod` w
+  let !undef = -1 :: Int
+
+  !vis <- newArray bounds_ undef
+
+  let nexts !yx0 = filter (\yx -> inRange bounds_ yx && not (isBlock yx)) $ map (add2 yx0) dyxs
+        where
+          dyxs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+
+  let inner !depth !vs
+        | IS.null vs = return ()
+        | otherwise = do
+            let yxs = map unIndex $ IS.toList vs
+
+            forM_ yxs $ \yx -> do
+              writeArray vis yx depth
+
+            !vss <- forM yxs $ \yx -> do
+              filterM (\yx2 -> (== undef) <$> readArray vis yx2) $ nexts yx
+
+            inner (succ depth) $ IS.fromList . map ix $ concat vss
+
+  !_ <- inner (0 :: Int) (IS.singleton $ ix start)
+  return vis
+
+
 -- | DFS where all the reachable vertices from one vertex are collcetd
 components :: Graph Int -> Int -> IS.IntSet
 components !graph !start = inner (IS.singleton start) start
