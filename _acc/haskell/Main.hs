@@ -751,7 +751,7 @@ newRHash !source = RollingHash n bn hashSum
     !n = length source
     !bn = VU.create $ do
       !vec <- VUM.replicate n (1 :: Int)
-      VU.forM_ (rangeVG 1 (pred n)) $ \i -> do
+      forMS (rangeMS 1 (pred n)) $ \i -> do
         !lastB <- VUM.unsafeRead vec (pred i)
         VUM.unsafeWrite vec i (b * lastB `mod` p)
       return vec
@@ -1715,7 +1715,7 @@ newFW (!getCost, !zeroCost, !maxCost) !nVerts !edges = do
   !dp <- VUM.replicate (nVerts * nVerts) maxCost
 
   -- diagnonal components
-  forM_ [0 .. pred nVerts] $ \ !v ->
+  forMS (rangeMS 0 (pred nVerts)) $ \ !v ->
     VUM.unsafeWrite dp (ix (v, v)) zeroCost
 
   -- directly connected vertices
