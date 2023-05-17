@@ -1709,7 +1709,7 @@ revWGraph !graph = accumArray @Array (flip (:)) [] (bounds graph) $ concatMap re
 
 -- }}}
 
--- {{{ LCA (lowest common ancestor)
+-- {{{ Tree
 
 -- Returns `(parents, depths)` who maps vertices to the corresponding information.
 -- REMARK: Use 0-based index for the graph vertices.
@@ -1777,6 +1777,64 @@ lcaLen !depths !doubling !v1 !v2 =
       !d1 = depths VU.! v1
       !d2 = depths VU.! v2
    in (d1 - d) + (d2 - d)
+
+-- Not generalized yet.
+-- <https://atcoder.jp/contests/typical90/tasks/typical90_am>
+-- TODO: consider making it immutable
+treeDpWithRerooting :: Array Int [Int] -> VU.Vector (Int, Int)
+treeDpWithRerooting !tree =
+  -- Calculate tree DP for one root vertex
+  let !treeDp = VU.create $ do
+        -- NOTE: Can be initialized with undefined.
+        !dp <- VUM.replicate nVerts undefAcc
+
+        !_ <- flip fix (-1, root0) $ \runTreeDp (!parent, !v1) -> do
+          let !v2s = filter (/= parent) $ tree ! v1
+          !x1 <- foldM (\acc v2 -> onFold acc <$> runTreeDp (v1, v2)) acc0 v2s
+          -- save
+          VUM.write dp v1 x1
+          return x1
+
+        return dp
+
+      -- !_ = dbg ("tree DP: ", treeDp)
+
+      !rootDp = VU.create $ do
+        -- Calculate tree DP for ever root vertices
+        !dp <- VUM.replicate nVerts undefAcc
+
+        flip fix (-1, oper0, root0) $ \runRootDp (!parent, !accFromParent, !v1) -> do
+          let !children = filter (/= parent) $ tree ! v1
+          let !operL = VU.fromList $ scanl' (\acc v2 -> onComposite acc $ treeDp VU.! v2) oper0 children
+          let !operR = VU.fromList $ scanr (\v2 acc -> onComposite acc $ treeDp VU.! v2) oper0 children
+
+          -- save
+          let !x1 = acc0 `onFold` (accFromParent `onComposite` (VU.last operL))
+          VUM.write dp v1 x1
+          let !_ = dbg ("dfs", (parent, accFromParent), "->", (v1, x1), children, operL)
+
+          forM_ (zip [0 ..] children) $ \(!i2, !v2) -> do
+            let !op = (operL VU.! i2) `onComposite` (operR VU.! succ i2) `onComposite` accFromParent
+            let !accFromV1 = acc0 `onFold` op
+            runRootDp (v1, accFromV1, v2)
+
+        return dp
+   in rootDp
+  where
+    !nVerts = rangeSize $ (bounds tree)
+    -- Initial root vertex
+    !root0 = 0 :: Int
+    -- (nVerts, distanceSum)
+    !acc0 = (1, 0) :: (Int, Int)
+    !oper0 = (0, 0) :: (Int, Int)
+    !undefAcc = acc0 -- FIXME: create vector without initializing the value?
+    --  .   <- (4, 5)
+    --  .   <- (3, 2)
+    -- . .  <- (1, 0), (1, 0)
+    onFold :: (Int, Int) -> (Int, Int) -> (Int, Int)
+    onFold (!n1, !c1) (!n2, !c2) = add2 (n1, c1) (n2, n2 + c2)
+    onComposite :: (Int, Int) -> (Int, Int) -> (Int, Int)
+    onComposite = add2
 
 -- }}}
 
