@@ -593,20 +593,20 @@ primeFactors !n_ = map (\ !xs -> (head xs, length xs)) . group $ inner n_ input
 
 -- {{{ Doubling
 
--- | Extends a function to be able to be applied multiple times in a constant time (N < 2^63).
+-- | Extends an operator to be able to be applied multiple times in a constant time (N < 2^63).
 newDoubling :: (VG.Vector v a, VG.Vector v Int) => a -> (a -> a) -> v a
-newDoubling !x0 !squareF = VG.scanl' step x0 $ VG.enumFromN (0 :: Int) 62
+newDoubling !oper0 !squareCompositeF = VG.scanl' step oper0 $ VG.enumFromN (0 :: Int) 62
   where
-    step !acc !_ = squareF acc
+    step !oper !_ = squareCompositeF oper
 
--- | Runs a function n times using a folding function `f`.
+-- | Applies an operator `n` times using an applying function `applyF`.
 applyDoubling :: (VG.Vector v a) => v a -> b -> (b -> a -> b) -> Int -> b
-applyDoubling !doubling !x0 !f !n = foldl' step x0 [0 .. 62]
+applyDoubling !opers !x0 !applyF !n = foldl' step x0 [0 .. 62]
   where
-    !_ = dbgAssert $ VG.length doubling == 63
+    !_ = dbgAssert $ VG.length opers == 63
     step !acc !nBit =
       if testBit n nBit
-        then f acc (doubling VG.! nBit)
+        then applyF acc (opers VG.! nBit)
         else acc
 
 -- }}}
