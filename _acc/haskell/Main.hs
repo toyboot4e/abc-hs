@@ -167,6 +167,10 @@ flipOrder = \case
 square :: Num a => a -> a
 square !x = x * x
 
+-- }}}
+
+-- {{{ More extras
+
 -- | Two-variable function compositon.
 (.:) :: (b -> c) -> (a1 -> a2 -> b) -> (a1 -> a2 -> c)
 (.:) = (.) . (.)
@@ -174,6 +178,12 @@ square !x = x * x
 -- | Three-variable function compositon.
 (.:.) :: (b -> c) -> (a1 -> a2 -> a3 -> b) -> (a1 -> a2 -> a3 -> c)
 (.:.) = (.) . (.) . (.)
+
+foldForM :: (Foldable t, Monad m) => b -> t a -> (b -> a -> m b) -> m b
+foldForM !s0 !xs !m = foldM m s0 xs
+
+foldForMVG :: (PrimMonad m, VG.Vector v a) => b -> v a -> (b -> a -> m b) -> m b
+foldForMVG !s0 !xs !m = VG.foldM m s0 xs
 
 -- }}}
 
@@ -1627,7 +1637,7 @@ bfsGrid01 !start !isBlock = runSTUArray $ do
             | not (inRange bounds_ (y, x)) || isBlock ! (y, x) = return acc
             | otherwise = do
                 !lastD <- readArray dp (y, x, iDir)
-                -- REMARK: we can come to the same point in same direction in different ways:
+                -- REMARK: we can come to the same point in the same direction in different ways:
                 if lastD /= undef && lastD <= d'
                   then return acc
                   else do
@@ -1645,6 +1655,7 @@ bfsGrid01 !start !isBlock = runSTUArray $ do
   popLoop . Seq.fromList $ map (\iDir -> ((fst start, snd start, iDir), 0)) [0 .. 3]
   return dp
   where
+    !undef = -1 :: Int
     !bounds_ = bounds isBlock
     (!h, !w) = both succ . snd $ bounds isBlock
     !dyxs = VU.fromList $ [(1, 0), (-1, 0), (0, 1), (0, -1)]
