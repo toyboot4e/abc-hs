@@ -1778,16 +1778,18 @@ lcaLen !depths !doubling !v1 !v2 =
       !d2 = depths VU.! v2
    in (d1 - d) + (d2 - d)
 
+-- | OperatorMonoid mapp mact
+-- |
 -- | a `mact` m1 `mact` m2 = a `mact` (m1 `mapp` m2)
 -- |
 -- | Such a monoid is called an operator monoid.
 -- | Doulbing, DP with rerooting and lazy segment tree make use of them. I guess.
-data OperatorMonoid m a = OperatorMonoid m (m -> m -> m) a (a -> m -> a)
+data OperatorMonoid m a = OperatorMonoid m (m -> m -> m) (a -> m -> a)
 
 -- Not generalized yet. <https://atcoder.jp/contests/typical90/tasks/typical90_am>
 -- Add `Show m` for debug.
-treeDpWithRerooting :: VU.Unbox m => (OperatorMonoid m m) -> Array Int [Int] -> (VU.Vector m)
-treeDpWithRerooting (OperatorMonoid !acc0 !mact !op0 !mapp) !tree =
+treeDpWithRerooting :: VU.Unbox m => (OperatorMonoid m m) -> m -> Array Int [Int] -> (VU.Vector m)
+treeDpWithRerooting (OperatorMonoid !op0 !mapp !mact) !acc0 !tree =
   -- Calculate tree DP for one root vertex
   let !treeDp = VU.create $ do
         !dp <- VUM.unsafeNew nVerts
@@ -1802,7 +1804,7 @@ treeDpWithRerooting (OperatorMonoid !acc0 !mact !op0 !mapp) !tree =
       -- !_ = dbg ("tree DP: ", treeDp)
 
       !rootDp = VU.create $ do
-        -- Calculate tree DP for ever root vertices
+        -- Calculate tree DP for every vertex as a root:
         !dp <- VUM.unsafeNew nVerts
         flip fix (-1, op0, root0) $ \runRootDp (!parent, !parentOp, !v1) -> do
           let !children = VU.fromList . filter (/= parent) $ tree ! v1
@@ -1816,9 +1818,10 @@ treeDpWithRerooting (OperatorMonoid !acc0 !mact !op0 !mapp) !tree =
 
           flip VU.imapM_ children $ \ !i2 !v2 -> do
             let !lrOp = (opL VU.! i2) `mapp` (opR VU.! succ i2)
-            -- FIXME: Using the `acc` as an operator doesn't sound like a good idea
-            let !accAsOp = acc0 `mact` (parentOp `mapp` lrOp)
-            runRootDp (v1, accAsOp, v2)
+            -- REMARK: In tree DP we use `OperatorMonoid m m` and the
+            -- p artial folding result is an operator, as in the `treeDp` vector:
+            let !v1op = acc0 `mact` (parentOp `mapp` lrOp)
+            runRootDp (v1, v1op, v2)
 
         return dp
    in rootDp
