@@ -591,6 +591,41 @@ primeFactors !n_ = map (\ !xs -> (head xs, length xs)) . group $ inner n_ input
 
 -- }}}
 
+-- {{{ WIP: monoid-based doulbing system
+
+-- TODO: `invModF` -> `invModD` (doubling)
+
+-- | OperatorMonoid mapp mact
+-- |
+-- | a `mact` m1 `mact` m2 = a `mact` (m1 `mapp` m2)
+-- |
+-- | Such a monoid is called an operator monoid.
+-- | Doulbing, DP with rerooting and lazy segment tree make use of them. I guess.
+data OperatorMonoid m a = OperatorMonoid m (m -> m -> m) (a -> m -> a)
+
+data Doubling m a v = Doubling (OperatorMonoid m a) (v m)
+
+-- TODO: Test the opereator monoid doulbing template and remove raw functions:
+doubling :: (VG.Vector v m, VG.Vector v Int) => OperatorMonoid m a -> Doubling m a v
+doubling opMonoid@(OperatorMonoid !op0 !mapp !_) = Doubling opMonoid ops
+  where
+    step !op !_ = op `mapp` op
+    !ops = VG.scanl' step op0 $ VG.enumFromN (0 :: Int) 62
+
+doublingReplacement :: VU.Vector Int -> Doubling (VU.Vector Int) Int V.Vector
+doublingReplacement !op0 =
+  doubling $ OperatorMonoid op0 (\op1 op2 -> VU.map (op2 VU.!) op1) (flip (VU.!))
+
+-- | Doulbing version of monoid action application.
+mactD :: (VG.Vector v m) => (Doubling m a v) -> a -> Int -> a
+mactD (Doubling (OperatorMonoid !_ !_ !mact) !ops) !acc0 !nAct = VU.foldl' step acc0 (rangeVG 0 62)
+  where
+    step !acc !nBit
+      | testBit nAct nBit = acc `mact` (ops VG.! nBit)
+      | otherwise = acc
+
+-- }}}
+
 -- {{{ Doubling
 
 -- | Extends an operator to be able to be applied multiple times in a constant time (N < 2^63).
@@ -1777,14 +1812,6 @@ lcaLen !depths !doubling !v1 !v2 =
       !d1 = depths VU.! v1
       !d2 = depths VU.! v2
    in (d1 - d) + (d2 - d)
-
--- | OperatorMonoid mapp mact
--- |
--- | a `mact` m1 `mact` m2 = a `mact` (m1 `mapp` m2)
--- |
--- | Such a monoid is called an operator monoid.
--- | Doulbing, DP with rerooting and lazy segment tree make use of them. I guess.
-data OperatorMonoid m a = OperatorMonoid m (m -> m -> m) (a -> m -> a)
 
 -- Not generalized yet. <https://atcoder.jp/contests/typical90/tasks/typical90_am>
 -- Add `Show m` for debug.
