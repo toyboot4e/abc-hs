@@ -621,7 +621,7 @@ primeFactors !n_ = map (\ !xs -> (head xs, length xs)) . group $ inner n_ input
 
 -- }}}
 
--- {{{ WIP: monoid-based doulbing system
+-- {{{ WIP: monoid-based binary lifting system
 
 -- TODO: `invModF` -> `invModD` (doubling)
 
@@ -633,22 +633,22 @@ primeFactors !n_ = map (\ !xs -> (head xs, length xs)) . group $ inner n_ input
 -- | Doulbing, DP with rerooting and lazy segment tree make use of them. I guess.
 data OperatorMonoid m a = OperatorMonoid m (m -> m -> m) (a -> m -> a)
 
-data Doubling m a v = Doubling (OperatorMonoid m a) (v m)
+data BinaryLifting m a v = BinaryLifting (OperatorMonoid m a) (v m)
 
 -- TODO: Test the opereator monoid doulbing template and remove raw functions:
-doubling :: (VG.Vector v m, VG.Vector v Int) => OperatorMonoid m a -> Doubling m a v
-doubling opMonoid@(OperatorMonoid !op0 !mapp !_) = Doubling opMonoid ops
+binLift :: (VG.Vector v m, VG.Vector v Int) => OperatorMonoid m a -> BinaryLifting m a v
+binLift opMonoid@(OperatorMonoid !op0 !mapp !_) = BinaryLifting opMonoid ops
   where
     step !op !_ = op `mapp` op
     !ops = VG.scanl' step op0 $ VG.enumFromN (0 :: Int) 62
 
-doublingReplacement :: VU.Vector Int -> Doubling (VU.Vector Int) Int V.Vector
-doublingReplacement !op0 =
-  doubling $ OperatorMonoid op0 (\op1 op2 -> VU.map (op2 VU.!) op1) (flip (VU.!))
+binLiftReplacement :: VU.Vector Int -> BinaryLifting (VU.Vector Int) Int V.Vector
+binLiftReplacement !op0 =
+  binLift $ OperatorMonoid op0 (\op1 op2 -> VU.map (op2 VU.!) op1) (flip (VU.!))
 
--- | Doulbing version of monoid action application.
-mactD :: (VG.Vector v m) => (Doubling m a v) -> a -> Int -> a
-mactD (Doubling (OperatorMonoid !_ !_ !mact) !ops) !acc0 !nAct = VU.foldl' step acc0 (rangeVG 0 62)
+-- | Binarily lifted operator monoid action application.
+mactB :: (VG.Vector v m) => (BinaryLifting m a v) -> a -> Int -> a
+mactB (BinaryLifting (OperatorMonoid !_ !_ !mact) !ops) !acc0 !nAct = VU.foldl' step acc0 (rangeVG 0 62)
   where
     step !acc !nBit
       | testBit nAct nBit = acc `mact` (ops VG.! nBit)
@@ -663,6 +663,9 @@ newDoubling :: (VG.Vector v a, VG.Vector v Int) => a -> (a -> a) -> v a
 newDoubling !oper0 !squareCompositeF = VG.scanl' step oper0 $ VG.enumFromN (0 :: Int) 62
   where
     step !oper !_ = squareCompositeF oper
+
+newDoublingV :: a -> (a -> a) -> V.Vector a
+newDoublingV = newDoubling
 
 -- | Applies an operator `n` times using an applying function `applyF`.
 applyDoubling :: (VG.Vector v a) => v a -> b -> (b -> a -> b) -> Int -> b
