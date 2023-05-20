@@ -1813,23 +1813,39 @@ lcaLen !depths !doubling !v1 !v2 =
       !d2 = depths VU.! v2
    in (d1 - d) + (d2 - d)
 
--- Not generalized yet. <https://atcoder.jp/contests/typical90/tasks/typical90_am>
+-- | Folds a tree from one root vertex using postorder DFS.
+foldTree :: Array Int [Int] -> Int -> m -> (m -> m -> m) -> m
+foldTree !tree !root !acc0 !mact = inner (-1) root
+  where
+    inner !parent !v1 =
+      let !v2s = filter (/= parent) $ tree ! v1
+       in foldl' (\acc v2 -> acc `mact` (inner v1 v2)) acc0 v2s
+
+-- | Folds a tree from one root vertex using postorder DFS, recording all the accumulation values
+-- | on every vertex.
+scanTreeVG :: (VG.Vector v m) => Array Int [Int] -> Int -> m -> (m -> m -> m) -> v m
+scanTreeVG !tree !root !acc0 !mact = VG.create $ do
+  !dp <- VGM.unsafeNew nVerts
+  !_ <- flip fix (-1, root) $ \runTreeDp (!parent, !v1) -> do
+    let !v2s = filter (/= parent) $ tree ! v1
+    !x1 <- foldM (\acc v2 -> (acc `mact`) <$> runTreeDp (v1, v2)) acc0 v2s
+    VGM.write dp v1 x1
+    return x1
+
+  return dp
+  where
+    !nVerts = rangeSize $ bounds tree
+
+scanTreeVU :: VU.Unbox m => Array Int [Int] -> Int -> m -> (m -> m -> m) -> VU.Vector m
+scanTreeVU = scanTreeVG
+
+-- | Folds a tree for every vertex as a root using the rerooting technique.
+-- | Also known as tree DP with rerooting.
 -- Add `Show m` for debug.
-treeDpWithRerooting :: VU.Unbox m => (OperatorMonoid m m) -> m -> Array Int [Int] -> (VU.Vector m)
-treeDpWithRerooting (OperatorMonoid !op0 !mapp !mact) !acc0 !tree =
+foldTreeAll :: VU.Unbox m => Array Int [Int] -> (OperatorMonoid m m) -> m -> (VU.Vector m)
+foldTreeAll !tree (OperatorMonoid !op0 !mapp !mact) !acc0 =
   -- Calculate tree DP for one root vertex
-  let !treeDp = VU.create $ do
-        !dp <- VUM.unsafeNew nVerts
-        !_ <- flip fix (-1, root0) $ \runTreeDp (!parent, !v1) -> do
-          let !v2s = filter (/= parent) $ tree ! v1
-          !x1 <- foldM (\acc v2 -> (acc `mact`) <$> runTreeDp (v1, v2)) acc0 v2s
-          VUM.write dp v1 x1
-          return x1
-
-        return dp
-
-      -- !_ = dbg ("tree DP: ", treeDp)
-
+  let !treeDp = scanTreeVG tree root0 acc0 mact
       !rootDp = VU.create $ do
         -- Calculate tree DP for every vertex as a root:
         !dp <- VUM.unsafeNew nVerts
@@ -1845,16 +1861,14 @@ treeDpWithRerooting (OperatorMonoid !op0 !mapp !mact) !acc0 !tree =
 
           flip VU.imapM_ children $ \ !i2 !v2 -> do
             let !lrOp = (opL VU.! i2) `mapp` (opR VU.! succ i2)
-            -- REMARK: In tree DP we use `OperatorMonoid m m` and the
-            -- p artial folding result is an operator, as in the `treeDp` vector:
-            let !v1op = acc0 `mact` (parentOp `mapp` lrOp)
-            runRootDp (v1, v1op, v2)
+            -- REMARK: We assume the accumulated value has information to be used as an operator:
+            let !v1Acc = acc0 `mact` (parentOp `mapp` lrOp)
+            runRootDp (v1, v1Acc, v2)
 
         return dp
    in rootDp
   where
     !nVerts = rangeSize $ (bounds tree)
-    -- Initial root vertex
     !root0 = 0 :: Int
 
 -- }}}
