@@ -49,7 +49,6 @@ import Data.Proxy
 import Data.STRef
 import Data.Word
 import Debug.Trace
-import GHC.Event (IOCallback)
 import GHC.Exts
 import GHC.Float (int2Float)
 import System.Exit (exitSuccess)
@@ -304,6 +303,9 @@ ints4 = tuple4 <$> ints
 
 yn :: Bool -> String
 yn b = if b then "Yes" else "No"
+
+printYn :: Bool -> IO ()
+printYn = putStrLn . yn
 
 -- | `concat` two-item tuples
 concat2 :: [(a, a)] -> [a]
@@ -1004,7 +1006,7 @@ bsearchM (!low, !high) !isOk = both wrap <$> inner (low - 1, high + 1)
 
     wrap :: Int -> Maybe Int
     wrap !x
-      | x == low || x == high = Just x
+      | inRange (low, high) x = Just x
       | otherwise = Nothing
 
 {-# INLINE bsearchML #-}
