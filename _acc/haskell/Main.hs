@@ -1777,6 +1777,29 @@ revWGraph !graph = accumArray @Array (flip (:)) [] (bounds graph) $ concatMap re
   where
     revF (!v1, !v2s) = map (\(H.Entry !priority !v2) -> (v2, H.Entry priority v1)) v2s
 
+djVec :: forall a. (Num a, Ord a, VU.Unbox a) => WGraph a -> Int -> a -> VU.Vector a
+djVec !graph !start !undef = VU.create $ do
+  !vis <- VUM.replicate nVerts undef
+
+  let inner !heap = case H.uncons heap of
+        Nothing -> return ()
+        Just (entry@(H.Entry cost v), heap') -> do
+          !isNew <- (== undef) <$> VUM.read vis v
+          if not isNew
+            then inner heap'
+            else do
+              VUM.write vis v cost
+              !vs <- map (merge entry) <$> (filterM (fmap (== undef) . VUM.read vis . H.payload) $ graph ! v)
+              inner $ foldl' (flip H.insert) heap' vs
+
+  inner (H.singleton $ H.Entry 0 start)
+  return vis
+  where
+    !nVerts = rangeSize $ bounds graph
+
+    merge :: H.Entry a Int -> H.Entry a Int -> H.Entry a Int
+    merge (H.Entry !cost1 !_v1) (H.Entry !cost2 !v2) = H.Entry (cost1 + cost2) v2
+
 -- }}}
 
 -- {{{ Tree
