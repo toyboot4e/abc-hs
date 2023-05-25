@@ -47,6 +47,7 @@ import Data.Maybe
 import Data.Ord
 import Data.Proxy
 import Data.STRef
+import Data.Semigroup
 import Data.Word
 import Debug.Trace
 import GHC.Exts
@@ -676,23 +677,23 @@ mactB (BinaryLifting (OperatorMonoid !_ !_ !mact) !ops) !acc0 !nAct = VU.foldl' 
 
 -- {{{ Doubling
 
--- | Extends an operator to be able to be applied multiple times in a constant time (N < 2^63).
+-- | Extends an operator monoid to be able to be applied multiple times in a constant time (N < 2^62).
 newDoubling :: (VG.Vector v a, VG.Vector v Int) => a -> (a -> a) -> v a
-newDoubling !oper0 !squareCompositeF = VG.scanl' step oper0 $ VG.enumFromN (0 :: Int) 62
+newDoubling !oper0 !squareCompositeF = VG.scanl' step oper0 $ VG.enumFromN (1 :: Int) 62
   where
     step !oper !_ = squareCompositeF oper
 
 newDoublingV :: a -> (a -> a) -> V.Vector a
 newDoublingV = newDoubling
 
--- | Applies an operator `n` times using an applying function `applyF`.
-applyDoubling :: (VG.Vector v a) => v a -> b -> (b -> a -> b) -> Int -> b
-applyDoubling !opers !x0 !applyF !n = foldl' step x0 [0 .. 62]
+-- | Applies an operator `n` times using the action function.
+applyDoubling :: (VG.Vector v op) => v op -> a -> (a -> op -> a) -> Int -> a
+applyDoubling !opers !x0 !act !n = foldl' step x0 [0 .. 62]
   where
     !_ = dbgAssert $ VG.length opers == 63
     step !acc !nBit =
       if testBit n nBit
-        then applyF acc (opers VG.! nBit)
+        then acc `act` (opers VG.! nBit)
         else acc
 
 -- }}}
@@ -1855,74 +1856,139 @@ djVec !graph !start !undef = VU.create $ do
 
 -- }}}
 
--- {{{ Tree
+-- {{{ LCA (basic)
+
+-- `(parents, depths, parents')`
+type LcaCache = (VU.Vector Vertex, VU.Vector Int, V.Vector (VU.Vector Int))
 
 -- Returns `(parents, depths)` who maps vertices to the corresponding information.
 -- REMARK: Use 0-based index for the graph vertices.
-treeDepthInfo :: Graph Int -> Int -> (VU.Vector Int, VU.Vector Int)
-treeDepthInfo !graph !root = runST $ do
+-- TODO: Consider using `Maybe Int` instead for easier `Monoid` integration
+treeDepthInfo :: Int -> (Int -> [Int]) -> Int -> (VU.Vector Int, VU.Vector Int)
+treeDepthInfo !nVerts !graph !root = runST $ do
   !parents <- VUM.replicate nVerts (-1 :: Int)
   !depths <- VUM.replicate nVerts (-1 :: Int)
 
-  let m (!depth, !parent, !vs) = do
-        forM_ vs $ \v -> do
-          VUM.unsafeWrite depths v depth
-          VUM.unsafeWrite parents v parent
-          let !vs' = filter (/= parent) $ graph ! v
-          m (succ depth, v, vs')
-
-  !_ <- m (0 :: Int, -1 :: Int, [root])
+  flip fix (0 :: Int, -1 :: Int, [root]) $ \loop (!depth, !parent, !vs) -> do
+    forM_ vs $ \v -> do
+      VUM.unsafeWrite depths v depth
+      VUM.unsafeWrite parents v parent
+      let !vs' = filter (/= parent) $ graph v
+      loop (succ depth, v, vs')
 
   (,) <$> VU.unsafeFreeze parents <*> VU.unsafeFreeze depths
-  where
-    !nVerts = rangeSize $ bounds graph
 
--- | Returns `(parents, depths, doubling)` two of which can be used for `lca`.
-lcaCache :: Graph Int -> Int -> (VU.Vector Int, VU.Vector Int, V.Vector (VU.Vector Int))
-lcaCache graph root = (parents, depths, doubling)
+-- | Returns `LcaCache`, i.e., `(parents, depths, parents')`.
+lcaCache :: Int -> (Vertex -> [Vertex]) -> Vertex -> LcaCache
+lcaCache !nVerts !graph !root = (parents, depths, parents')
   where
-    (!parents, !depths) = treeDepthInfo graph root
-    !doubling = newDoubling parents $ \acc -> VU.map (\case -1 -> -1; i -> acc VU.! i) acc
+    (!parents, !depths) = treeDepthInfo nVerts graph root
+    !parents' = newDoubling parents $ \acc -> VU.map (\case -1 -> -1; i -> acc VU.! i) acc
 
--- Returns the lowest common ancestor `(v, d)` with the help of doubling technique.
--- REMARK: Use 0-based index for the graph vertices.
-lca :: VU.Vector Int -> V.Vector (VU.Vector Int) -> Int -> Int -> (Int, Int)
-lca !depths !doubling !v1 !v2 = (vLCA, depths VU.! vLCA)
+-- | Returns the lowest common ancestor `(v, d)` with the help of the binary lifting technique.
+-- | REMARK: Use 0-based index for the graph vertices.
+lca :: LcaCache -> Int -> Int -> (Int, Int)
+lca (!_, !depths, !parents') !v1 !v2 = (vLCA, depths VU.! vLCA)
   where
     -- depths
     !d1 = depths VU.! v1
     !d2 = depths VU.! v2
 
-    -- go up N depths
-    parentN !v !n =
-      applyDoubling
-        doubling
-        v
-        ( \v' mapper -> case v' of
-            (-1) -> -1
-            _ -> mapper VU.! v'
-        )
-        n
+    -- go up N parents:
+    parentN !v !n = applyDoubling parents' v f n
+      where
+        f (-1) _ = -1
+        f v' mapper = mapper VU.! v'
 
-    -- v1' and v2' are of the same depth
+    -- v1' and v2' are of the same depth:
     !v1' = if d1 <= d2 then v1 else v2
     !v2' = parentN (if d1 > d2 then v1 else v2) (abs $ d1 - d2)
 
-    -- go up `dLCA` depth to find the lca
+    -- find the depth of the lowest common ancestor:
     !dLCA = fromJust . snd $ bsearch (0, min d1 d2) \d ->
-      let !p1 = parentN v1' d
-          !p2 = parentN v2' d
-       in p1 /= p2
+      parentN v1' d /= parentN v2' d
 
     !vLCA = parentN v1' dLCA
 
 -- | Gets the length between given two vertices with the help of LCA.
-lcaLen :: VU.Vector Int -> V.Vector (VU.Vector Int) -> Int -> Int -> Int
-lcaLen !depths !doubling !v1 !v2 =
-  let (!_, !d) = lca depths doubling v1 v2
+lcaLen :: LcaCache -> Int -> Int -> Int
+lcaLen cache@(!_, !depths, !_) !v1 !v2 =
+  let (!_, !d) = lca cache v1 v2
       !d1 = depths VU.! v1
       !d2 = depths VU.! v2
    in (d1 - d) + (d2 - d)
+
+-- }}}
+
+-- {{{ Tree path folding
+
+-- REMARK: My implementation is too slow.
+
+-- | `(FoldLcaCache@(parents, depths, parents'), monoids')`
+type FoldLcaCache m = (LcaCache, V.Vector (VU.Vector m))
+
+-- | Returns `FoldLcaCache` that can be used for calculating the folding value of path between two
+-- | vertices.
+-- |
+-- | - graph: Vertex -> [Vertex]
+-- | - edgeValueOf: child -> parent -> m
+foldLcaCache :: forall m. (Monoid m, VU.Unbox m) => Int -> (Vertex -> [Vertex]) -> Vertex -> (Vertex -> Vertex -> m) -> FoldLcaCache m
+foldLcaCache !nVerts !graph !root !edgeValueOf = (cache, foldCache)
+  where
+    !cache@(!parents, !_, !parents') = lcaCache nVerts graph root
+    foldCache :: V.Vector (VU.Vector m)
+    !foldCache = V.map snd $ newDoubling toParent appendArray
+      where
+        -- Monoid value when going up one parent vertex:
+        !toParent = (0, VU.map f (rangeVG 0 (pred nVerts)))
+          where
+            -- TODO: use `Replacement`, i.e., vertor of `Maybe Int` for `parents`?
+            f v = case parents VU.! v of
+              (-1) -> mempty
+              p -> edgeValueOf v p
+
+        -- Folding function for the binary lifting technique:
+        appendArray (!iBit, !ops) = (succ iBit, VU.imap f ops)
+          where
+            f !v0 !op =
+              case (parents' V.! iBit VU.! v0) of
+                (-1) -> op
+                p -> op <> (ops VU.! p)
+
+-- | `foldLcaCache` specific for `Array Vertex [(Vertex, a)]`.
+foldLcaCache2 :: forall a m. (Monoid m, VU.Unbox m) => Array Int [(Vertex, a)] -> (a -> m) -> FoldLcaCache m
+foldLcaCache2 !tree !toMonoid = foldLcaCache nVerts adj root getValue
+  where
+    !root = 0 :: Vertex
+    !nVerts = rangeSize $ bounds tree
+    adj = map fst . (tree !)
+    getValue v p = toMonoid . snd . fromJust . find ((== p) . fst) $ tree ! v
+
+-- | Calculates the folding value of the path between two vertices in a tree.
+foldViaLca :: forall m. (Monoid m, VU.Unbox m) => FoldLcaCache m -> Int -> Int -> m
+foldViaLca (!cache@(!_, !depths, !parents'), !ops') !v1 !v2 =
+  let (!v, !d) = lca cache v1 v2
+      -- !_ = dbg ((v1, d1), (v2, d2), (v, d), a1, a2, a1 <> a2)
+      !d1 = depths VU.! v1
+      !d2 = depths VU.! v2
+      !a1 = foldParentN v1 (d1 - d)
+      !a2 = foldParentN v2 (d2 - d)
+   in a1 <> a2
+  where
+    -- | Folds up the monoid value on going upwards:
+    -- TODO: use `ReplacementWithMonoid` to outsource the folding method
+    foldParentN :: Vertex -> Int -> m
+    foldParentN !v0 !nthParent = snd $ V.foldl' step (v0, mempty) input
+      where
+        !input = V.zip3 (rangeVG 0 62) parents' ops'
+        step :: (Vertex, m) -> (Int, VU.Vector Vertex, VU.Vector m) -> (Vertex, m)
+        step (!v, !acc) (!iBit, !parents, !ops)
+          | testBit nthParent iBit = (parents VU.! v, acc <> (ops VU.! v))
+          | otherwise = (v, acc)
+
+-- }}}
+
+-- {{{ Tree folding from a root node
 
 -- | Folds a tree from one root vertex using postorder DFS.
 foldTree :: Array Int [Int] -> Int -> m -> (m -> m -> m) -> m
