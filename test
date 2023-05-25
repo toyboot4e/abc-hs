@@ -1,5 +1,9 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S bash -x
 
-cd "$1"
-oj t -N --directory test-cases -c "./Main.hs"
+# stack script:
+# cd "$1"
+
+# cabal:
+cabal build "$1-exe"
+oj t -N --directory "$1/test-cases" -c "cabal run $1-exe"
 
