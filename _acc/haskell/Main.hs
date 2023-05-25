@@ -24,6 +24,15 @@
   - refactor `primes` with new Prelude
 -}
 
+{- TODO: Refactor with the typeclass-based semigroup action:
+- [ ] Write `haddock` and run tests.
+- [ ] LCA
+- [ ] ModInt
+- [ ] `invModF` -> `invModBL`
+- [ ] DP withrerooting
+- [ ] lazy segment tree
+-}
+
 -- {{{ Imports
 
 module Main (main) where
@@ -640,38 +649,74 @@ primeFactors !n_ = map (\ !xs -> (head xs, length xs)) . group $ inner n_ input
 
 -- }}}
 
--- {{{ WIP: monoid-based binary lifting system
+-- {{{ Binary lifting data structure
 
--- TODO: `invModF` -> `invModD` (doubling)
-
--- | OperatorMonoid mapp mact
+-- | Binary lifting is a technique for calculating nth power of a monoid in a (big) constant time.
 -- |
--- | a `mact` m1 `mact` m2 = a `mact` (m1 `mapp` m2)
--- |
--- | Such a monoid is called an operator monoid.
--- | Doulbing, DP with rerooting and lazy segment tree make use of them. I guess.
-data OperatorMonoid m a = OperatorMonoid m (m -> m -> m) (a -> m -> a)
+-- | The i-th element of the underlying vector of `BinaryLifting` stores `m^{2^i}`, with which we
+-- | can construct any of `m^i` (`0 <= i < 2^63`).
+newtype BinaryLifting v m = BinaryLifting (v m)
+  deriving (Show, Eq)
 
-data BinaryLifting m a v = BinaryLifting (OperatorMonoid m a) (v m)
-
--- TODO: Test the opereator monoid doulbing template and remove raw functions:
-binLift :: (VG.Vector v m, VG.Vector v Int) => OperatorMonoid m a -> BinaryLifting m a v
-binLift opMonoid@(OperatorMonoid !op0 !mapp !_) = BinaryLifting opMonoid ops
+-- | Calculates `BinaryLifting` of the given semigroup
+newBinLift :: (VG.Vector v s, Semigroup s) => s -> BinaryLifting v s
+newBinLift !op0 = BinaryLifting ops
   where
-    step !op !_ = op `mapp` op
-    !ops = VG.scanl' step op0 $ VG.enumFromN (0 :: Int) 62
+    !ops = VG.iterateN (pred 63) (\op -> op <> op) op0
 
-binLiftReplacement :: VU.Vector Int -> BinaryLifting (VU.Vector Int) Int V.Vector
-binLiftReplacement !op0 =
-  binLift $ OperatorMonoid op0 (\op1 op2 -> VU.map (op2 VU.!) op1) (flip (VU.!))
+-- | Calculates `BinaryLifting` of the given semigroup
+newBinLiftV :: Semigroup s => s -> BinaryLifting V.Vector s
+newBinLiftV = newBinLift
 
--- | Binarily lifted operator monoid action application.
-mactB :: (VG.Vector v m) => (BinaryLifting m a v) -> a -> Int -> a
-mactB (BinaryLifting (OperatorMonoid !_ !_ !mact) !ops) !acc0 !nAct = VU.foldl' step acc0 (rangeVG 0 62)
+-- | Calculates `BinaryLifting` of the given semigroup
+newBinLiftVU :: (Semigroup s, VU.Unbox s) => s -> BinaryLifting VU.Vector s
+newBinLiftVU = newBinLift
+
+-- | Binarily lifted version of `stimesMonoid`.
+-- | NOTE: Usually `sactBN` is much cheaper for semigroup actions with boxed type.
+mtimesBN :: (Monoid m, VG.Vector v m) => (BinaryLifting v m) -> Int -> m
+mtimesBN (BinaryLifting !ops) !n = VU.foldl' step mempty (VU.enumFromN 0 62)
+  where
+    step !m !i = m <> ops VG.! i
+
+-- }}}
+
+-- {{{ Semigroup action and binary lifting
+
+-- | Right semigroup aciton.
+-- |
+-- | s2 `sact` (s1 `sact` a) == (s2 <> s1) `sact` a
+class SemigroupAction s a where
+  -- | Right semigroup aciton
+  sact :: s -> a -> a
+
+-- | Binarily lifted semigroup action application.
+sactBL :: (SemigroupAction s a, VG.Vector v s) => (BinaryLifting v s) -> a -> Int -> a
+sactBL (BinaryLifting !ops) !acc0 !nAct = VU.foldl' step acc0 (rangeVG 0 62)
   where
     step !acc !nBit
-      | testBit nAct nBit = acc `mact` (ops VG.! nBit)
+      | testBit nAct nBit = (ops VG.! nBit) `sact` acc
       | otherwise = acc
+
+-- | Right monoid action.
+-- |
+-- | m2 `mact` (m1 `mact` a) == (m2 <> m1) `mact` a
+class (SemigroupAction m a, Monoid m) => MonoidAction m a where
+  -- | Right monoid aciton
+  mact :: m -> a -> a
+  mact = sact
+
+-- | Alias of `sactBL` for monoid action.
+mactBL :: (MonoidAction m a, VG.Vector v m) => (BinaryLifting v m) -> a -> Int -> a
+mactBL = sactBL
+
+newtype Replacement = Replacement (VU.Vector Int)
+  deriving (Show, Eq)
+
+instance Semigroup Replacement where
+  (Replacement vec1) <> (Replacement vec2) = Replacement $ VU.map (vec1 VU.!) vec2
+    where
+      !_ = dbgAssert (VG.length vec1 == VG.length vec2)
 
 -- }}}
 
@@ -1858,13 +1903,26 @@ djVec !graph !start !undef = VU.create $ do
 
 -- {{{ LCA (basic)
 
+-- | Vector for retrieving the parent vertex.
+newtype ToParent = ToParent (VU.Vector Vertex)
+
+instance Semigroup ToParent where
+  (ToParent !vec1) <> (ToParent !vec2) = ToParent $ VU.map f vec2
+    where
+      !_ = dbgAssert (VG.length vec1 == VG.length vec2)
+      f (-1) = (-1)
+      f i = vec1 VU.! i
+
+instance SemigroupAction ToParent Vertex where
+  sact (ToParent !vec) !i = vec VU.! i
+
 -- `(parents, depths, parents')`
-type LcaCache = (VU.Vector Vertex, VU.Vector Int, V.Vector (VU.Vector Int))
+type LcaCache = (ToParent, VU.Vector Int, BinaryLifting V.Vector ToParent)
 
 -- Returns `(parents, depths)` who maps vertices to the corresponding information.
 -- REMARK: Use 0-based index for the graph vertices.
 -- TODO: Consider using `Maybe Int` instead for easier `Monoid` integration
-treeDepthInfo :: Int -> (Int -> [Int]) -> Int -> (VU.Vector Int, VU.Vector Int)
+treeDepthInfo :: Int -> (Int -> [Int]) -> Int -> (ToParent, VU.Vector Int)
 treeDepthInfo !nVerts !graph !root = runST $ do
   !parents <- VUM.replicate nVerts (-1 :: Int)
   !depths <- VUM.replicate nVerts (-1 :: Int)
@@ -1876,29 +1934,25 @@ treeDepthInfo !nVerts !graph !root = runST $ do
       let !vs' = filter (/= parent) $ graph v
       loop (succ depth, v, vs')
 
-  (,) <$> VU.unsafeFreeze parents <*> VU.unsafeFreeze depths
+  (,) <$> (ToParent <$> VU.unsafeFreeze parents) <*> VU.unsafeFreeze depths
 
 -- | Returns `LcaCache`, i.e., `(parents, depths, parents')`.
 lcaCache :: Int -> (Vertex -> [Vertex]) -> Vertex -> LcaCache
-lcaCache !nVerts !graph !root = (parents, depths, parents')
+lcaCache !nVerts !graph !root = (toParent, depths, toParentN)
   where
-    (!parents, !depths) = treeDepthInfo nVerts graph root
-    !parents' = newDoubling parents $ \acc -> VU.map (\case -1 -> -1; i -> acc VU.! i) acc
+    (!toParent, !depths) = treeDepthInfo nVerts graph root
+    !toParentN = newBinLift toParent
 
 -- | Returns the lowest common ancestor `(v, d)` with the help of the binary lifting technique.
 -- | REMARK: Use 0-based index for the graph vertices.
 lca :: LcaCache -> Int -> Int -> (Int, Int)
-lca (!_, !depths, !parents') !v1 !v2 = (vLCA, depths VU.! vLCA)
+lca (!_, !depths, !toParentN) !v1 !v2 = (vLCA, depths VU.! vLCA)
   where
     -- depths
     !d1 = depths VU.! v1
     !d2 = depths VU.! v2
 
-    -- go up N parents:
-    parentN !v !n = applyDoubling parents' v f n
-      where
-        f (-1) _ = -1
-        f v' mapper = mapper VU.! v'
+    parentN = sactBL toParentN
 
     -- v1' and v2' are of the same depth:
     !v1' = if d1 <= d2 then v1 else v2
@@ -1922,9 +1976,15 @@ lcaLen cache@(!_, !depths, !_) !v1 !v2 =
 
 -- {{{ Tree path folding
 
--- REMARK: My implementation is too slow.
+-- | `ToParent` with monoid concatanation.
+newtype ToParentM m = ToParentM (Int, VU.Vector m)
 
--- | `(FoldLcaCache@(parents, depths, parents'), monoids')`
+-- instance Semigroup
+
+-- REMARK: My implementation is too slow.
+-- FIXME: Stop the manual folding / binary lifting. Idea: monad?
+
+-- | `LcaCache` with monoid folding on path.
 type FoldLcaCache m = (LcaCache, V.Vector (VU.Vector m))
 
 -- | Returns `FoldLcaCache` that can be used for calculating the folding value of path between two
@@ -1935,15 +1995,14 @@ type FoldLcaCache m = (LcaCache, V.Vector (VU.Vector m))
 foldLcaCache :: forall m. (Monoid m, VU.Unbox m) => Int -> (Vertex -> [Vertex]) -> Vertex -> (Vertex -> Vertex -> m) -> FoldLcaCache m
 foldLcaCache !nVerts !graph !root !edgeValueOf = (cache, foldCache)
   where
-    !cache@(!parents, !_, !parents') = lcaCache nVerts graph root
+    !cache@(!parents, !_, BinaryLifting !parents') = lcaCache nVerts graph root
     foldCache :: V.Vector (VU.Vector m)
     !foldCache = V.map snd $ newDoubling toParent appendArray
       where
         -- Monoid value when going up one parent vertex:
         !toParent = (0, VU.map f (rangeVG 0 (pred nVerts)))
           where
-            -- TODO: use `Replacement`, i.e., vertor of `Maybe Int` for `parents`?
-            f v = case parents VU.! v of
+            f v = case parents `sact` v of
               (-1) -> mempty
               p -> edgeValueOf v p
 
@@ -1951,7 +2010,7 @@ foldLcaCache !nVerts !graph !root !edgeValueOf = (cache, foldCache)
         appendArray (!iBit, !ops) = (succ iBit, VU.imap f ops)
           where
             f !v0 !op =
-              case (parents' V.! iBit VU.! v0) of
+              case ((parents' V.! iBit) `sact` v0) of
                 (-1) -> op
                 p -> op <> (ops VU.! p)
 
@@ -1962,11 +2021,13 @@ foldLcaCache2 !tree !toMonoid = foldLcaCache nVerts adj root getValue
     !root = 0 :: Vertex
     !nVerts = rangeSize $ bounds tree
     adj = map fst . (tree !)
+    -- FIXME: This is too slow.
+    -- TODO: Do not iterate E^2 times.
     getValue v p = toMonoid . snd . fromJust . find ((== p) . fst) $ tree ! v
 
 -- | Calculates the folding value of the path between two vertices in a tree.
 foldViaLca :: forall m. (Monoid m, VU.Unbox m) => FoldLcaCache m -> Int -> Int -> m
-foldViaLca (!cache@(!_, !depths, !parents'), !ops') !v1 !v2 =
+foldViaLca (!cache@(!_, !depths, BinaryLifting !parents'), !ops') !v1 !v2 =
   let (!v, !d) = lca cache v1 v2
       -- !_ = dbg ((v1, d1), (v2, d2), (v, d), a1, a2, a1 <> a2)
       !d1 = depths VU.! v1
@@ -1975,15 +2036,15 @@ foldViaLca (!cache@(!_, !depths, !parents'), !ops') !v1 !v2 =
       !a2 = foldParentN v2 (d2 - d)
    in a1 <> a2
   where
-    -- | Folds up the monoid value on going upwards:
+    -- Folds up the monoid value on going upwards:
     -- TODO: use `ReplacementWithMonoid` to outsource the folding method
     foldParentN :: Vertex -> Int -> m
     foldParentN !v0 !nthParent = snd $ V.foldl' step (v0, mempty) input
       where
         !input = V.zip3 (rangeVG 0 62) parents' ops'
-        step :: (Vertex, m) -> (Int, VU.Vector Vertex, VU.Vector m) -> (Vertex, m)
+        step :: (Vertex, m) -> (Int, ToParent, VU.Vector m) -> (Vertex, m)
         step (!v, !acc) (!iBit, !parents, !ops)
-          | testBit nthParent iBit = (parents VU.! v, acc <> (ops VU.! v))
+          | testBit nthParent iBit = (parents `sact` v, acc <> (ops VU.! v))
           | otherwise = (v, acc)
 
 -- }}}
@@ -2016,37 +2077,38 @@ scanTreeVG !tree !root !acc0 !mact = VG.create $ do
 scanTreeVU :: VU.Unbox m => Array Int [Int] -> Int -> m -> (m -> m -> m) -> VU.Vector m
 scanTreeVU = scanTreeVG
 
--- | Folds a tree for every vertex as a root using the rerooting technique.
--- | Also known as tree DP with rerooting.
--- Add `Show m` for debug.
-foldTreeAll :: VU.Unbox m => Array Int [Int] -> (OperatorMonoid m m) -> m -> (VU.Vector m)
-foldTreeAll !tree (OperatorMonoid !op0 !mapp !mact) !acc0 =
-  -- Calculate tree DP for one root vertex
-  let !treeDp = scanTreeVG tree root0 acc0 mact
-      !rootDp = VU.create $ do
-        -- Calculate tree DP for every vertex as a root:
-        !dp <- VUM.unsafeNew nVerts
-        flip fix (-1, op0, root0) $ \runRootDp (!parent, !parentOp, !v1) -> do
-          let !children = VU.fromList . filter (/= parent) $ tree ! v1
-          let !opL = VU.scanl' (\op v2 -> (op `mapp`) $ treeDp VU.! v2) op0 children
-          let !opR = VU.scanr (\v2 op -> (op `mapp`) $ treeDp VU.! v2) op0 children
-
-          -- save
-          let !x1 = acc0 `mact` (parentOp `mapp` (VU.last opL))
-          VUM.write dp v1 x1
-          -- let !_ = dbg ("dfs", (parent, parentOp), "->", (v1, x1), children, opR)
-
-          flip VU.imapM_ children $ \ !i2 !v2 -> do
-            let !lrOp = (opL VU.! i2) `mapp` (opR VU.! succ i2)
-            -- REMARK: We assume the accumulated value has information to be used as an operator:
-            let !v1Acc = acc0 `mact` (parentOp `mapp` lrOp)
-            runRootDp (v1, v1Acc, v2)
-
-        return dp
-   in rootDp
-  where
-    !nVerts = rangeSize $ (bounds tree)
-    !root0 = 0 :: Int
+-- TODO: Remake `foldTreeAll` with plain `Monoid`.
+-- -- | Folds a tree for every vertex as a root using the rerooting technique.
+-- -- | Also known as tree DP with rerooting.
+-- -- Add `Show m` for debug.
+-- foldTreeAll :: VU.Unbox m => Array Int [Int] -> (OperatorMonoid m m) -> m -> (VU.Vector m)
+-- foldTreeAll !tree (OperatorMonoid !op0 !mapp !mact) !acc0 =
+--   -- Calculate tree DP for one root vertex
+--   let !treeDp = scanTreeVG tree root0 acc0 mact
+--       !rootDp = VU.create $ do
+--         -- Calculate tree DP for every vertex as a root:
+--         !dp <- VUM.unsafeNew nVerts
+--         flip fix (-1, op0, root0) $ \runRootDp (!parent, !parentOp, !v1) -> do
+--           let !children = VU.fromList . filter (/= parent) $ tree ! v1
+--           let !opL = VU.scanl' (\op v2 -> (op `mapp`) $ treeDp VU.! v2) op0 children
+--           let !opR = VU.scanr (\v2 op -> (op `mapp`) $ treeDp VU.! v2) op0 children
+--
+--           -- save
+--           let !x1 = acc0 `mact` (parentOp `mapp` (VU.last opL))
+--           VUM.write dp v1 x1
+--           -- let !_ = dbg ("dfs", (parent, parentOp), "->", (v1, x1), children, opR)
+--
+--           flip VU.imapM_ children $ \ !i2 !v2 -> do
+--             let !lrOp = (opL VU.! i2) `mapp` (opR VU.! succ i2)
+--             -- REMARK: We assume the accumulated value has information to be used as an operator:
+--             let !v1Acc = acc0 `mact` (parentOp `mapp` lrOp)
+--             runRootDp (v1, v1Acc, v2)
+--
+--         return dp
+--    in rootDp
+--   where
+--     !nVerts = rangeSize $ (bounds tree)
+--     !root0 = 0 :: Int
 
 -- }}}
 
@@ -2252,13 +2314,9 @@ addFlowRNEdge !rn !v1 !v2 !flow = do
 
 -- {{{ Lazy segment tree
 
-class (Monoid op) => MonoidAction op a where
-  -- | Performs semigroup action over the target set `a`.
-  mact :: op -> a -> a
-
 -- TODO: Do we need to duplicate `SegmentTree` and `LazySegmentTree`?
--- TODO: Use generic vector type
--- TODO: We're assuming communicative operator monoid in LazySegmentTree, right?
+-- TODO: Use generic vector type.. or not.
+-- TODO: We're assuming commutative operator monoid in LazySegmentTree, right?
 -- TODO: Vertex -> Node
 
 -- | Lazy segment tree.
