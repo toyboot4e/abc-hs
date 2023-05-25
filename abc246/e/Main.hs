@@ -8,40 +8,6 @@
 --ghc-options "-D DEBUG"
 -}
 
-{- TODOs
-
-- [ ] EDPC / TDPC
-  - [x] Span-based
-  - [x] Expected values
-  - [x] Bit-based (set-based)
-  - [.] Digits-based DP
-
-- [ ] More practices
-  - [x] Chokudai Speedrun001
-  - [.] Chokudai Speedrun002
-  - [.] Tessoku A71~
-  - [.] Tessoku C11~
-  - [.] Typical 90
-
-- [ ] PAST book (advanced)
-  - [.] Binary search
-  - [.] DP
-
-- [ ] Graph
-  - [x] connections
-  - [ ] tree diameter with DFS
-  - [x] scc and topological sort
-  - [x] cycles by SCC
-  - [ ] 2-SAT
-  - [ ] minimum cut problem
-
-- [ ] Techniques
-  - [ ] 2D index compression
-  - [x] Better, easier rolling hash
-  - [ ] Doubling
-
--}
-
 {- ORMOLU_DISABLE -}
 {-# LANGUAGE BangPatterns, BlockArguments, DefaultSignatures, LambdaCase, MultiWayIf #-}
 {-# LANGUAGE NumDecimals, NumericUnderscores, PatternGuards, TupleSections #-}
@@ -49,9 +15,14 @@
 {-# LANGUAGE QuantifiedConstraints, ScopedTypeVariables, StrictData, TypeApplications #-}
 {-# LANGUAGE TypeFamilies, RankNTypes #-}
 
--- TODO: ditch `vector-th-unbox` and `TemplateHaskell` in 2023 environment
 {-# LANGUAGE CPP, TemplateHaskell #-}
 {- ORMOLU_ENABLE -}
+
+{- TODO: on 2023 langauge update,
+  - ditch `vector-th-unbox` and `TemplateHaskell`
+  - remove `vLength`
+  - refactor `primes` with new Prelude
+-}
 
 -- {{{ Imports
 
@@ -69,16 +40,19 @@ import Data.Char
 import Data.Either
 import Data.Foldable
 import Data.Functor
+import Data.Functor.Identity
 import Data.IORef
 import Data.List
 import Data.Maybe
 import Data.Ord
 import Data.Proxy
+import Data.STRef
 import Data.Word
 import Debug.Trace
 import GHC.Event (IOCallback)
 import GHC.Exts
 import GHC.Float (int2Float)
+import System.Exit (exitSuccess)
 import System.IO
 import Text.Printf
 
@@ -112,7 +86,6 @@ import Numeric.Extra       -- showDP, intToFloat, ..
 import Data.Bool.HT  -- if', ..
 import qualified Data.Ix.Enum as HT
 import qualified Data.List.HT as HT -- `groupBy`, but with adjacent elements
-import qualified Control.Monad.HT as HT
 
 -- vector: https://www.stackage.org/lts-16.11/package/vector-0.12.1.2
 import qualified Data.Vector.Fusion.Bundle as VFB
@@ -170,7 +143,7 @@ dbgAssert True !x = x
 
 #else
 dbg :: Show a => a -> ()
-dbg !_ = ()
+dbg _ = ()
 
 dbgAssert :: Bool -> a -> a
 dbgAssert = flip const
@@ -194,6 +167,14 @@ flipOrder = \case
 square :: Num a => a -> a
 square !x = x * x
 
+-- | Two-variable function compositon.
+(.:) :: (b -> c) -> (a1 -> a2 -> b) -> (a1 -> a2 -> c)
+(.:) = (.) . (.)
+
+-- | Three-variable function compositon.
+(.:.) :: (b -> c) -> (a1 -> a2 -> a3 -> b) -> (a1 -> a2 -> a3 -> c)
+(.:.) = (.) . (.) . (.)
+
 -- }}}
 
 -- {{{ Libary complements
@@ -208,20 +189,40 @@ modifyArray !ary !f !i = do
 vLength :: (VG.Vector v e) => v e -> Int
 vLength = VFB.length . VG.stream
 
-{-# INLINE vRange #-}
-vRange :: Int -> Int -> VU.Vector Int
-vRange !i !j = VU.enumFromN i (succ j - i)
+{-# INLINE rangeVG #-}
+rangeVG :: (VG.Vector v Int) => Int -> Int -> v Int
+rangeVG !i !j = VG.enumFromN i (succ j - i)
 
--- | `vRange` in reverse
-{-# INLINE vRangeR #-}
-vRangeR :: Int -> Int -> VU.Vector Int
-vRangeR !i !j = VU.enumFromStepN i (-1) (succ j - i)
+-- | `rangeVG` in reverse.
+{-# INLINE rangeVGR #-}
+rangeVGR :: (VG.Vector v Int) => Int -> Int -> v Int
+rangeVGR !i !j = VG.enumFromStepN i (-1) (succ j - i)
 
--- NOTE: We can only lookup by priority (cost), not by payload (vertex)
-lookupHeapEntry :: Int -> H.Heap (H.Entry Int Int) -> Maybe (H.Entry Int Int)
-lookupHeapEntry !key !heap =
-  let !h = H.intersect heap (H.singleton $ H.Entry key (0 :: Int))
-   in if' (H.null h) Nothing $ Just (H.minimum h)
+-- | @cojna (`stream`)
+{-# INLINE [1] rangeMS #-}
+rangeMS :: (Monad m) => Int -> Int -> MS.Stream m Int
+rangeMS !l !r = MS.Stream step l
+  where
+    {-# INLINE [0] step #-}
+    step x
+      | x <= r = return $ MS.Yield x (x + 1)
+      | otherwise = return MS.Done
+
+-- | @cojna (`streamR`)
+{-# INLINE [1] rangeMSR #-}
+rangeMSR :: (Monad m) => Int -> Int -> MS.Stream m Int
+rangeMSR !l !r = MS.Stream step r
+  where
+    {-# INLINE [0] step #-}
+    step x
+      | x >= l = return $ MS.Yield x (x - 1)
+      | otherwise = return MS.Done
+
+-- | `forM` over monadic stream in the vector package.
+-- | NOTE: This is for side effects only. I don't know how to use `MS.mapM` yet.
+{-# INLINE forMS_ #-}
+forMS_ :: (Monad m) => MS.Stream m Int -> (Int -> m ()) -> m ()
+forMS_ = flip MS.mapM_
 
 -- }}}
 
@@ -230,7 +231,7 @@ lookupHeapEntry !key !heap =
 -- Option - Maybe cheatsheet
 -- https://notes.iveselov.info/programming/cheatsheet-rust-option-vs-haskell-maybe
 
--- compress duduplicates sorted list, nub deduplicates non-sorted list
+-- compress deduplicates sorted list, nub deduplicates non-sorted list
 -- TODO: std?
 compress :: Eq a => [a] -> [a]
 compress [] = []
@@ -260,7 +261,7 @@ twoPointers !n !check = inner (0, 0)
     inner (!l, !r) | l >= n = []
     inner (!l, !r)
       | check (l, r) =
-          let (l', r') = until (not . peekCheck) (second succ) (l, r)
+          let (!l', !r') = until (not . peekCheck) (second succ) (l, r)
            in (l', r') : inner (succ l', max l' r')
       | otherwise = inner (succ l, max (succ l) r)
     peekCheck (!l, !r) | r == pred n = False
@@ -282,14 +283,14 @@ tuple4 :: [a] -> (a, a, a, a)
 tuple4 [!a, !b, !c, !d] = (a, b, c, d)
 tuple4 _ = error "not a four-item list"
 
-getTuple2 :: IO (Int, Int)
-getTuple2 = tuple2 <$> getLineIntList
+ints2 :: IO (Int, Int)
+ints2 = tuple2 <$> ints
 
-getTuple3 :: IO (Int, Int, Int)
-getTuple3 = tuple3 <$> getLineIntList
+ints3 :: IO (Int, Int, Int)
+ints3 = tuple3 <$> ints
 
-getTuple4 :: IO (Int, Int, Int, Int)
-getTuple4 = tuple4 <$> getLineIntList
+ints4 :: IO (Int, Int, Int, Int)
+ints4 = tuple4 <$> ints
 
 yn :: Bool -> String
 yn b = if b then "Yes" else "No"
@@ -311,33 +312,46 @@ sub2 (!y, !x) = bimap (y -) (x -)
 mul2 :: Int -> (Int, Int) -> (Int, Int)
 mul2 !m = both (m *)
 
+-- 180.0 degree = \p radian
+toRadian :: Double -> Double
+toRadian degree = degree / 180.0 * pi
+
+toDegree :: Double -> Double
+toDegree rad = rad / pi * 180.0
+
 -- }}}
 
 -- {{{ Input
 
-getLineIntList :: IO [Int]
-getLineIntList = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
+ints :: IO [Int]
+ints = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 
-getLineIntVec :: IO (VU.Vector Int)
-getLineIntVec = VU.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
+intsVG :: VG.Vector v Int => IO (v Int)
+intsVG = VG.unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
+
+intsV :: IO (V.Vector Int)
+intsV = intsVG
+
+intsVU :: IO (VU.Vector Int)
+intsVU = intsVG
 
 -- | Creates a graph from 1-based vertices
 getGraph :: Int -> Int -> IO (Array Int [Int])
-getGraph !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges getLineIntList
+getGraph !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges ints
   where
     accGraph = accumArray @Array (flip (:)) [] (1, nVerts)
     toInput = concatMap2 $ second swap . dupe . tuple2
 
 -- | Creates a weightend graph from 1-based vertices
 getWGraph :: Int -> Int -> IO (Array Int [H.Entry Int Int])
-getWGraph !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges getLineIntList
+getWGraph !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges ints
   where
     accGraph = accumArray @Array (flip (:)) [] (1, nVerts)
     toInput = concatMap2 $ \[!a, !b, !cost] -> ((a, H.Entry cost b), (b, H.Entry cost a))
 
 -- | Creates a weightend graph from 1-based vertices
 getWGraph0 :: Int -> Int -> IO (Array Int [H.Entry Int Int])
-getWGraph0 !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges getLineIntList
+getWGraph0 !nVerts !nEdges = accGraph . toInput <$> replicateM nEdges ints
   where
     accGraph = accumArray @Array (flip (:)) [] (0, pred nVerts)
     toInput = concatMap2 $ \[!a, !b, !cost] -> ((pred a, H.Entry cost (pred b)), (pred b, H.Entry cost (pred a)))
@@ -355,9 +369,6 @@ putBSB = BSB.hPutBuilder stdout
 
 putLnBSB :: BSB.Builder -> IO ()
 putLnBSB = BSB.hPutBuilder stdout . (<> endlBSB)
-
-printBSB :: ShowBSB a => a -> IO ()
-printBSB = putBSB . (<> endlBSB) . showBSB
 
 -- ord8 :: Char -> Word8
 -- ord8 = fromIntegral . fromEnum
@@ -382,6 +393,22 @@ instance ShowBSB Float where
 
 instance ShowBSB Double where
   showBSB = BSB.doubleDec
+
+showLnBSB :: ShowBSB a => a -> BSB.Builder
+showLnBSB = (<> endlBSB) . showBSB
+
+printBSB :: ShowBSB a => a -> IO ()
+printBSB = putBSB . showBSB
+
+-- | Often used as `concatBSB showBSB xs` or `concatB showLnBSB xs`.
+concatBSB :: (VG.Vector v a) => (a -> BSB.Builder) -> v a -> BSB.Builder
+concatBSB f = VG.foldr ((<>) . f) mempty
+
+-- }}}
+
+-- {{{ Trace
+
+-- TODO: merge them with `dbg` series.
 
 traceMat2D :: (IArray a e, Ix i, Show e) => a (i, i) e -> ()
 traceMat2D !mat = traceSubMat2D mat (bounds mat)
@@ -464,8 +491,8 @@ log2 !x = finiteBitSize x - 1 - countLeadingZeros x
 log2CeilInt :: Int -> Int
 log2CeilInt !x = msb + ceiling_
   where
-    msb = log2 x
-    ceiling_ = if clearBit x msb > 0 then 1 else 0
+    !msb = log2 x
+    !ceiling_ = if clearBit x msb > 0 then 1 else 0
 
 -- | Calculates the smallest integral power of two that is not smaller than `x`.
 -- |
@@ -498,21 +525,44 @@ wrappingMul !x !y =
 
 -- {{{ Prime factors
 
--- @gotoki_no_joe
+-- -- @gotoki_no_joe
+-- primes :: [Int]
+-- primes = 2 : 3 : sieve q0 [5, 7 ..]
+--   where
+--     q0 = H.insert (H.Entry 9 6) H.empty
+--     sieve queue xxs@(x : xs) =
+--       case compare np x of
+--         LT -> sieve queue1 xxs
+--         EQ -> sieve queue1 xs
+--         GT -> x : sieve queue2 xs
+--       where
+--         H.Entry np p2 = H.minimum queue
+--         queue1 = H.insert (H.Entry (np + p2) p2) $ H.deleteMin queue
+--         queue2 = H.insert (H.Entry (x * x) (x * 2)) queue
+--     sieve _ _ = error "unreachale"
+
+-- | @0xYusuke
+-- | https://zenn.dev/link/comments/1022553732563c
 primes :: [Int]
-primes = 2 : 3 : sieve q0 [5, 7 ..]
+primes = 2 : 3 : minus [5, 7 ..] (unionAll [[p * p, p * p + 2 * p ..] | p <- tail primes])
   where
-    q0 = H.insert (H.Entry 9 6) H.empty
-    sieve queue xxs@(x : xs) =
-      case compare np x of
-        LT -> sieve queue1 xxs
-        EQ -> sieve queue1 xs
-        GT -> x : sieve queue2 xs
+    minus (x : xs) (y : ys) = case (compare x y) of
+      LT -> x : minus xs (y : ys)
+      EQ -> minus xs ys
+      GT -> minus (x : xs) ys
+    minus xs _ = xs
+
+    union (x : xs) (y : ys) = case (compare x y) of
+      LT -> x : union xs (y : ys)
+      EQ -> x : union xs ys
+      GT -> y : union (x : xs) ys
+    union xs [] = xs
+    union [] ys = ys
+
+    unionAll :: Ord a => [[a]] -> [a]
+    unionAll ((x : xs) : t) = x : union xs (unionAll $ pairs t)
       where
-        H.Entry np p2 = H.minimum queue
-        queue1 = H.insert (H.Entry (np + p2) p2) $ H.deleteMin queue
-        queue2 = H.insert (H.Entry (x * x) (x * 2)) queue
-    sieve _ _ = error "unreachale"
+        pairs ((x : xs) : ys : t) = (x : union xs ys) : pairs t
 
 -- | Returns `[(prime, count)]`
 -- TODO: reuse `primes`
@@ -591,7 +641,7 @@ divModF !x !d !modulus = divModFC x (powerModCache d modulus) `rem` modulus
 powerModCache :: Int -> Int -> (Int, VU.Vector Int)
 powerModCache !base !modulo = (modulo, doubling)
   where
-    -- doubling = VU.scanl' (\ !x _ -> x * x `rem` modulo) base $ vRange (1 :: Int) 62
+    -- doubling = VU.scanl' (\ !x _ -> x * x `rem` modulo) base $ rangeVG (1 :: Int) 62
     doubling = newDoubling base (\x -> x * x `rem` modulo)
 
 -- | Calculates base^i (mod p) from a cache
@@ -628,7 +678,7 @@ bcMod !n !r !modulus = foldl' (\ !x !y -> divModF x y modulus) (facts VU.! n) [f
 
 -- }}}
 
--- {{{ IntMod
+-- {{{ ModInt
 
 -- | Type level constant `Int` value.
 -- | TODO: Replace with `GHC.TypeNats`
@@ -671,6 +721,7 @@ instance TypeInt p => Fractional (ModInt p) where
 -- | Rolling hash of a string.
 -- |
 -- | # Example
+-- |
 -- | Slice (2, 4) of "abcdef" is given as this:
 -- | ```
 -- |            s :=     a       b       c       d       e
@@ -679,7 +730,7 @@ instance TypeInt p => Fractional (ModInt p) where
 -- | s4 - s2 * b^3 =                 b^2 c + b^1 d + b^0 e
 -- | ```
 data RollingHash b p = RollingHash
-  { sourceLeength :: !Int,
+  { sourceLength :: !Int,
     -- | \$\{B^i mod p\}_{i \elem [0, n)}$
     dimensions :: !(VU.Vector Int),
     hashSum :: !(VU.Vector Int)
@@ -700,9 +751,9 @@ newRHash !source = RollingHash n bn hashSum
     !n = length source
     !bn = VU.create $ do
       !vec <- VUM.replicate n (1 :: Int)
-      VU.forM_ (vRange 1 (pred n)) $ \i -> do
-        !lastB <- VUM.read vec (pred i)
-        VUM.write vec i (b * lastB `mod` p)
+      forMS_ (rangeMS 1 (pred n)) $ \i -> do
+        !lastB <- VUM.unsafeRead vec (pred i)
+        VUM.unsafeWrite vec i (b * lastB `mod` p)
       return vec
     !hashSum = evalState (VU.mapM (\ !ch -> state $ \ !acc -> f ch acc) $ VU.fromList source) (0 :: Int)
       where
@@ -827,7 +878,22 @@ ismo2D !bounds_ !seeds = runSTUArray $ do
 
 -- TODO: Use typeclass for getting middle and detecting end
 
--- | Binary search for sorted items in an inclusive range (from left to right only)
+-- | Pure variant of [`bsearchM`].
+{-# INLINE bsearch #-}
+bsearch :: (Int, Int) -> (Int -> Bool) -> (Maybe Int, Maybe Int)
+bsearch !rng = runIdentity . bsearchM rng . (return .)
+
+-- | Also known as lower bound.
+{-# INLINE bsearchL #-}
+bsearchL :: (Int, Int) -> (Int -> Bool) -> Maybe Int
+bsearchL = fst .: bsearch
+
+-- | Also known as upper bound.
+{-# INLINE bsearchR #-}
+bsearchR :: (Int, Int) -> (Int -> Bool) -> Maybe Int
+bsearchR = snd .: bsearch
+
+-- | Monadic binary search for sorted items in an inclusive range (from left to right only).
 -- |
 -- | It returns an `(ok, ng)` index pair at the boundary.
 -- |
@@ -844,22 +910,7 @@ ismo2D !bounds_ !seeds = runSTUArray $ do
 -- | > > let xs = [0..9] in do
 -- | > >   print $ bsearch (0, 9) (\i -> xs !! i <= 5)
 -- | > (5, 6)
-bsearch :: (Int, Int) -> (Int -> Bool) -> (Maybe Int, Maybe Int)
-bsearch (!low, !high) !isOk = both wrap (inner (low - 1, high + 1))
-  where
-    inner :: (Int, Int) -> (Int, Int)
-    inner (!ok, !ng)
-      | abs (ok - ng) == 1 = (ok, ng)
-      | isOk m = inner (m, ng)
-      | otherwise = inner (ok, m)
-      where
-        m = (ok + ng) `div` 2
-    wrap :: Int -> Maybe Int
-    wrap !x
-      | inRange (low, high) x = Just x
-      | otherwise = Nothing
-
--- | Monadic variant of `bsearch`
+{-# INLINE bsearchM #-}
 bsearchM :: forall m. (Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int, Maybe Int)
 bsearchM (!low, !high) !isOk = both wrap <$> inner (low - 1, high + 1)
   where
@@ -867,18 +918,26 @@ bsearchM (!low, !high) !isOk = both wrap <$> inner (low - 1, high + 1)
     inner (!ok, !ng)
       | abs (ok - ng) == 1 = return (ok, ng)
       | otherwise =
-          isOk m >>= \ !yes ->
-            if yes
-              then inner (m, ng)
-              else inner (ok, m)
+          isOk m >>= \case
+            True -> inner (m, ng)
+            False -> inner (ok, m)
       where
         m = (ok + ng) `div` 2
 
     wrap :: Int -> Maybe Int
     wrap !x
-      | inRange (low, high) x = Just x
+      | x == low || x == high = Just x
       | otherwise = Nothing
 
+{-# INLINE bsearchML #-}
+bsearchML :: forall m. (Applicative m, Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int)
+bsearchML = fmap fst .: bsearchM
+
+{-# INLINE bsearchMR #-}
+bsearchMR :: forall m. (Applicative m, Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int)
+bsearchMR = fmap snd .: bsearchM
+
+{-# INLINE bsearchF32 #-}
 bsearchF32 :: (Float, Float) -> Float -> (Float -> Bool) -> (Maybe Float, Maybe Float)
 bsearchF32 (!low, !high) !diff !isOk = both wrap (inner (low - diff, high + diff))
   where
@@ -891,9 +950,18 @@ bsearchF32 (!low, !high) !diff !isOk = both wrap (inner (low - diff, high + diff
         m = (ok + ng) / 2
     wrap :: Float -> Maybe Float
     wrap !x
-      | x == (low - diff) || x == (low + diff) = Nothing
+      | x == (low - diff) || x == (high + diff) = Nothing
       | otherwise = Just x
 
+{-# INLINE bsearchF32L #-}
+bsearchF32L :: (Float, Float) -> Float -> (Float -> Bool) -> Maybe Float
+bsearchF32L = fst .:. bsearchF32
+
+{-# INLINE bsearchF32R #-}
+bsearchF32R :: (Float, Float) -> Float -> (Float -> Bool) -> Maybe Float
+bsearchF32R = fst .:. bsearchF32
+
+{-# INLINE bsearchF64 #-}
 bsearchF64 :: (Double, Double) -> Double -> (Double -> Bool) -> (Maybe Double, Maybe Double)
 bsearchF64 (!low, !high) !diff !isOk = both wrap (inner (low - diff, high + diff))
   where
@@ -906,8 +974,16 @@ bsearchF64 (!low, !high) !diff !isOk = both wrap (inner (low - diff, high + diff
         m = (ok + ng) / 2
     wrap :: Double -> Maybe Double
     wrap !x
-      | x == (low - diff) || x == (low + diff) = Nothing
+      | x == (low - diff) || x == (high + diff) = Nothing
       | otherwise = Just x
+
+{-# INLINE bsearchF64L #-}
+bsearchF64L :: (Double, Double) -> Double -> (Double -> Bool) -> Maybe Double
+bsearchF64L !a !b !c = fst $ bsearchF64 a b c
+
+{-# INLINE bsearchF64R #-}
+bsearchF64R :: (Double, Double) -> Double -> (Double -> Bool) -> Maybe Double
+bsearchF64R !a !b !c = fst $ bsearchF64 a b c
 
 -- 1D index compression: xs -> (nubSorted, indices)
 compressIndex :: [Int] -> (VU.Vector Int, [Int])
@@ -952,13 +1028,13 @@ newMUF !n = MUnionFind <$> VUM.replicate n (MUFRoot 1)
 {-# INLINE rootMUF #-}
 rootMUF :: (PrimMonad m) => MUnionFind (PrimState m) -> Int -> m Int
 rootMUF uf@(MUnionFind !vec) i = do
-  !node <- VUM.read vec i
+  !node <- VUM.unsafeRead vec i
   case node of
     MUFRoot _ -> return i
     MUFChild p -> do
       !r <- rootMUF uf p
       -- NOTE(perf): path compression (move the queried node to just under the root, recursivelly)
-      VUM.write vec i (MUFChild r)
+      VUM.unsafeWrite vec i (MUFChild r)
       return r
 
 -- | Checks if the two nodes are under the same root.
@@ -978,19 +1054,19 @@ uniteMUF uf@(MUnionFind !vec) !x !y = do
   !px <- rootMUF uf x
   !py <- rootMUF uf y
   when (px /= py) $! do
-    !sx <- _unwrapMUFRoot <$!> VUM.read vec px
-    !sy <- _unwrapMUFRoot <$!> VUM.read vec py
+    !sx <- _unwrapMUFRoot <$!> VUM.unsafeRead vec px
+    !sy <- _unwrapMUFRoot <$!> VUM.unsafeRead vec py
     -- NOTE(perf): union by rank (choose smaller one for root)
     let (!par, !chld) = if sx < sy then (px, py) else (py, px)
-    VUM.write vec chld (MUFChild par)
-    VUM.write vec par (MUFRoot (sx + sy))
+    VUM.unsafeWrite vec chld (MUFChild par)
+    VUM.unsafeWrite vec par (MUFRoot (sx + sy))
 
 -- | Returns the size of the root node, starting with `1`.
 {-# INLINE sizeMUF #-}
 sizeMUF :: (PrimMonad m) => MUnionFind (PrimState m) -> Int -> m Int
 sizeMUF uf@(MUnionFind !vec) !x = do
   !px <- rootMUF uf x
-  _unwrapMUFRoot <$!> VUM.read vec px
+  _unwrapMUFRoot <$!> VUM.unsafeRead vec px
 
 -- }}}
 
@@ -1026,6 +1102,8 @@ uniteSUF !uf !i !j
 
 -- {{{ Segment tree
 
+-- TODO: refactor
+
 -- | A mutable segment tree backed by a complete binary tree.
 -- |
 -- | # Overview
@@ -1055,70 +1133,90 @@ uniteSUF !uf !i !j
 -- |   3     4     5     6
 -- | 07 08 09 10 11 12 13 14
 -- | ```
-data MSegmentTree s a = MSegmentTree (a -> a -> a) (VUM.MVector s a)
+data MSegmentTree v s a = MSegmentTree (a -> a -> a) (v s a)
 
 -- TODO: Can I UNPACK? the funciton?
--- TODO: Generic queries and immutable segment tree (with `Show` instance)
+-- TODO: Possibly a show instance?
 
 -- | Creates a new segment tree for `n` leaves.
 -- | REMARK: Always give a zero value. It fills all the nodes including parent nodes, and the parent
 -- | nodes are not updated.
-{-# INLINE newSTree #-}
-newSTree :: (VUM.Unbox a, PrimMonad m) => (a -> a -> a) -> Int -> a -> m (MSegmentTree (PrimState m) a)
-newSTree !f !n !value = MSegmentTree f <$!> VUM.replicate n' value
+{-# INLINE newSTreeVG #-}
+newSTreeVG :: (VGM.MVector v a, PrimMonad m) => (a -> a -> a) -> Int -> a -> m (MSegmentTree v (PrimState m) a)
+newSTreeVG !f !n !value = MSegmentTree f <$!> VGM.replicate n' value
   where
+    -- TODO: try this:
+    -- !n' = until (>= n) (* 2) 2
     !n' = shiftL (bitCeil n) 1
+
+-- | Creates a boxed segment tree.
+{-# INLINE newSTreeV #-}
+newSTreeV :: PrimMonad m => (a -> a -> a) -> Int -> a -> m (MSegmentTree VM.MVector (PrimState m) a)
+newSTreeV = newSTreeVG
+
+-- | Creates an unboxed segment tree.
+{-# INLINE newSTreeVU #-}
+newSTreeVU :: (VU.Unbox a, PrimMonad m) => (a -> a -> a) -> Int -> a -> m (MSegmentTree VUM.MVector (PrimState m) a)
+newSTreeVU = newSTreeVG
+
+-- | Sets all the internal values of a segment tree to the given value which has to be zero.
+-- |
+-- | REMARK: It takes lots of time. Consider a much more efficient resettiong strategy such as
+-- | re-inserting zeros to used slots, or maybe use | `compressInvNumVG` when you just need
+-- | inversion number.
+resetSTree :: (VGM.MVector v a, PrimMonad m) => (MSegmentTree v (PrimState m) a) -> a -> m ()
+resetSTree (MSegmentTree !_ !vec) !zero = VGM.set vec zero
 
 -- | Updates an `MSegmentTree` leaf value and their parents up to top root.
 {-# INLINE insertSTree #-}
-insertSTree :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> a -> m ()
+insertSTree :: (VGM.MVector v a, PrimMonad m) => MSegmentTree v (PrimState m) a -> Int -> a -> m ()
 insertSTree tree@(MSegmentTree !_ !vec) !i !value = _updateElement tree i' value
   where
     -- length == 2 * (the number of the leaves)
-    !offset = VUM.length vec `div` 2 - 1
+    !offset = VGM.length vec `div` 2 - 1
     -- leaf index
     !i' = i + offset
 
 -- | Updates an `MSegmentTree` leaf value and their parents up to top root.
 {-# INLINE modifySTree #-}
-modifySTree :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> (a -> a) -> Int -> m ()
+modifySTree :: (VGM.MVector v a, PrimMonad m) => MSegmentTree v (PrimState m) a -> (a -> a) -> Int -> m ()
 modifySTree tree@(MSegmentTree !_ !vec) !f !i = do
-  !v <- f <$> VUM.read vec i'
+  !v <- f <$> VGM.unsafeRead vec i'
   _updateElement tree i' v
   where
     -- length == 2 * (the number of the leaves)
-    !offset = VUM.length vec `div` 2 - 1
+    !offset = VGM.length vec `div` 2 - 1
     -- leaf index
     !i' = i + offset
 
 -- | (Internal) Updates an `MSegmentTree` element (node or leaf) value and their parents up to top root.
-{-# INLINE _updateElement #-}
-_updateElement :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> a -> m ()
+-- REMARK: It's faster to not INLINE the recursive function:
+_updateElement :: (VGM.MVector v a, PrimMonad m) => MSegmentTree v (PrimState m) a -> Int -> a -> m ()
 _updateElement (MSegmentTree !_ !vec) 0 !value = do
-  VUM.write vec 0 value
-_updateElement tree@(MSegmentTree !_ !vec) !i !value = do
-  VUM.write vec i value
-  _updateParent tree ((i - 1) `div` 2)
-
--- | (Internal) Recursivelly updates the parent nodes.
-{-# INLINE _updateParent #-}
-_updateParent :: (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> Int -> m ()
-_updateParent _ (-1) = pure () -- REMARK: (-1) `div` 2 == -1
-_updateParent tree@(MSegmentTree !f !vec) !iParent = do
-  !c1 <- VUM.read vec (iParent * 2 + 1)
-  !c2 <- VUM.read vec (iParent * 2 + 2)
-  _updateElement tree iParent (f c1 c2)
+  VGM.unsafeWrite vec 0 value
+_updateElement tree@(MSegmentTree !f !vec) !i !value = do
+  VGM.unsafeWrite vec i value
+  case ((i - 1) `div` 2) of
+    -- REMARK: (-1) `div` 2 == -1
+    -- TODO: This case never happens, right?
+    (-1) -> return ()
+    !iParent -> do
+      !c1 <- VGM.unsafeRead vec (iParent * 2 + 1)
+      !c2 <- VGM.unsafeRead vec (iParent * 2 + 2)
+      _updateElement tree iParent (f c1 c2)
 
 -- | Retrieves the folding result over the inclusive range `[l, r]` from `MSegmentTree`.
 {-# INLINE querySTree #-}
-querySTree :: forall a m. (VU.Unbox a, PrimMonad m) => MSegmentTree (PrimState m) a -> (Int, Int) -> m a
-querySTree (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$!> inner 0 (0, initialHi)
+querySTree :: forall v a m. (VGM.MVector v a, PrimMonad m) => MSegmentTree v (PrimState m) a -> (Int, Int) -> m (Maybe a)
+querySTree (MSegmentTree !f !vec) (!lo, !hi)
+  | lo > hi = return Nothing
+  | otherwise = inner 0 (0, initialHi)
   where
-    !initialHi = VUM.length vec `div` 2 - 1
+    !initialHi = VGM.length vec `div` 2 - 1
     inner :: Int -> (Int, Int) -> m (Maybe a)
     inner !i (!l, !h)
-      | lo <= l && h <= hi = Just <$> VUM.read vec i
-      | h < lo || hi < l = pure Nothing
+      | lo <= l && h <= hi = Just <$> VGM.unsafeRead vec i
+      | h < lo || hi < l = return Nothing
       | otherwise = do
           let !d = (h - l) `div` 2
           !ansL <- inner (2 * i + 1) (l, l + d)
@@ -1134,26 +1232,31 @@ querySTree (MSegmentTree !f !vec) (!lo, !hi) = fromJust <$!> inner 0 (0, initial
 -- {{{ Inveresion number (segment tree)
 
 -- | Calculates the inversion number.
--- |
--- | REMARK: The implementaiton assumes that the input is in range `[0, length - 1]`.
-invNumVec :: (VG.Vector v Int) => v Int -> Int
-invNumVec xs = runST $ do
-  let !n = VG.length xs
-  !stree <- newSTree (+) n (0 :: Int)
+invNumVG :: Int -> (VG.Vector v Int) => v Int -> Int
+invNumVG xMax xs = runST $ do
+  !stree <- newSTreeVU (+) (xMax + 1) (0 :: Int)
 
   -- NOTE: foldM is better for performance
   !ss <- VG.forM xs $ \x -> do
     -- count pre-inserted numbers bigger than this:
+    let !_ = dbg (x, (succ x, xMax))
     !s <-
-      if x == pred n
+      if x == xMax
         then return 0
-        else querySTree stree (succ x, pred n)
+        else fromJust <$> querySTree stree (succ x, xMax)
 
     -- let !_ = traceShow (x, s, (succ x, pred n)) ()
     modifySTree stree succ x
     return s
 
   return $ VG.sum ss
+
+-- | Calculates the inversion number after applying index compression.
+-- | It can significantly improve the performance, like in ABC 261 F.
+compressInvNumVG :: VU.Vector Int -> Int
+compressInvNumVG xs = invNumVG (pred (VU.length xs')) xs'
+  where
+    !xs' = snd $ compressVU xs
 
 -- }}}
 
@@ -1166,10 +1269,10 @@ invNumVec xs = runST $ do
 --     f _ (0, _) = return 0
 --     f arr (i, w) = do
 
+-- | REMARK: Very slow (somehow..). Maybe `Data.Ix` is not fast enough, or `f` is not inlined?
 -- {-# INLINE tabulateST #-}
 tabulateST :: forall i e. (Ix i, forall s. MArray (STUArray s) e (ST s)) => (forall s. STUArray s i e -> i -> ST s e) -> (i, i) -> e -> UArray i e
-tabulateST f bounds_ e0 =
-  runSTUArray uarray
+tabulateST f bounds_ e0 = runSTUArray uarray
   where
     uarray :: forall s. MArray (STUArray s) e (ST s) => ST s (STUArray s i e)
     uarray = do
@@ -1186,18 +1289,14 @@ tabulateST f bounds_ e0 =
 prevPermutationVec :: (Ord e, VG.Vector v e, VG.Vector v (Down e)) => v e -> v e
 prevPermutationVec =
   VG.map (\case Down !x -> x)
-    . VG.modify
-      ( \ !vec -> do
-          _ <- VGM.nextPermutation vec
-          return ()
-      )
+    . VG.modify ((>> return ()) . VGM.nextPermutation)
     . VG.map Down
 
 -- | Returns 1-based dictionary order for the given array.
 -- | WARNING: Use 0-based indices for the input.
 dictOrderModuloVec :: (VG.Vector v Int) => v Int -> Int -> Int
 dictOrderModuloVec xs modulus = runST $ do
-  !stree <- newSTree (+) (VG.length xs + 1) (0 :: Int)
+  !stree <- newSTreeVU (+) (VG.length xs + 1) (0 :: Int)
 
   -- Pre-calculate factorial numbers:
   let !facts = factMods (VG.length xs) modulus
@@ -1214,7 +1313,7 @@ dictOrderModuloVec xs modulus = runST $ do
   -- ```
   -- So each expression is given as `(the number of unused numbers smaller than this) * factMod`.
   !counts <- flip VG.imapM xs $ \i x -> do
-    !nUsed <- querySTree stree (0, x)
+    !nUsed <- fromJust <$> querySTree stree (0, x)
     let !nUnused = x - nUsed
     let !factMod = facts VG.! (VG.length xs - (i + 1))
     let !inc = nUnused * factMod `rem` modulus
@@ -1370,12 +1469,12 @@ topSort !graph = runST $ do
   !vis <- VUM.replicate (succ $ rangeSize bounds_) False
 
   let dfsM !acc !v = do
-        !b <- VUM.read vis (index bounds_ v)
+        !b <- VUM.unsafeRead vis (index bounds_ v)
         if b
           then return acc
           else do
-            VUM.write vis (index bounds_ v) True
-            !vs <- filterM (fmap not . VUM.read vis . index bounds_) $ graph ! v
+            VUM.unsafeWrite vis (index bounds_ v) True
+            !vs <- filterM (fmap not . VUM.unsafeRead vis . index bounds_) $ graph ! v
             -- Create postorder output:
             (v :) <$> foldM dfsM acc vs
 
@@ -1388,12 +1487,12 @@ topScc1 !graph' !vis !v0 = do
   let !bounds_ = bounds graph'
 
   let dfsM !acc !v = do
-        !b <- VUM.read vis (index bounds_ v)
+        !b <- VUM.unsafeRead vis (index bounds_ v)
         if b
           then return acc
           else do
-            VUM.write vis (index bounds_ v) True
-            !vs <- filterM (fmap not . VUM.read vis . index bounds_) $ graph' ! v
+            VUM.unsafeWrite vis (index bounds_ v) True
+            !vs <- filterM (fmap not . VUM.unsafeRead vis . index bounds_) $ graph' ! v
             -- Create preorder output:
             (v :) <$> foldM dfsM acc vs
 
@@ -1441,10 +1540,10 @@ bfsVec graph start = VU.create $ do
         | otherwise = do
             let vs' = IS.toList vs
             forM_ vs' $ \v -> do
-              VUM.write vis v depth
+              VUM.unsafeWrite vis v depth
 
             !vss <- forM vs' $ \v -> do
-              filterM (\v2 -> (== undef) <$> VUM.read vis v2) $ graph ! v
+              filterM (\v2 -> (== undef) <$> VUM.unsafeRead vis v2) $ graph ! v
 
             inner (succ depth) $ IS.fromList $ concat vss
 
@@ -1476,7 +1575,83 @@ bfsVerts graph start = inner 0 IM.empty (IS.singleton start)
         vis' = IM.union vis $! IM.fromSet (const depth) vs
         vs' = IS.fromList $! filter (`IM.notMember` vis') $! concatMap (graph !) (IS.toList vs)
 
--- | DFS where all the reachable vertices from one vertex are collcetd
+-- | BFS over grid. Not generalized (yet).
+bfsGrid :: UArray (Int, Int) Char -> (Int, Int) -> UArray (Int, Int) Int
+bfsGrid !grid !start = runSTUArray $ do
+  let bounds_ = bounds grid
+  let (!h, !w) = both succ $ snd bounds_
+  let isBlock !yx = grid ! yx == '#'
+
+  let ix = index bounds_
+  let unIndex !i = i `divMod` w
+  let !undef = -1 :: Int
+
+  !vis <- newArray bounds_ undef
+
+  let nexts !yx0 = filter (\yx -> inRange bounds_ yx && not (isBlock yx)) $ map (add2 yx0) dyxs
+        where
+          dyxs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+
+  let inner !depth !vs
+        | IS.null vs = return ()
+        | otherwise = do
+            let yxs = map unIndex $ IS.toList vs
+
+            forM_ yxs $ \yx -> do
+              writeArray vis yx depth
+
+            !vss <- forM yxs $ \yx -> do
+              filterM (\yx2 -> (== undef) <$> readArray vis yx2) $ nexts yx
+
+            inner (succ depth) $ IS.fromList . map ix $ concat vss
+
+  !_ <- inner (0 :: Int) (IS.singleton $ ix start)
+  return vis
+
+-- 01-BFS:
+-- - <https://atcoder.jp/contests/typical90/tasks/typical90_aq>
+-- - <https://atcoder.jp/contests/abc246/tasks/abc246_e>
+bfsGrid01 :: (Int, Int) -> UArray (Int, Int) Bool -> UArray (Int, Int, Int) Int
+bfsGrid01 !start !isBlock = runSTUArray $ do
+  -- dp ! (y, x, iDir). The third dimension is required!
+  !dp <- newArray ((0, 0, 0), (pred h, pred w, pred 4)) undef
+
+  forM_ [0 .. 3] $ \iDir -> do
+    writeArray dp (fst start, snd start, iDir) 0
+
+  let popLoop Seq.Empty = return ()
+      popLoop (((!y0, !x0, !iDir0), d0) Seq.:<| seq0) =
+        foldM step seq0 [0 .. 3] >>= popLoop
+        where
+          -- collects neighbors
+          step !acc !iDir
+            | not (inRange bounds_ (y, x)) || isBlock ! (y, x) = return acc
+            | otherwise = do
+                !lastD <- readArray dp (y, x, iDir)
+                -- REMARK: we can come to the same point in the same direction in different ways:
+                if lastD /= undef && lastD <= d'
+                  then return acc
+                  else do
+                    writeArray dp (y, x, iDir) d'
+                    if iDir == iDir0
+                      then return $ nextItem Seq.<| acc
+                      else return $ acc Seq.|> nextItem
+            where
+              (!y, !x) = add2 (y0, x0) (dyxs VU.! iDir)
+              !d'
+                | iDir == iDir0 = d0
+                | otherwise = succ d0
+              !nextItem = ((y, x, iDir), d')
+
+  popLoop . Seq.fromList $ map (\iDir -> ((fst start, snd start, iDir), 0)) [0 .. 3]
+  return dp
+  where
+    !undef = -1 :: Int
+    !bounds_ = bounds isBlock
+    (!h, !w) = both succ . snd $ bounds isBlock
+    !dyxs = VU.fromList $ [(1, 0), (-1, 0), (0, 1), (0, -1)]
+
+-- | DFS where all the reachable vertices from one vertex are collcetd.
 components :: Graph Int -> Int -> IS.IntSet
 components !graph !start = inner (IS.singleton start) start
   where
@@ -1511,17 +1686,17 @@ dj !graph !start = inner (H.singleton $! H.Entry 0 start) IM.empty
         vs = map (merge entry) $! filter ((`IM.notMember` vis') . H.payload) $! graph ! v
         heap'' = foldl' (flip H.insert) heap' vs
 
-revWGraph :: WGraph Int -> WGraph Int
-revWGraph !graph = accumArray @Array (flip (:)) [] (bounds graph) $ concatMap revF $ assocs graph
-  where
-    revF (!v1, !v2s) = map (\(H.Entry !priority !v2) -> (v2, H.Entry priority v1)) v2s
-
 -- | Runs dijkstra's algorithm over a reversed graph of given graph.
 -- | It calculates
 revDj :: WGraph Int -> Int -> IM.IntMap Int
 revDj !graph !start =
   let !graph' = revWGraph graph
    in dj graph' start
+
+revWGraph :: WGraph Int -> WGraph Int
+revWGraph !graph = accumArray @Array (flip (:)) [] (bounds graph) $ concatMap revF $ assocs graph
+  where
+    revF (!v1, !v2s) = map (\(H.Entry !priority !v2) -> (v2, H.Entry priority v1)) v2s
 
 -- }}}
 
@@ -1536,8 +1711,8 @@ treeDepthInfo !graph !root = runST $ do
 
   let m (!depth, !parent, !vs) = do
         forM_ vs $ \v -> do
-          VUM.write depths v depth
-          VUM.write parents v parent
+          VUM.unsafeWrite depths v depth
+          VUM.unsafeWrite parents v parent
           let !vs' = filter (/= parent) $ graph ! v
           m (succ depth, v, vs')
 
@@ -1616,15 +1791,15 @@ newFW (!getCost, !zeroCost, !maxCost) !nVerts !edges = do
   !dp <- VUM.replicate (nVerts * nVerts) maxCost
 
   -- diagnonal components
-  forM_ [0 .. pred nVerts] $ \ !v ->
-    VUM.write dp (ix (v, v)) zeroCost
+  forMS_ (rangeMS 0 (pred nVerts)) $ \ !v ->
+    VUM.unsafeWrite dp (ix (v, v)) zeroCost
 
   -- directly connected vertices
   forM_ edges $ \(!v1, !v2) -> do
     -- let !_ = traceShow (v1, v2, values VU.! v2) ()
     -- (distance, value)
     let !cost = getCost v2
-    VUM.write dp (ix (v1, v2)) cost
+    VUM.unsafeWrite dp (ix (v1, v2)) cost
 
   return dp
   where
@@ -1636,10 +1811,10 @@ runFW :: (PrimMonad m, VU.Unbox cost) => (cost -> cost -> cost, cost -> cost -> 
 runFW (!mergeCost, !minCost) !nVerts !dp = do
   let !ve = pred nVerts
   forM_ (range ((0, 0, 0), (ve, ve, ve))) $ \(!v3, !v1, !v2) -> do
-    !cost1 <- VUM.read dp (ix (v1, v2))
-    !cost2 <- mergeCost <$> VUM.read dp (ix (v1, v3)) <*> VUM.read dp (ix (v3, v2))
+    !cost1 <- VUM.unsafeRead dp (ix (v1, v2))
+    !cost2 <- mergeCost <$> VUM.unsafeRead dp (ix (v1, v3)) <*> VUM.unsafeRead dp (ix (v3, v2))
     -- let !_ = traceShow ((v3, v2, v1), cost1, cost2, mergeCost cost1 cost2) ()
-    VUM.write dp (ix (v1, v2)) $ minCost cost1 cost2
+    VUM.unsafeWrite dp (ix (v1, v2)) $ minCost cost1 cost2
   where
     ix :: (Int, Int) -> Int
     ix = index ((0, 0), (nVerts - 1, nVerts - 1))
@@ -1807,71 +1982,63 @@ instance TypeInt MyModulus where
 type MyModInt = ModInt MyModulus
 
 modInt :: Int -> MyModInt
-modInt = ModInt
+modInt = ModInt . (`rem` typeInt (Proxy @MyModulus))
+
+undef :: Int
+undef = -1
 
 -- }}}
 
-solve :: Int -> (Int, Int) -> (Int, Int) -> UArray (Int, Int) Bool -> Int
-solve !n !start !end !isBlock
-  | uncurry (+) start `rem` 2 /= uncurry (+) end `rem` 2 = -1
-  | otherwise = (! end) arr
+bfs246E :: (Int, Int) -> UArray (Int, Int) Bool -> UArray (Int, Int, Int) Int
+bfs246E !start !isBlock = runSTUArray $ do
+  -- dp ! (y, x, iDir). The third dimension is required!
+  !dp <- newArray ((0, 0, 0), (pred h, pred w, pred 4)) undef
+
+  forM_ [0 .. 3] $ \iDir -> do
+    writeArray dp (fst start, snd start, iDir) 0
+
+  let popLoop Seq.Empty = return ()
+      popLoop (((!y0, !x0, !iDir0), d0) Seq.:<| seq0) =
+        foldM step seq0 [0 .. 3] >>= popLoop
+        where
+          -- collects neighbors
+          step !acc !iDir
+            | not (inRange bounds_ (y, x)) || isBlock ! (y, x) = return acc
+            | otherwise = do
+                !lastD <- readArray dp (y, x, iDir)
+                -- REMARK: we can come to the same point in same direction in different ways:
+                if lastD /= undef && lastD <= d'
+                  then return acc
+                  else do
+                    writeArray dp (y, x, iDir) d'
+                    if iDir == iDir0
+                      then return $ nextItem Seq.<| acc
+                      else return $ acc Seq.|> nextItem
+            where
+              (!y, !x) = add2 (y0, x0) (dyxs VU.! iDir)
+              !d'
+                | iDir == iDir0 = d0
+                | otherwise = succ d0
+              !nextItem = ((y, x, iDir), d')
+
+  popLoop . Seq.fromList $ map (\iDir -> ((fst start, snd start, iDir), 0)) [0 .. 3]
+  return dp
   where
-    arr = runSTUArray $ do
-      let undef = -1 :: Int
-      let !bounds_ = ((0, 0), (pred n, pred n))
-      !vis <- newArray bounds_ undef
-
-      let isTarget !yx = inRange bounds_ yx && not (isBlock ! yx)
-
-      let scanNexts !yx0 !dyx !acc0 = do
-            let m !yx !acc
-                  | not $ isTarget yx = return acc
-                  | otherwise = do
-                      !c <- readArray vis yx
-                      if c /= undef
-                        then return acc
-                        else m (add2 dyx yx) (yx : acc)
-            m (add2 dyx yx0) acc0
-
-      let bfs !_ [] [] = return ()
-          bfs !depth !yxs0 !yxs1 = do
-            -- !b <- (== undef) <$> readArray vis end
-            -- when b $ do
-              forM_ yxs0 $ \yx -> do
-                writeArray vis yx depth
-
-              forM_ yxs1 $ \yx -> do
-                writeArray vis yx depth
-
-              let scanFold !yx !acc0 dyxs = foldM (\acc dyx -> scanNexts yx dyx acc) acc0 dyxs
-              let inner !yxs !dyxs = foldM (\acc yx -> scanFold yx acc dyxs) [] yxs
-
-              -- TODO: easier fold variant of forM? (accForM)
-              -- !yxs1' <- forM yxs0 $ \yx -> do
-              --   let !dyxs = [(1, 1), (-1, -1)]
-              --   !yxs_ <- foldM (\acc dyx -> scanNexts yx dyx acc) [] dyxs
-              --   return yxs_
-
-              -- !yxs0' <- forM yxs1 $ \yx -> do
-              --   let !dyxs = [(1, -1), (-1, 1)]
-              --   !yxs_ <- foldM (\acc dyx -> scanNexts yx dyx acc) [] dyxs
-              --   return yxs_
-
-              !yxs1' <- inner yxs0 [(1, 1), (-1, -1)]
-              !yxs0' <- inner yxs1 [(1, -1), (-1, 1)]
-
-              -- bfs (succ depth) (concat yxs0') (concat yxs1')
-              bfs (succ depth) yxs0' yxs1'
-
-      !_ <- bfs 0 [start] [start]
-      return vis
-    !_ = dbg (start, end)
+    !bounds_ = bounds isBlock
+    (!h, !w) = both succ . snd $ bounds isBlock
+    !dyxs = VU.fromList $ [(1, 1), (-1, 1), (1, -1), (-1, -1)]
 
 main :: IO ()
 main = do
-  [n] <- getLineIntList
-  !start <- both pred <$> getTuple2
-  !end <- both pred <$> getTuple2
+  [n] <- ints
+  !start <- both pred <$> ints2
+  !goal <- both pred <$> ints2
   !isBlock <- listArray @UArray ((0, 0), (pred n, pred n)) . concat <$> replicateM n (map (== '#') <$> getLine)
 
-  print $ solve n start end isBlock
+  let !result = bfs246E start isBlock
+  let !ds = filter (/= undef) $ map (\iDir -> result ! (fst goal, snd goal, iDir)) [0 .. 3]
+
+  print $
+    if null ds
+      then -1
+      else succ $ minimum ds
