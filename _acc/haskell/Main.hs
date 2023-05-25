@@ -202,10 +202,26 @@ vLength = VFB.length . VG.stream
 rangeVG :: (VG.Vector v Int) => Int -> Int -> v Int
 rangeVG !i !j = VG.enumFromN i (succ j - i)
 
+{-# INLINE rangeV #-}
+rangeV :: Int -> Int -> V.Vector Int
+rangeV = rangeVG
+
+{-# INLINE rangeVU #-}
+rangeVU :: Int -> Int -> VU.Vector Int
+rangeVU = rangeVG
+
 -- | `rangeVG` in reverse.
 {-# INLINE rangeVGR #-}
 rangeVGR :: (VG.Vector v Int) => Int -> Int -> v Int
 rangeVGR !i !j = VG.enumFromStepN i (-1) (succ j - i)
+
+{-# INLINE rangeVR #-}
+rangeVR :: Int -> Int -> V.Vector Int
+rangeVR = rangeVGR
+
+{-# INLINE rangeVUR #-}
+rangeVUR :: Int -> Int -> VU.Vector Int
+rangeVUR = rangeVGR
 
 -- | @cojna (`stream`)
 {-# INLINE [1] rangeMS #-}
@@ -932,23 +948,51 @@ dequeueMaybe _ = Nothing
 
 -- }}}
 
--- {{{ ismo 2D
+-- {{{ imos 2D
 
-ismo2D :: ((Int, Int), (Int, Int)) -> UArray (Int, Int) Int -> UArray (Int, Int) Int
-ismo2D !bounds_ !seeds = runSTUArray $ do
+--  WARNING: Can you really allocate/run O(HW) algorithm?
+imos2D :: ((Int, Int), (Int, Int)) -> UArray (Int, Int) Int -> UArray (Int, Int) Int
+imos2D !bounds_ !seeds = runSTUArray $ do
   arr <- newArray bounds_ (0 :: Int)
+
+  let (!minY, !minX) = fst bounds_
 
   -- row scan
   forM_ (range bounds_) $ \(!y, !x) -> do
-    !v <- if x == 0 then return 0 else readArray arr (y, x - 1)
+    !v <- if x == minX then return 0 else readArray arr (y, x - 1)
     let !diff = seeds ! (y, x)
     writeArray arr (y, x) (v + diff)
 
   -- column scan
   forM_ (range bounds_) $ \(!x, !y) -> do
-    !v <- if y == 0 then return 0 else readArray arr (y - 1, x)
+    !v <- if y == minY then return 0 else readArray arr (y - 1, x)
     !diff <- readArray arr (y, x)
     writeArray arr (y, x) (v + diff)
+
+  return arr
+
+--  WARNING: Can you really allocate/run O(HW) algorithm?
+imos2DRev :: ((Int, Int), (Int, Int)) -> UArray (Int, Int) Int -> UArray (Int, Int) Int
+imos2DRev !bounds_ !seeds = runSTUArray $ do
+  arr <- newArray bounds_ (0 :: Int)
+
+  let (!minY, !minX) = fst bounds_
+  let (!maxY, !maxX) = snd bounds_
+
+  -- row scan
+  -- forM_ (reverse $ range bounds_) $ \(!y, !x) -> do
+  forMS_ (rangeMSR minX maxX) $ \x -> do
+    forMS_ (rangeMSR minY maxY) $ \y -> do
+      !v <- if x == maxX then return 0 else readArray arr (y, x + 1)
+      let !diff = seeds ! (y, x)
+      writeArray arr (y, x) (v + diff)
+
+  -- column scan
+  forMS_ (rangeMSR minX maxX) $ \x -> do
+    forMS_ (rangeMSR minY maxY) $ \y -> do
+      !v <- if y == maxY then return 0 else readArray arr (y + 1, x)
+      !diff <- readArray arr (y, x)
+      writeArray arr (y, x) (v + diff)
 
   return arr
 
@@ -1125,7 +1169,7 @@ sameMUF !uf !x !y = liftM2 (==) (rootMUF uf x) (rootMUF uf y)
 -- | Just an internal helper.
 _unwrapMUFRoot :: MUFNode -> Int
 _unwrapMUFRoot (MUFRoot !s) = s
-_unwrapMUFRoot (MUFChild !_) = undefined
+_unwrapMUFRoot (MUFChild !_) = error "tried to unwrap child as UF root"
 
 -- | Unites two nodes.
 {-# INLINE uniteMUF #-}
@@ -1415,8 +1459,11 @@ dictOrderModuloVec xs modulus = runST $ do
 -- | Adjacency list representation of a graph with cost type parameter `a`.
 type Graph a = Array Int [a]
 
+-- TODO: Use `Vertex` aggressively
+type Vertex = Int
+
 -- | Weighted `Graph` (Entry priority payload).
-type WGraph a = Array Int [H.Entry a Int]
+type WGraph a = Array Int [H.Entry a Vertex]
 
 dfsEveryVertex :: forall s. (s -> Bool, s -> Int -> s, s -> Int -> s) -> Graph Int -> Int -> s -> (s, IS.IntSet)
 dfsEveryVertex (!isEnd, !fin, !fout) !graph !start !s0 = visitNode (s0, IS.empty) start
@@ -1587,6 +1634,7 @@ revGraph graph = accumArray (flip (:)) [] (bounds graph) input
     input = foldl' (\ !acc (!v2, !v1s) -> foldl' (\ !acc' !v1 -> (v1, v2) : acc') acc v1s) [] $ assocs graph
 
 -- | Collectes strongly connected components, topologically sorted.
+-- | e.g. (v1 <-> v2) -> v3 -> v4
 topScc :: Array Int [Int] -> [[Int]]
 topScc graph = collectSccPreorder $ topSort graph
   where
@@ -1605,6 +1653,10 @@ topSccCycles graph = filter f $ topScc graph
     -- self-referencial loop only
     f [!v] = [v] == graph ! v
     f !_ = True
+
+-- | e.g. v4 <- v3 <- (v2 <-> v1)
+downScc :: Array Int [Int] -> [[Int]]
+downScc = reverse . map reverse . topScc
 
 -- }}}
 
@@ -2204,7 +2256,6 @@ _propOpMonoidsToLeaf (LazySegmentTree !as !ops !height) !iLeaf = do
       -- Evaluate the vertex and consume the operator monoid:
       VUM.modify as (mact op) vertex
       VUM.write ops vertex mempty
-
   where
     !nVerts = VUM.length as
     nthParent !leafVertex !nth = shiftR leafVertex nth
@@ -2365,8 +2416,8 @@ queryLazySTree stree@(LazySegmentTree !as !ops !_) !iLLeaf !iRLeaf = do
 data MyModulus = MyModulus
 
 instance TypeInt MyModulus where
-  -- typeInt _ = 998244353
-  typeInt _ = 1_000_000_007
+  -- typeInt _ = 1_000_000_007
+  typeInt _ = 998244353
 
 type MyModInt = ModInt MyModulus
 
