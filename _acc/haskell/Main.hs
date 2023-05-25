@@ -438,9 +438,16 @@ showLnBSB = (<> endlBSB) . showBSB
 printBSB :: ShowBSB a => a -> IO ()
 printBSB = putBSB . showBSB
 
--- | Often used as `concatBSB showBSB xs` or `concatB showLnBSB xs`.
+-- | See `unwordsBSB` as example.
 concatBSB :: (VG.Vector v a) => (a -> BSB.Builder) -> v a -> BSB.Builder
 concatBSB f = VG.foldr ((<>) . f) mempty
+
+-- FIXME: unnecessary whitespace at the end?
+unwordsBSB :: (ShowBSB a, VG.Vector v a) => v a -> BSB.Builder
+unwordsBSB = concatBSB ((<> (BSB.string7 " ")) . showBSB)
+
+unlinesBSB :: (ShowBSB a, VG.Vector v a) => v a -> BSB.Builder
+unlinesBSB = concatBSB showLnBSB
 
 -- }}}
 
@@ -2057,7 +2064,7 @@ foldTree !tree !root !acc0 !mact = inner (-1) root
   where
     inner !parent !v1 =
       let !v2s = filter (/= parent) $ tree ! v1
-       in foldl' (\acc v2 -> acc `mact` (inner v1 v2)) acc0 v2s
+       in foldl' (\acc v2 -> (inner v1 v2) `mact` acc) acc0 v2s
 
 -- | Folds a tree from one root vertex using postorder DFS, recording all the accumulation values
 -- | on every vertex.
@@ -2066,7 +2073,7 @@ scanTreeVG !tree !root !acc0 !mact = VG.create $ do
   !dp <- VGM.unsafeNew nVerts
   !_ <- flip fix (-1, root) $ \runTreeDp (!parent, !v1) -> do
     let !v2s = filter (/= parent) $ tree ! v1
-    !x1 <- foldM (\acc v2 -> (acc `mact`) <$> runTreeDp (v1, v2)) acc0 v2s
+    !x1 <- foldM (\acc v2 -> (`mact` acc) <$> runTreeDp (v1, v2)) acc0 v2s
     VGM.write dp v1 x1
     return x1
 
@@ -2077,38 +2084,38 @@ scanTreeVG !tree !root !acc0 !mact = VG.create $ do
 scanTreeVU :: VU.Unbox m => Array Int [Int] -> Int -> m -> (m -> m -> m) -> VU.Vector m
 scanTreeVU = scanTreeVG
 
--- TODO: Remake `foldTreeAll` with plain `Monoid`.
--- -- | Folds a tree for every vertex as a root using the rerooting technique.
--- -- | Also known as tree DP with rerooting.
--- -- Add `Show m` for debug.
--- foldTreeAll :: VU.Unbox m => Array Int [Int] -> (OperatorMonoid m m) -> m -> (VU.Vector m)
--- foldTreeAll !tree (OperatorMonoid !op0 !mapp !mact) !acc0 =
---   -- Calculate tree DP for one root vertex
---   let !treeDp = scanTreeVG tree root0 acc0 mact
---       !rootDp = VU.create $ do
---         -- Calculate tree DP for every vertex as a root:
---         !dp <- VUM.unsafeNew nVerts
---         flip fix (-1, op0, root0) $ \runRootDp (!parent, !parentOp, !v1) -> do
---           let !children = VU.fromList . filter (/= parent) $ tree ! v1
---           let !opL = VU.scanl' (\op v2 -> (op `mapp`) $ treeDp VU.! v2) op0 children
---           let !opR = VU.scanr (\v2 op -> (op `mapp`) $ treeDp VU.! v2) op0 children
---
---           -- save
---           let !x1 = acc0 `mact` (parentOp `mapp` (VU.last opL))
---           VUM.write dp v1 x1
---           -- let !_ = dbg ("dfs", (parent, parentOp), "->", (v1, x1), children, opR)
---
---           flip VU.imapM_ children $ \ !i2 !v2 -> do
---             let !lrOp = (opL VU.! i2) `mapp` (opR VU.! succ i2)
---             -- REMARK: We assume the accumulated value has information to be used as an operator:
---             let !v1Acc = acc0 `mact` (parentOp `mapp` lrOp)
---             runRootDp (v1, v1Acc, v2)
---
---         return dp
---    in rootDp
---   where
---     !nVerts = rangeSize $ (bounds tree)
---     !root0 = 0 :: Int
+-- | Folds a tree for every vertex as a root using the rerooting technique.
+-- | Also known as tree DP with rerooting.
+-- | REMARK: `mempty` is used for initial operator value.
+foldTreeAll :: (VU.Unbox m, MonoidAction m m) => Array Int [Int] -> m -> VU.Vector m
+foldTreeAll !tree !acc0 =
+  -- Calculate tree DP for one root vertex
+  let !treeDp = scanTreeVG tree root0 acc0 mact
+      !rootDp = VU.create $ do
+        -- Calculate tree DP for every vertex as a root:
+        !dp <- VUM.unsafeNew nVerts
+        flip fix (-1, op0, root0) $ \runRootDp (!parent, !parentOp, !v1) -> do
+          let !children = VU.fromList . filter (/= parent) $ tree ! v1
+          let !opL = VU.scanl' (\op v2 -> (op <>) $ treeDp VU.! v2) op0 children
+          let !opR = VU.scanr (\v2 op -> (op <>) $ treeDp VU.! v2) op0 children
+
+          -- save
+          let !x1 = (parentOp <> (VU.last opL)) `mact` acc0
+          VUM.write dp v1 x1
+          -- let !_ = dbg ("dfs", (parent, parentOp), "->", (v1, x1), children, opR)
+
+          flip VU.imapM_ children $ \ !i2 !v2 -> do
+            let !lrOp = (opL VU.! i2) <> (opR VU.! succ i2)
+            -- REMARK: We assume the accumulated value has information to be used as an operator:
+            let !v1Acc = (parentOp <> lrOp) `mact` acc0
+            runRootDp (v1, v1Acc, v2)
+
+        return dp
+   in rootDp
+  where
+    !nVerts = rangeSize $ (bounds tree)
+    !root0 = 0 :: Int
+    !op0 = mempty
 
 -- }}}
 
@@ -2355,60 +2362,6 @@ newLazySTree !n = do
     -- TODO: use bit operations
     (!h, !n2) = until ((>= 2 * n) . snd) (bimap succ (* 2)) (0 :: Int, 1 :: Int)
 
--- | Propagates the lazy operator monoids from top to bottom where the laef vertex is contained.
--- |
--- | - `iLeaf`: Given with zero-based index.
-_propOpMonoidsToLeaf ::
-  (Monoid a, MonoidAction op a, Eq op, VU.Unbox a, VU.Unbox op, PrimMonad m) =>
-  LazySegmentTree a op (PrimState m) ->
-  Int ->
-  m ()
-_propOpMonoidsToLeaf (LazySegmentTree !as !ops !height) !iLeaf = do
-  let !leafVertex = iLeaf + nVerts `div` 2
-
-  -- From parent vertex to the parent of the leaf vertex:
-  forMS_ (rangeMSR 1 (pred height)) $ \iParent -> do
-    let !vertex = nthParent leafVertex iParent
-
-    -- When there's some lazy evaluation value, propagate them to their children and evaluate the vertex:
-    !op <- VUM.read ops vertex
-    when (op /= mempty) $ do
-      -- Propagate the operator monoid to the children:
-      VUM.modify ops (<> op) $ childL vertex
-      VUM.modify ops (<> op) $ childR vertex
-
-      -- Evaluate the vertex and consume the operator monoid:
-      VUM.modify as (mact op) vertex
-      VUM.write ops vertex mempty
-  where
-    !nVerts = VUM.length as
-    nthParent !leafVertex !nth = shiftR leafVertex nth
-    childL !vertex = shiftL vertex 1
-    childR !vertex = (shiftL vertex 1) .|. 1
-
--- | Evaluates parent values on `updateSegmentTree`.
--- TODO: move to where clause?
-_evalToRoot ::
-  (Monoid a, MonoidAction op a, Eq op, VU.Unbox a, VU.Unbox op, PrimMonad m) =>
-  LazySegmentTree a op (PrimState m) ->
-  Int ->
-  m ()
-_evalToRoot (LazySegmentTree !as !ops !height) !iLeaf = do
-  let !leafVertex = iLeaf + nVerts `div` 2
-
-  forMS_ (rangeMS 1 (pred height)) $ \iParent -> do
-    let !vertex = nthParent leafVertex iParent
-
-    -- Evaluate this parent node by appending the child nodes:
-    !aL' <- mact <$> (VUM.read ops $ childL vertex) <*> (VUM.read as $ childL vertex)
-    !aR' <- mact <$> (VUM.read ops $ childR vertex) <*> (VUM.read as $ childR vertex)
-    VUM.write as vertex $ aL' <> aR'
-  where
-    !nVerts = VUM.length as
-    nthParent !leafVertex !nth = shiftR leafVertex nth
-    childL !vertex = shiftL vertex 1
-    childR !vertex = (shiftL vertex 1) .|. 1
-
 -- | Appends the lazy operator monoid monoids over some span of the lazy segment tree.
 -- | These values are just stored and performed over the nodes when queried.
 updateLazySTree ::
@@ -2512,7 +2465,65 @@ queryLazySTree stree@(LazySegmentTree !as !ops !_) !iLLeaf !iRLeaf = do
           -- go up to the parent segment
           glitchLoopQuery (shiftR l' 1) (shiftR r' 1) lAcc' rAcc'
 
--- Custom operator monoid template:
+-- | Propagates the lazy operator monoids from top to bottom where the laef vertex is contained.
+-- |
+-- | - `iLeaf`: Given with zero-based index.
+_propOpMonoidsToLeaf ::
+  (Monoid a, MonoidAction op a, Eq op, VU.Unbox a, VU.Unbox op, PrimMonad m) =>
+  LazySegmentTree a op (PrimState m) ->
+  Int ->
+  m ()
+_propOpMonoidsToLeaf (LazySegmentTree !as !ops !height) !iLeaf = do
+  let !leafVertex = iLeaf + nVerts `div` 2
+
+  -- From parent vertex to the parent of the leaf vertex:
+  forMS_ (rangeMSR 1 (pred height)) $ \iParent -> do
+    let !vertex = nthParent leafVertex iParent
+
+    -- When there's some lazy evaluation value, propagate them to their children and evaluate the vertex:
+    !op <- VUM.read ops vertex
+    when (op /= mempty) $ do
+      -- Propagate the operator monoid to the children:
+      VUM.modify ops (<> op) $ childL vertex
+      VUM.modify ops (<> op) $ childR vertex
+
+      -- Evaluate the vertex and consume the operator monoid:
+      VUM.modify as (mact op) vertex
+      VUM.write ops vertex mempty
+  where
+    !nVerts = VUM.length as
+    nthParent !leafVertex !nth = shiftR leafVertex nth
+    childL !vertex = shiftL vertex 1
+    childR !vertex = (shiftL vertex 1) .|. 1
+
+-- | Evaluates parent values on `updateSegmentTree`.
+-- TODO: move to where clause of the update function?
+_evalToRoot ::
+  (Monoid a, MonoidAction op a, Eq op, VU.Unbox a, VU.Unbox op, PrimMonad m) =>
+  LazySegmentTree a op (PrimState m) ->
+  Int ->
+  m ()
+_evalToRoot (LazySegmentTree !as !ops !height) !iLeaf = do
+  let !leafVertex = iLeaf + nVerts `div` 2
+
+  forMS_ (rangeMS 1 (pred height)) $ \iParent -> do
+    let !vertex = nthParent leafVertex iParent
+
+    -- Evaluate this parent node by appending the child nodes:
+    !aL' <- mact <$> (VUM.read ops $ childL vertex) <*> (VUM.read as $ childL vertex)
+    !aR' <- mact <$> (VUM.read ops $ childR vertex) <*> (VUM.read as $ childR vertex)
+    VUM.write as vertex $ aL' <> aR'
+  where
+    !nVerts = VUM.length as
+    nthParent !leafVertex !nth = shiftR leafVertex nth
+    childL !vertex = shiftL vertex 1
+    childR !vertex = (shiftL vertex 1) .|. 1
+
+-- }}}
+
+-- {{{ Adhoc code
+
+-- Operator monoid for lazy segment tree (typical 029):
 --
 -- newtype Height = Height Int
 --   deriving (Show, Eq, Ord)
@@ -2524,18 +2535,40 @@ queryLazySTree stree@(LazySegmentTree !as !ops !_) !iLLeaf !iRLeaf = do
 --   [|\h -> Height h|]
 --
 -- instance Semigroup Height where
---   h1 <> h2 = max h1 h2
+--   (<>) = max
 --
 -- instance Monoid Height where
 --   mempty = Height 0
 --   mconcat = maximum
 --
--- instance MonoidAction Height Height where
---   mact = max
+-- instance SemigroupAction Height Height where
+--   sact = max
+--
+-- instance MonoidAction Height Height
 
--- }}}
-
--- {{{ Adhoc code
+-- Operator monoid for rerooting (typical 039):
+--
+-- data V = V Int Int
+--   deriving (Show, Eq, Ord)
+--
+-- derivingUnbox
+--   "V"
+--   [t|V -> (Int, Int)|]
+--   [|\(V x1 x2) -> (x1, x2)|]
+--   [|\(!x1, !x2) -> V x1 x2|]
+--
+-- instance Semigroup V where
+--   (V !n1 !acc1) <> (V !n2 !acc2) = V (n1 + n2) (acc1 + acc2)
+--
+-- instance Monoid V where
+--   -- `mempty` as operator:
+--   mempty = V 0 0
+--   mconcat = maximum
+--
+-- instance SemigroupAction V V where
+--   sact (V !n1 !acc1) (V !n2 !acc2) = V (n1 + n2) (n1 + acc1 + acc2)
+--
+-- instance MonoidAction V V
 
 data MyModulus = MyModulus
 
