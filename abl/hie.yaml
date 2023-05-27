@@ -1,0 +1,25 @@
+cradle:
+  stack:
+    - path: "./a/Main.hs"
+      component: "abl:exe:a-exe"
+
+    - path: "./b/Main.hs"
+      component: "abl:exe:b-exe"
+
+    - path: "./c/Main.hs"
+      component: "abl:exe:c-exe"
+
+    - path: "./d/Main.hs"
+      component: "abl:exe:d-exe"
+
+    - path: "./e/Main.hs"
+      component: "abl:exe:e-exe"
+
+    - path: "./ex/Main.hs"
+      component: "abl:exe:ex-exe"
+
+    - path: "./f/Main.hs"
+      component: "abl:exe:f-exe"
+
+    - path: "./g/Main.hs"
+      component: "abl:exe:g-exe"
