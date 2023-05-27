@@ -713,6 +713,12 @@ class (SemigroupAction m a, Monoid m) => MonoidAction m a where
   mact :: m -> a -> a
   mact = sact
 
+instance SemigroupAction (Product Int) Int where
+  sact (Product !x1) !x2 = x1 * x2
+
+instance TypeInt p => SemigroupAction (Product (ModInt p)) (ModInt p) where
+  sact (Product !x1) !x2 = x1 * x2
+
 -- | Alias of `sactBL` for monoid action.
 mactBL :: (MonoidAction m a, VG.Vector v m) => (BinaryLifting v m) -> a -> Int -> a
 mactBL = sactBL
@@ -2347,8 +2353,13 @@ addFlowRNEdge !rn !v1 !v2 !flow = do
 -- | - rightChild = vertex * 2 + 1 = shiftR vertex 1 + 1 = (shiftR vertex 1) .|. 1
 -- |
 -- | ```
+-- |
+-- | # Invariant
+-- |
+-- | - New operators always come from right: `oldOp <> newOp`
 data LazySegmentTree a op s = LazySegmentTree !(VUM.MVector s a) !(VUM.MVector s op) !Int
 
+-- | Creates `LazySegmentTree` with `mempty` as the initial accumulated values.
 newLazySTree ::
   forall a op m.
   (Monoid a, MonoidAction op a, VU.Unbox a, VU.Unbox op, PrimMonad m) =>
@@ -2361,6 +2372,35 @@ newLazySTree !n = do
   where
     -- TODO: use bit operations
     (!h, !n2) = until ((>= 2 * n) . snd) (bimap succ (* 2)) (0 :: Int, 1 :: Int)
+
+-- | Creates `LazySegmentTree` with initial leaf values.
+generateLazySTree ::
+  forall a op m.
+  (Monoid a, MonoidAction op a, VU.Unbox a, VU.Unbox op, PrimMonad m) =>
+  Int ->
+  (Int -> a) ->
+  m (LazySegmentTree a op (PrimState m))
+generateLazySTree !n !f = do
+  !as <- VUM.unsafeNew n2
+
+  -- Create leaves:
+  forMS_ (rangeMS 1 nLeaves) $ \i -> do
+    VUM.write as (nLeaves + i - 1) $ f (pred i)
+
+  -- Create parents:
+  forMS_ (rangeMSR 1 (pred nLeaves)) $ \i -> do
+    !l <- VUM.read as (childL i)
+    !r <- VUM.read as (childR i)
+    VUM.write as i (l <> r)
+
+  !ops <- VUM.replicate n2 mempty
+  return $ LazySegmentTree as ops h
+  where
+    -- TODO: use bit operations
+    (!h, !n2) = until ((>= 2 * n) . snd) (bimap succ (* 2)) (0 :: Int, 1 :: Int)
+    !nLeaves = n2 `div` 2
+    childL !vertex = shiftL vertex 1
+    childR !vertex = (shiftL vertex 1) .|. 1
 
 -- | Appends the lazy operator monoid monoids over some span of the lazy segment tree.
 -- | These values are just stored and performed over the nodes when queried.
@@ -2484,6 +2524,7 @@ _propOpMonoidsToLeaf (LazySegmentTree !as !ops !height) !iLeaf = do
     !op <- VUM.read ops vertex
     when (op /= mempty) $ do
       -- Propagate the operator monoid to the children:
+      -- REMARK: The propagated operator always comes from the right.
       VUM.modify ops (<> op) $ childL vertex
       VUM.modify ops (<> op) $ childR vertex
 
@@ -2508,6 +2549,7 @@ _evalToRoot (LazySegmentTree !as !ops !height) !iLeaf = do
 
   forMS_ (rangeMS 1 (pred height)) $ \iParent -> do
     let !vertex = nthParent leafVertex iParent
+    let !_ = dbgAssert (vertex > 0) "_evalToRoot"
 
     -- Evaluate this parent node by appending the child nodes:
     !aL' <- mact <$> (VUM.read ops $ childL vertex) <*> (VUM.read as $ childL vertex)
