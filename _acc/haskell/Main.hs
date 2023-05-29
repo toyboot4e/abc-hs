@@ -45,6 +45,7 @@ import Control.Monad.ST
 import Control.Monad.Trans.State.Strict
 import Data.Bifunctor
 import Data.Bits
+import Data.Bool (bool)
 import Data.Char
 import Data.Either
 import Data.Foldable
