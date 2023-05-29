@@ -24,15 +24,6 @@
   - refactor `primes` with new Prelude
 -}
 
-{- TODO: Refactor with the typeclass-based semigroup action:
-- [ ] Write `haddock` and run tests.
-- [ ] LCA
-- [ ] ModInt
-- [ ] `invModF` -> `invModBL`
-- [ ] DP withrerooting
-- [ ] lazy segment tree
--}
-
 -- {{{ Imports
 
 module Main (main) where
