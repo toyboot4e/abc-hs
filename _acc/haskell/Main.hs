@@ -1253,6 +1253,10 @@ type SparseUnionFind = IM.IntMap Int
 newSUF :: SparseUnionFind
 newSUF = IM.empty
 
+-- from edges
+fromListSUF :: [(Int, Int)] -> SparseUnionFind
+fromListSUF = foldl' (\uf -> uncurry (uniteSUF uf)) newSUF
+
 rootSUF :: SparseUnionFind -> Int -> (Int, Int)
 rootSUF !uf !i
   | IM.notMember i uf = (i, 1)
@@ -1261,8 +1265,8 @@ rootSUF !uf !i
   where
     j = uf IM.! i
 
-findSUF :: SparseUnionFind -> Int -> Int -> Bool
-findSUF !uf !i !j = fst (rootSUF uf i) == fst (rootSUF uf j)
+sameSUF :: SparseUnionFind -> Int -> Int -> Bool
+sameSUF !uf !i !j = fst (rootSUF uf i) == fst (rootSUF uf j)
 
 uniteSUF :: SparseUnionFind -> Int -> Int -> SparseUnionFind
 uniteSUF !uf !i !j
@@ -1319,7 +1323,7 @@ data SegmentTree v s a = SegmentTree (a -> a -> a) (v s a)
 -- | nodes are not updated.
 {-# INLINE newSTreeVG #-}
 newSTreeVG :: (VGM.MVector v a, PrimMonad m) => (a -> a -> a) -> Int -> a -> m (SegmentTree v (PrimState m) a)
-newSTreeVG !f !n !value = SegmentTree f <$!> VGM.replicate n' value
+newSTreeVG !f !n !zero = SegmentTree f <$!> VGM.replicate n' zero
   where
     -- TODO: try this:
     -- !n' = until (>= n) (* 2) 2
@@ -2372,7 +2376,7 @@ newLazySTreeVU :: forall a op m. (VU.Unbox a, Monoid a, MonoidAction op a, VU.Un
 newLazySTreeVU = newLazySTree
 
 -- | Creates `LazySegmentTree` with initial leaf values.
--- | WARNING: It can go out of the range. It goes to $2^i - 1$ s.t. $2^i >=n$.
+-- | FIXME: Use `mempty` for $i >= n$.
 generateLazySTree ::
   forall v a op m.
   (VGM.MVector v a, Monoid a, MonoidAction op a, VU.Unbox op, PrimMonad m) =>
