@@ -168,6 +168,14 @@ flipOrder = \case
 square :: Num a => a -> a
 square !x = x * x
 
+-- | Returns chunks of size `n`.
+chunks :: Int -> [a] -> [[a]]
+chunks n = inner
+  where
+    inner [] = []
+    inner xs =
+      let (!g, !rest) = splitAt n xs
+       in g : inner rest
 -- }}}
 
 -- {{{ More extras
