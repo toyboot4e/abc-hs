@@ -916,9 +916,10 @@ newRHash !source = RollingHash n bn hashSum
     !p = typeInt (Proxy @p)
     !b = typeInt (Proxy @HashInt)
     !n = length source
+    -- TODO: Use `iterateN` instead:
     !bn = VU.create $ do
-      !vec <- VUM.replicate n (1 :: Int)
-      forMS_ (rangeMS 1 (pred n)) $ \i -> do
+      !vec <- VUM.replicate (succ n) (1 :: Int)
+      forMS_ (rangeMS 1 n) $ \i -> do
         !lastB <- VUM.unsafeRead vec (pred i)
         VUM.unsafeWrite vec i (b * lastB `mod` p)
       return vec
@@ -942,7 +943,7 @@ data HashSlice p = HashSlice
 sliceRHash :: forall b p. (TypeInt b, TypeInt p) => RollingHash b p -> Int -> Int -> HashSlice p
 sliceRHash (RollingHash !_ !bn !s) !i0 !i1
   -- TODO: add debug assertion
-  | i0 > i1 = HashSlice 0 0
+  | i0 > i1 = emptyHashSlice
   | otherwise =
       let !len = i1 - i0 + 1
           !s1 = s VU.! i1
@@ -958,6 +959,12 @@ consHashSlice (RollingHash !_ !bn !_) (HashSlice !v0 !l0) (HashSlice !v1 !l1) = 
     !p = typeInt (Proxy @p)
     !value = ((bn VU.! l1) * v0 + v1) `mod` p
     !len = l0 + l1
+
+emptyHashSlice :: (TypeInt p) => HashSlice p
+emptyHashSlice = HashSlice 0 0
+
+concatHashSlice :: forall b p t. (TypeInt b, TypeInt p, Foldable t) => RollingHash b p -> t (HashSlice p) -> HashSlice p
+concatHashSlice !rhash !slices = foldl' (consHashSlice rhash) emptyHashSlice slices
 
 -- }}}
 
@@ -2646,6 +2653,12 @@ data MyModulus = MyModulus
 instance TypeInt MyModulus where
   -- typeInt _ = 1_000_000_007
   typeInt _ = 998244353
+
+derivingUnbox
+  "HashSlice"
+  [t|HashSlice MyModulus -> (Int, Int)|]
+  [|\(HashSlice v l) -> (v, l)|]
+  [|\(!v, !l) -> HashSlice v l|]
 
 type MyModInt = ModInt MyModulus
 
