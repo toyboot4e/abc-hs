@@ -916,13 +916,7 @@ newRHash !source = RollingHash n bn hashSum
     !p = typeInt (Proxy @p)
     !b = typeInt (Proxy @HashInt)
     !n = length source
-    -- TODO: Use `iterateN` instead:
-    !bn = VU.create $ do
-      !vec <- VUM.replicate (succ n) (1 :: Int)
-      forMS_ (rangeMS 1 n) $ \i -> do
-        !lastB <- VUM.unsafeRead vec (pred i)
-        VUM.unsafeWrite vec i (b * lastB `mod` p)
-      return vec
+    !bn = VU.iterateN (succ n) (\lastB -> b * lastB `mod` p) (1 :: Int)
     !hashSum = evalState (VU.mapM (\ !ch -> state $ \ !acc -> f ch acc) $ VU.fromList source) (0 :: Int)
       where
         f :: Char -> Int -> (Int, Int)
@@ -1119,10 +1113,8 @@ bsearchM (!low, !high) !isOk = both wrap <$> inner (low - 1, high + 1)
     inner :: (Int, Int) -> m (Int, Int)
     inner (!ok, !ng)
       | abs (ok - ng) == 1 = return (ok, ng)
-      | otherwise =
-          isOk m >>= \case
-            True -> inner (m, ng)
-            False -> inner (ok, m)
+      | isOk M = inner (m, ng)
+      | otherwise = inner (ok, m)
       where
         m = (ok + ng) `div` 2
 
