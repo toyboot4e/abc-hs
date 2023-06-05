@@ -1113,8 +1113,10 @@ bsearchM (!low, !high) !isOk = both wrap <$> inner (low - 1, high + 1)
     inner :: (Int, Int) -> m (Int, Int)
     inner (!ok, !ng)
       | abs (ok - ng) == 1 = return (ok, ng)
-      | isOk M = inner (m, ng)
-      | otherwise = inner (ok, m)
+      | otherwise =
+          isOk m >>= \case
+            True -> inner (m, ng)
+            False -> inner (ok, m)
       where
         m = (ok + ng) `div` 2
 
