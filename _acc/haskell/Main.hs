@@ -351,6 +351,15 @@ sub2 (!y, !x) = bimap (y -) (x -)
 mul2 :: Int -> (Int, Int) -> (Int, Int)
 mul2 !m = both (m *)
 
+add3 :: (Int, Int, Int) -> (Int, Int, Int) -> (Int, Int, Int)
+add3 (!z1, !y1, !x1) (!z2, !y2, !x2) = (z1 + z2, y1 + y2, x1 + x2)
+
+sub3 :: (Int, Int, Int) -> (Int, Int, Int) -> (Int, Int, Int)
+sub3 (!z1, !y1, !x1) (!z2, !y2, !x2) = (z1 - z2, y1 - y2, x1 - x2)
+
+mul3 :: (Int, Int, Int) -> (Int, Int, Int) -> (Int, Int, Int)
+mul3 (!z1, !y1, !x1) (!z2, !y2, !x2) = (z1 - z2, y1 - y2, x1 - x2)
+
 -- 180.0 degree = \p radian
 toRadian :: Double -> Double
 toRadian degree = degree / 180.0 * pi
