@@ -273,6 +273,7 @@ compress [] = []
 compress (x : xs) = x : compress (dropWhile (== x) xs)
 
 -- | Runs the given function `n` times.
+{-# INLINE times #-}
 times :: Int -> (a -> a) -> a -> a
 times !n !f !s0 = snd $ until ((== n) . fst) (bimap succ f) (0 :: Int, s0)
 
@@ -372,6 +373,9 @@ fth4 (!_, !_, !_, !d) = d
 -- }}}
 
 -- {{{ Input
+
+int :: IO Int
+int = readLn
 
 ints :: IO [Int]
 ints = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
@@ -670,7 +674,7 @@ primeFactors !n_ = map (\ !xs -> (head xs, length xs)) . group $ inner n_ input
 
 -- {{{ Binary lifting data structure
 
--- | Binary lifting is a technique for calculating nth power of a monoid in a (big) constant time.
+-- | Binary lifting is a technique for calculating nth power of monoid in a (big) constant time.
 -- |
 -- | The i-th element of the underlying vector of `BinaryLifting` stores `m^{2^i}`, with which we
 -- | can construct any of `m^i` (`0 <= i < 2^63`).
@@ -692,7 +696,7 @@ newBinLiftVU :: (Semigroup s, VU.Unbox s) => s -> BinaryLifting VU.Vector s
 newBinLiftVU = newBinLift
 
 -- | Binarily lifted version of `stimesMonoid`.
--- | NOTE: Usually `sactBN` is much cheaper for semigroup actions with boxed type.
+-- | NOTE: Usually `sactBN` is much cheaper for semigroup actions with a boxed type.
 mtimesBN :: (Monoid m, VG.Vector v m) => (BinaryLifting v m) -> Int -> m
 mtimesBN (BinaryLifting !ops) !n = VU.foldl' step mempty (VU.enumFromN 0 62)
   where
@@ -787,35 +791,35 @@ factMod !n !m = n * factMod (n - 1) m `rem` m
 -- F: Fermet, FC: Fermet by cache
 
 -- | One-shot calculation of $base ^ power `mod` modulo$ in a constant time
-powerModConstant :: Int -> Int -> Int -> Int
-powerModConstant !base !power !modulo = powerByCache power (powerModCache base modulo)
+powModConst :: Int -> Int -> Int -> Int
+powModConst !base !power !modulo = powByCache power (powModCache base modulo)
 
 -- | One-shot calcaulation of $x / d mod p$, using Fermat's little theorem
 -- |
 -- | 1/d = d^{p-2} (mod p) <=> d^p = d (mod p)
 -- |   where the modulus is a prime number and `x` is not a mulitple of `p`
 invModF :: Int -> Int -> Int
-invModF !d !modulus = invModFC modulus (powerModCache d modulus)
+invModF !d !modulus = invModFC modulus (powModCache d modulus)
 
 -- | x / d mod p, using Fermat's little theorem
 -- |
 -- | 1/d = d^{p-2} (mod p) <=> d^p = d (mod p)
 -- |   where the modulus is a prime number and `x` is not a mulitple of `p`
 divModF :: Int -> Int -> Int -> Int
-divModF !x !d !modulus = divModFC x (powerModCache d modulus) `rem` modulus
+divModF !x !d !modulus = divModFC x (powModCache d modulus) `rem` modulus
 
 -- | Cache of base^i for iterative square method
-powerModCache :: Int -> Int -> (Int, VU.Vector Int)
-powerModCache !base !modulo = (modulo, doubling)
+powModCache :: Int -> Int -> (Int, VU.Vector Int)
+powModCache !base !modulo = (modulo, doubling)
   where
     -- doubling = VU.scanl' (\ !x _ -> x * x `rem` modulo) base $ rangeVG (1 :: Int) 62
     doubling = newDoubling base (\x -> x * x `rem` modulo)
 
 -- | Calculates base^i (mod p) from a cache
-powerByCache :: Int -> (Int, VU.Vector Int) -> Int
+powByCache :: Int -> (Int, VU.Vector Int) -> Int
 -- TODO: test if it works as expeted
--- powerByCache !power (!modulo, !cache) = applyDoubling cache 1 (\acc x -> acc * x `rem` modulo) power
-powerByCache !power (!modulo, !cache) = foldl' step 1 [0 .. 62]
+-- powByCache !power (!modulo, !cache) = applyDoubling cache 1 (\acc x -> acc * x `rem` modulo) power
+powByCache !power (!modulo, !cache) = foldl' step 1 [0 .. 62]
   where
     step !acc !nBit =
       if testBit power nBit
@@ -827,7 +831,7 @@ powerByCache !power (!modulo, !cache) = foldl' step 1 [0 .. 62]
 -- |
 -- | and x^{p-2} is calculated with cache
 invModFC :: Int -> (Int, VU.Vector Int) -> Int
-invModFC !primeModulus = powerByCache (primeModulus - 2)
+invModFC !primeModulus = powByCache (primeModulus - 2)
 
 divModFC :: Int -> (Int, VU.Vector Int) -> Int
 divModFC !x context@(!modulus, !_) = x * invModFC modulus context `rem` modulus
@@ -848,11 +852,10 @@ bcMod !n !r !modulus = foldl' (\ !x !y -> divModF x y modulus) (facts VU.! n) [f
 -- {{{ ModInt
 
 -- | Type level constant `Int` value.
--- | TODO: Replace with `GHC.TypeNats`
+-- | TODO: Replace with `GHC.TypaNats.KnownNat`: <https://zenn.dev/mod_poppo/books/haskell-type-level-programming/viewer/ghc-typenats>
 class TypeInt a where
   typeInt :: Proxy a -> Int
 
--- | `Int` where modulus operation is performed automatically.
 newtype ModInt p = ModInt {toInt :: Int}
   deriving (Eq)
 
@@ -1101,11 +1104,11 @@ bsearchR = snd .: bsearch
 -- | >  <-------------->  <-------->
 -- | >         ok             ng
 -- |
--- | In this case `bsearch` returns the `(ok, ng)` = `(5, 6)` pair:
+-- | In this case `bsearch` returns the `(ok, ng)` = `(Just 5, Just 6)` pair:
 -- |
 -- | > > let xs = [0..9] in do
 -- | > >   print $ bsearch (0, 9) (\i -> xs !! i <= 5)
--- | > (5, 6)
+-- | > (Just 5, Just 6)
 {-# INLINE bsearchM #-}
 bsearchM :: forall m. (Monad m) => (Int, Int) -> (Int -> m Bool) -> m (Maybe Int, Maybe Int)
 bsearchM (!low, !high) !isOk = both wrap <$> inner (low - 1, high + 1)
@@ -1232,6 +1235,15 @@ rootMUF uf@(MUnionFind !vec) i = do
       -- NOTE(perf): path compression (move the queried node to just under the root, recursivelly)
       VUM.unsafeWrite vec i (MUFChild r)
       return r
+
+-- | Returns all root vertices.
+{-# INLINE groupsMUF #-}
+groupsMUF :: (PrimMonad m) => MUnionFind (PrimState m) -> m IS.IntSet
+groupsMUF uf@(MUnionFind !vec) = foldM step IS.empty [0 .. pred (VGM.length vec)]
+  where
+    step !is !i = do
+      !root <- rootMUF uf i
+      return $ IS.insert root is
 
 -- | Checks if the two nodes are under the same root.
 {-# INLINE sameMUF #-}
@@ -1665,7 +1677,7 @@ colorize !graph !colors0 = dfs True (colors0, Just ([], []))
 -- | Topological sort implemented with postorder DFS.
 -- |
 -- | # Implementation note
--- | Topological sort is for DAG, but internally it's used for `scc` where asyclic graph input can
+-- | Topological sort is for DAG, but internally it's used for `scc` where cyclic graph input can
 -- | come.
 topSort :: Array Int [Int] -> [Int]
 topSort !graph = runST $ do
@@ -1684,7 +1696,7 @@ topSort !graph = runST $ do
 
   foldM dfsM [] $ range bounds_
 
--- | Partial running of `scc` over topologically sorted vertices, but for sone connected components
+-- | Partial running of `scc` over topologically sorted vertices, but for some connected components
 -- | only.
 topScc1 :: forall m. (PrimMonad m) => Array Int [Int] -> VUM.MVector (PrimState m) Bool -> Int -> m [Int]
 topScc1 !graph' !vis !v0 = do
@@ -1710,7 +1722,7 @@ revGraph graph = accumArray (flip (:)) [] (bounds graph) input
     input = foldl' (\ !acc (!v2, !v1s) -> foldl' (\ !acc' !v1 -> (v1, v2) : acc') acc v1s) [] $ assocs graph
 
 -- | Collectes strongly connected components, topologically sorted.
--- | e.g. (v1 <-> v2) -> v3 -> v4
+-- | Upstream vertices come first. e.g. (v1 <-> v2) -> v3 -> v4
 topScc :: Array Int [Int] -> [[Int]]
 topScc graph = collectSccPreorder $ topSort graph
   where
@@ -1730,7 +1742,8 @@ topSccCycles graph = filter f $ topScc graph
     f [!v] = [v] == graph ! v
     f !_ = True
 
--- | e.g. v4 <- v3 <- (v2 <-> v1)
+-- | Collectes strongly connected components, reverse topologically sorted.
+-- | Down stream vertices come first. e.g. v4 <- v3 <- (v2 <-> v1)
 downScc :: Array Int [Int] -> [[Int]]
 downScc = reverse . map reverse . topScc
 
