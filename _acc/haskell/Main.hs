@@ -706,10 +706,18 @@ newBinLiftVU = newBinLift
 
 -- | Binarily lifted version of `stimesMonoid`.
 -- | NOTE: Usually `sactBN` is much cheaper for semigroup actions with a boxed type.
-mtimesBN :: (Monoid m, VG.Vector v m) => (BinaryLifting v m) -> Int -> m
-mtimesBN (BinaryLifting !ops) !n = VU.foldl' step mempty (VU.enumFromN 0 62)
+stimesBN :: (Semigroup s, VG.Vector v s) => (BinaryLifting v s) -> s -> Int -> s
+stimesBN (BinaryLifting !ops) !s0 !n = VU.foldl' step s0 (VU.enumFromN 0 62)
   where
-    step !m !i = m <> ops VG.! i
+    step !m !i
+      | testBit n i = m <> ops VG.! i
+      | otherwise = m
+
+-- | Binarily lifted version of `stimesMonoid`.
+-- | NOTE: Usually `sactBN` is much cheaper for semigroup actions with a boxed type.
+mtimesBN :: (Monoid m, VG.Vector v m) => (BinaryLifting v m) -> Int -> m
+mtimesBN !bin !n = stimesBN bin mempty n
+
 
 -- }}}
 
