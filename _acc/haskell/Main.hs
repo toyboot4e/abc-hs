@@ -2628,53 +2628,6 @@ _evalToRoot (LazySegmentTree !as !ops !height) !iLeaf = do
 
 -- {{{ Adhoc code
 
--- Operator monoid for lazy segment tree (typical 029):
---
--- newtype Height = Height Int
---   deriving (Show, Eq, Ord)
---
--- derivingUnbox
---   "Height"
---   [t|Height -> Int|]
---   [|\(Height h) -> h|]
---   [|\h -> Height h|]
---
--- instance Semigroup Height where
---   (<>) = max
---
--- instance Monoid Height where
---   mempty = Height 0
---   mconcat = maximum
---
--- instance SemigroupAction Height Height where
---   sact = max
---
--- instance MonoidAction Height Height
-
--- Operator monoid for rerooting (typical 039):
---
--- data V = V Int Int
---   deriving (Show, Eq, Ord)
---
--- derivingUnbox
---   "V"
---   [t|V -> (Int, Int)|]
---   [|\(V x1 x2) -> (x1, x2)|]
---   [|\(!x1, !x2) -> V x1 x2|]
---
--- instance Semigroup V where
---   (V !n1 !acc1) <> (V !n2 !acc2) = V (n1 + n2) (acc1 + acc2)
---
--- instance Monoid V where
---   -- `mempty` as operator:
---   mempty = V 0 0
---   mconcat = maximum
---
--- instance SemigroupAction V V where
---   sact (V !n1 !acc1) (V !n2 !acc2) = V (n1 + n2) (n1 + acc1 + acc2)
---
--- instance MonoidAction V V
-
 data MyModulus = MyModulus
 
 instance TypeInt MyModulus where
