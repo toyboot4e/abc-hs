@@ -2112,21 +2112,23 @@ foldViaLca (!cache@(!_, !depths, BinaryLifting !parents'), !ops') !v1 !v2 =
 -- {{{ Tree folding from a root node
 
 -- | Folds a tree from one root vertex using postorder DFS.
-foldTree :: Array Int [Int] -> Int -> m -> (m -> m -> m) -> m
-foldTree !tree !root !acc0 !mact = inner (-1) root
+foldTree :: forall m a. Array Vertex [Vertex] -> Vertex -> (m -> a -> a) -> (Vertex -> a) -> (a -> m) -> a
+foldTree !tree !root !sact !acc0At !toM = inner (-1) root
   where
+    inner :: Vertex -> Vertex -> a
     inner !parent !v1 =
       let !v2s = filter (/= parent) $ tree ! v1
-       in foldl' (\acc v2 -> (inner v1 v2) `mact` acc) acc0 v2s
+       in foldl' (\acc v2 -> (toM $ inner v1 v2) `sact` acc) (acc0At v1) v2s
 
 -- | Folds a tree from one root vertex using postorder DFS, recording all the accumulation values
 -- | on every vertex.
-scanTreeVG :: (VG.Vector v m) => Array Int [Int] -> Int -> m -> (m -> m -> m) -> v m
-scanTreeVG !tree !root !acc0 !mact = VG.create $ do
+scanTreeVG :: (VG.Vector v a) => Array Vertex [Vertex] -> Vertex -> (m -> a -> a) -> (Vertex -> a) -> (a -> m) -> v a
+scanTreeVG !tree !root !sact !acc0At !toM = VG.create $ do
   !dp <- VGM.unsafeNew nVerts
+
   !_ <- flip fix (-1, root) $ \runTreeDp (!parent, !v1) -> do
     let !v2s = filter (/= parent) $ tree ! v1
-    !x1 <- foldM (\acc v2 -> (`mact` acc) <$> runTreeDp (v1, v2)) acc0 v2s
+    !x1 <- foldM (\acc v2 -> (`sact` acc) . toM <$> runTreeDp (v1, v2)) (acc0At v1) v2s
     VGM.write dp v1 x1
     return x1
 
@@ -2134,34 +2136,35 @@ scanTreeVG !tree !root !acc0 !mact = VG.create $ do
   where
     !nVerts = rangeSize $ bounds tree
 
-scanTreeVU :: VU.Unbox m => Array Int [Int] -> Int -> m -> (m -> m -> m) -> VU.Vector m
+scanTreeVU :: VU.Unbox a => Array Vertex [Vertex] -> Vertex -> (m -> a -> a) -> (Vertex -> a) -> (a -> m) -> VU.Vector a
 scanTreeVU = scanTreeVG
+
+scanTreeV :: Array Vertex [Vertex] -> Vertex -> (m -> a -> a) -> (Vertex -> a) -> (a -> m) -> V.Vector a
+scanTreeV = scanTreeVG
 
 -- | Folds a tree for every vertex as a root using the rerooting technique.
 -- | Also known as tree DP with rerooting.
 -- | REMARK: `mempty` is used for initial operator value.
-foldTreeAll :: (VU.Unbox m, MonoidAction m m) => Array Int [Int] -> m -> VU.Vector m
-foldTreeAll !tree !acc0 =
+foldTreeAll :: (VU.Unbox a, VU.Unbox m, MonoidAction m a) => Array Vertex [Vertex] -> (Vertex -> a) -> (a -> m) -> VU.Vector a
+foldTreeAll !tree !acc0At !toM =
   -- Calculate tree DP for one root vertex
-  let !treeDp = scanTreeVG tree root0 acc0 mact
+  let !treeDp = scanTreeVG tree root0 mact acc0At toM
       !rootDp = VU.create $ do
         -- Calculate tree DP for every vertex as a root:
         !dp <- VUM.unsafeNew nVerts
         flip fix (-1, op0, root0) $ \runRootDp (!parent, !parentOp, !v1) -> do
           let !children = VU.fromList . filter (/= parent) $ tree ! v1
-          let !opL = VU.scanl' (\op v2 -> (op <>) $ treeDp VU.! v2) op0 children
-          let !opR = VU.scanr (\v2 op -> (op <>) $ treeDp VU.! v2) op0 children
+          let !opL = VU.scanl' (\op v2 -> (op <>) . toM $ treeDp VU.! v2) op0 children
+          let !opR = VU.scanr (\v2 op -> (<> op) . toM $ treeDp VU.! v2) op0 children
 
           -- save
-          let !x1 = (parentOp <> (VU.last opL)) `mact` acc0
+          let !x1 = (parentOp <> (VU.last opL)) `mact` (acc0At v1)
           VUM.write dp v1 x1
-          -- let !_ = dbg ("dfs", (parent, parentOp), "->", (v1, x1), children, opR)
 
           flip VU.imapM_ children $ \ !i2 !v2 -> do
             let !lrOp = (opL VU.! i2) <> (opR VU.! succ i2)
-            -- REMARK: We assume the accumulated value has information to be used as an operator:
-            let !v1Acc = (parentOp <> lrOp) `mact` acc0
-            runRootDp (v1, v1Acc, v2)
+            let !v1Acc = (parentOp <> lrOp) `mact` (acc0At v2)
+            runRootDp (v1, toM v1Acc, v2)
 
         return dp
    in rootDp
