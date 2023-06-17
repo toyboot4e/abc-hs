@@ -748,9 +748,6 @@ class (SemigroupAction m a, Monoid m) => MonoidAction m a where
 instance SemigroupAction (Product Int) Int where
   sact (Product !x1) !x2 = x1 * x2
 
-instance TypeInt p => SemigroupAction (Product (ModInt p)) (ModInt p) where
-  sact (Product !x1) !x2 = x1 * x2
-
 -- | Alias of `sactBL` for monoid action.
 mactBL :: (MonoidAction m a, VG.Vector v m) => (BinaryLifting v m) -> a -> Int -> a
 mactBL = sactBL
@@ -899,6 +896,9 @@ instance TypeInt p => Fractional (ModInt p) where
     where
       n = fromInteger $ Ratio.numerator r
       d = fromInteger $ Ratio.denominator r
+
+instance TypeInt p => SemigroupAction (Product (ModInt p)) (ModInt p) where
+  sact (Product !x1) !x2 = x1 * x2
 
 -- }}}
 
