@@ -192,7 +192,7 @@ foldForM :: (Foldable t, Monad m) => b -> t a -> (b -> a -> m b) -> m b
 foldForM !s0 !xs !m = foldM m s0 xs
 
 foldForMVG :: (PrimMonad m, VG.Vector v a) => b -> v a -> (b -> a -> m b) -> m b
-foldForMVG !s0 !xs !m = VG.foldM m s0 xs
+foldForMVG !s0 !xs !m = VG.foldM' m s0 xs
 
 -- }}}
 
@@ -993,16 +993,16 @@ singletonMS :: Int -> MultiSet
 singletonMS !x = (1, IM.singleton x 1)
 
 fromListMS :: [Int] -> MultiSet
-fromListMS = foldl' (flip incrementMS) emptyMS
+fromListMS = foldl' (flip incMS) emptyMS
 
-incrementMS :: Int -> MultiSet -> MultiSet
-incrementMS !k (!n, !im) =
+incMS :: Int -> MultiSet -> MultiSet
+incMS !k (!n, !im) =
   if IM.member k im
     then (n, IM.insertWith (+) k 1 im)
     else (n + 1, IM.insert k 1 im)
 
-decrementMS :: Int -> MultiSet -> MultiSet
-decrementMS !k (!n, !im) =
+decMS :: Int -> MultiSet -> MultiSet
+decMS !k (!n, !im) =
   case IM.lookup k im of
     Just 1 -> (n - 1, IM.delete k im)
     Just _ -> (n, IM.insertWith (+) k (-1) im)
@@ -1017,7 +1017,7 @@ notMemberMS !k (!_, !im) = IM.notMember k im
 deleteFindMinMS :: MultiSet -> (Int, MultiSet)
 deleteFindMinMS ms@(!n, !im) =
   let !key = fst $ IM.findMin im
-   in (key, decrementMS key ms)
+   in (key, decMS key ms)
 
 innerMS :: MultiSet -> IM.IntMap Int
 innerMS (!_, !im) = im
