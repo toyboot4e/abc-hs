@@ -1,0 +1,20 @@
+{
+  "contest": {
+    "id": "ahc021",
+    "title": "TOYOTA Programming Contest 2023 Summer（AtCoder Heuristic Contest 021）",
+    "url": "https://atcoder.jp/contests/ahc021"
+  },
+  "tasks": [
+    {
+      "id": "ahc021_a",
+      "label": "A",
+      "title": "Pyramid Sorting",
+      "url": "https://atcoder.jp/contests/ahc021/tasks/ahc021_a",
+      "directory": {
+        "path": "a",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    }
+  ]
+}

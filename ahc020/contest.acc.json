@@ -1,0 +1,20 @@
+{
+  "contest": {
+    "id": "ahc020",
+    "title": "ALGO ARTIS Programming Contest 2023（AtCoder Heuristic Contest 020）",
+    "url": "https://atcoder.jp/contests/ahc020"
+  },
+  "tasks": [
+    {
+      "id": "ahc020_a",
+      "label": "A",
+      "title": "Broadcasting",
+      "url": "https://atcoder.jp/contests/ahc020/tasks/ahc020_a",
+      "directory": {
+        "path": "a",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    }
+  ]
+}
