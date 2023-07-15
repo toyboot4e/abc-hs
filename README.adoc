@@ -1,7 +1,8 @@
 = Atcoder beginner contest in Haskell
 :acc: https://github.com/Tatamo/atcoder-cli[acc]
+:toy-lib: https://github.com/toyboot4e/toy-lib[toy-lib]
 
-Based on {acc}. My template can be found in link:./_acc/haskell/Main.hs[].
+Based on {acc}. My library can be found on {toy-lib}.
 
 == Setting up
 
@@ -86,7 +87,7 @@ $ ../test a
 $ ../submit a
 ----
 
-=== I want to use GHC 8.8.3, but only in this repository
+=== I want to use GHC 8.8.3 / GHC 8.8.4, but only in this repository
 
 https://direnv.net/[direnv] just works as a temporary workaround.
 
