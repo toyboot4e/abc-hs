@@ -4,7 +4,7 @@
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
 {- ORMOLU_DISABLE -}
-{-# LANGUAGE BangPatterns, BlockArguments, CPP, DefaultSignatures, FlexibleContexts, FlexibleInstances, InstanceSigs, LambdaCase, MultiParamTypeClasses, MultiWayIf, NamedFieldPuns, NumDecimals, NumericUnderscores, PatternGuards, QuantifiedConstraints, RankNTypes, RecordWildCards, ScopedTypeVariables, StrictData, TemplateHaskell, TupleSections, TypeApplications, TypeFamilies #-}
+{-# LANGUAGE BangPatterns, BlockArguments, CPP, DefaultSignatures, FlexibleContexts, FlexibleInstances, InstanceSigs, LambdaCase, MultiParamTypeClasses, MultiWayIf, NumDecimals, NumericUnderscores, PatternGuards, QuantifiedConstraints, RankNTypes, RecordWildCards, ScopedTypeVariables, StrictData, TemplateHaskell, TupleSections, TypeApplications, TypeFamilies #-}
 import Control.Applicative;import Control.Monad;import Control.Monad.Fix;import Control.Monad.Primitive;import Control.Monad.ST;import Control.Monad.Trans.State.Strict;import Data.Bifunctor;import Data.Bits;import Data.Bool (bool);import Data.Char;import Data.Coerce;import Data.Either;import Data.Foldable;import Data.Functor;import Data.Functor.Identity;import Data.IORef;import Data.List;import Data.Maybe;import Data.Ord;import Data.Proxy;import Data.STRef;import Data.Semigroup;import Data.Word;import Debug.Trace;import GHC.Exts;import GHC.Float (int2Float);import System.Exit (exitSuccess);import System.IO;import Text.Printf;import qualified Data.Ratio as Ratio;import Data.Array.IArray;import Data.Array.IO;import Data.Array.MArray;import Data.Array.ST;import Data.Array.Unboxed (UArray);import Data.Array.Unsafe;import qualified Data.Array as A;import qualified Data.ByteString.Builder as BSB;import qualified Data.ByteString.Char8 as BS;import Control.Monad.Extra hiding (loop);import Data.IORef.Extra;import Data.List.Extra hiding (merge);import Data.Tuple.Extra hiding (first, second);import Numeric.Extra;import Data.Bool.HT;import qualified Data.Ix.Enum as HT;import qualified Data.List.HT as HT;import qualified Data.Vector.Fusion.Bundle as VFB;import qualified Data.Vector.Generic as VG;import qualified Data.Vector.Generic.Mutable as VGM;import qualified Data.Vector.Unboxed as VU;import qualified Data.Vector.Unboxed.Mutable as VUM;import qualified Data.Vector as V;import qualified Data.Vector.Mutable as VM;import qualified Data.Vector.Fusion.Bundle.Monadic as MB;import qualified Data.Vector.Fusion.Bundle.Size as MB;import qualified Data.Vector.Fusion.Stream.Monadic as MS;import qualified Data.Vector.Algorithms.Intro as VAI;import qualified Data.Vector.Algorithms.Search as VAS;import Data.Vector.Unboxed.Deriving (derivingUnbox);import qualified Data.Graph as G;import qualified Data.IntMap.Strict as IM;import qualified Data.Map.Strict as M;import qualified Data.IntSet as IS;import qualified Data.Set as S;import qualified Data.Sequence as Seq;import qualified Data.Heap as H;import Data.Hashable;import qualified Data.HashMap.Strict as HM;import qualified Data.HashSet as HS
 
 #ifdef DEBUG
@@ -17,69 +17,44 @@ dbg :: Show a => a -> () ; dbg _ = () ; dbgAssert :: Bool -> a -> a ; dbgAssert 
 {- ORMOLU_ENABLE -}
 -- }}}
 
--- | N-dimensional @Vector@ or @MVector@ with `Data.Ix`.
-data IxVector i v = IxVector {boundsIV :: !(i, i), vecIV :: !v}
+data MyModulus = MyModulus
 
-(.!) :: (Ix i, VG.Vector v a) => IxVector i (v a) -> i -> a
-(.!) IxVector {..} i = vecIV VG.! (index boundsIV i)
+instance TypeInt MyModulus where
+  -- typeInt _ = 1_000_000_007
+  typeInt _ = 998244353
 
--- | Reads a value from `IxVector`.
-{-# INLINE readIV #-}
-readIV :: (Ix i, PrimMonad m, VGM.MVector v a) => IxVector i (v (PrimState m) a) -> i -> m a
-readIV IxVector {..} i = VGM.read vecIV (index boundsIV i)
+type MyModInt = ModInt MyModulus
 
--- | Writes a value to `IxVector`.
-{-# INLINE writeIV #-}
-writeIV :: (Ix i, PrimMonad m, VGM.MVector v a) => IxVector i (v (PrimState m) a) -> i -> a -> m ()
-writeIV IxVector {..} i a = VGM.write vecIV (index boundsIV i) a
-
-{-# INLINE modifyIV #-}
-modifyIV :: (Ix i, PrimMonad m, VGM.MVector v a) => IxVector i (v (PrimState m) a) -> (a -> a) -> i -> m ()
-modifyIV IxVector {..} !alter i = VGM.modify vecIV alter (index boundsIV i)
-
-{-# INLINE swapIV #-}
-swapIV :: (Ix i, PrimMonad m, VGM.MVector v a) => IxVector i (v (PrimState m) a) -> i -> i -> m ()
-swapIV IxVector {..} !i1 !i2 = VGM.swap vecIV (index boundsIV i1) (index boundsIV i2)
+modInt :: Int -> MyModInt
+modInt = ModInt . (`mod` typeInt (Proxy @MyModulus))
 
 undef :: Int
 undef = -1
 
-bfsGrid2 :: View2d (VU.Vector Int) -> (Int, Int) -> (Int, Int) -> View2d (VU.Vector Int)
-bfsGrid2 !grid (!h, !w) !start = view2dVG (h, w) $ VU.create $ do
-  (!vec, !vis) <- withView2dVGM (h, w) <$> VUM.replicate (h * w) undef
+solve :: Int -> [(Int, Int)] -> MyModInt
+solve !nVerts !edges =
+  let !graph = accumArray @Array (flip (:)) [] (0, pred nVerts) edges
+   in modInt . length $ topScc graph
 
-  let nexts !i !yx0 = filter (\yx -> inRange ((0, 0), (pred h, pred w)) yx && grid `idx2d` yx == i) $ map (add2 yx0) dyxs
-        where
-          dyxs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
-
-  let inner !depth !vs
-        | S.null vs = return ()
-        | otherwise = do
-            let yxs = S.toList vs
-
-            forM_ yxs $ \yx -> do
-              write2d vis yx depth
-
-            !vs_ <- fmap concat . forM yxs $ \yx -> do
-              filterM (\yx2 -> (== undef) <$> read2d vis yx2) $ nexts depth yx
-
-            inner ((depth + 1) `mod` 5) $ S.fromList vs_
-
-  !_ <- inner (1 :: Int) (S.singleton start)
-  return vec
-
-f :: Char -> Int
-f 's' = 0
-f 'n' = 1
-f 'u' = 2
-f 'k' = 3
-f 'e' = 4
-f _ = -10000
-
--- IxVector version of my first submission
 main :: IO ()
 main = do
-  (!h, !w) <- ints2
-  !grid <- view2dVG (h, w) . VU.fromList . map f . concat <$> replicateM h getLine
-  putStrLn . yn . (/= undef) $ (bfsGrid2 grid (h, w) (0, 0)) `idx2d` (pred h, pred w)
+  (!nVerts, !nInverses) <- ints2
+
+  let !edges0 = V.fromList [(i, j) | i <- [0 .. pred (pred nVerts)], j <- [succ i .. pred nVerts]]
+  let !nEdges = V.length edges0
+
+  let !_ = dbg (nVerts, V.length edges0)
+  let !_ = dbg (combs nInverses [0 .. pred nEdges])
+
+  let !invPoints = combs nInverses [0 .. pred nEdges]
+  let !edges = map f invPoints
+        where
+          f is = V.create $ do
+            !vec <- V.thaw edges0
+            forM_ is $ VM.modify vec swap
+            return vec
+
+  let !results = map (solve nVerts . V.toList) edges
+  let !_ = dbg (results)
+  print $ sum results
 

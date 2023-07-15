@@ -1,0 +1,75 @@
+{
+  "contest": {
+    "id": "arc162",
+    "title": "AtCoder Regular Contest 162",
+    "url": "https://atcoder.jp/contests/arc162"
+  },
+  "tasks": [
+    {
+      "id": "arc162_a",
+      "label": "A",
+      "title": "Ekiden Race",
+      "url": "https://atcoder.jp/contests/arc162/tasks/arc162_a",
+      "directory": {
+        "path": "a",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "arc162_b",
+      "label": "B",
+      "title": "Insertion Sort 2",
+      "url": "https://atcoder.jp/contests/arc162/tasks/arc162_b",
+      "directory": {
+        "path": "b",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "arc162_c",
+      "label": "C",
+      "title": "Mex Game on Tree",
+      "url": "https://atcoder.jp/contests/arc162/tasks/arc162_c",
+      "directory": {
+        "path": "c",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "arc162_d",
+      "label": "D",
+      "title": "Smallest Vertices",
+      "url": "https://atcoder.jp/contests/arc162/tasks/arc162_d",
+      "directory": {
+        "path": "d",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "arc162_e",
+      "label": "E",
+      "title": "Strange Constraints",
+      "url": "https://atcoder.jp/contests/arc162/tasks/arc162_e",
+      "directory": {
+        "path": "e",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "arc162_f",
+      "label": "F",
+      "title": "Montage",
+      "url": "https://atcoder.jp/contests/arc162/tasks/arc162_f",
+      "directory": {
+        "path": "f",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    }
+  ]
+}
