@@ -31,10 +31,15 @@ modInt = ModInt . (`mod` typeInt (Proxy @MyModulo))
 undef :: Int
 undef = -1
 
+{-# INLINE (.!.) #-}
+(.!.) :: (b -> c) -> (a -> b) -> a -> c
+(.!.) = (.) . ($!)
+infixr 9 .!.
+
 main :: IO ()
 main = do
   (!h, !w, !n) <- ints3
-  !xs <- VU.replicateM n (both pred <$> ints2)
+  !xs <- VU.replicateM n (both pred <$!> ints2)
 
   let !result = VU.create $ do
         !dp <- IxVector ((0, 0), (h - 1, w - 1)) <$> VUM.replicate (h * w) (1 :: Int)
@@ -46,11 +51,7 @@ main = do
           repM_ 1 (pred w) $ \x -> do
             !s0 <- readIV dp (y, x)
             unless (s0 == 0) $ do
-              !s1 <- readIV dp (y - 1, x - 1)
-              !s2 <- readIV dp (y, x - 1)
-              !s3 <- readIV dp (y - 1, x)
-              let !s' = succ $ minimum [s1, s2, s3]
-              let !_ = dbg (y, x, s')
+              !s' <- succ .!. minimum <$> mapM (readIV dp .!. add2 (y, x)) [(-1, -1), (0, -1), (-1, 0)]
               writeIV dp (y, x) s'
 
         return $ vecIV dp

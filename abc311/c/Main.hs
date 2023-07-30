@@ -18,76 +18,7 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
-data MyModulo = MyModulo
-
-instance TypeInt MyModulo where
-  -- typeInt _ = 1_000_000_007
-  typeInt _ = 998244353
-
-type MyModInt = ModInt MyModulo
-
-modInt :: Int -> MyModInt
-modInt = ModInt . (`mod` typeInt (Proxy @MyModulo))
-
-undef :: Int
-undef = -1
-
--- findLoop :: Array Int [Int] -> Int -> [Int]
--- findLoop !gr !start = do
---   !vec <- VUM.replicate (rangeSize (bounds gr)) False
---   flip fix (start, [start]) $ \loop acc -> do
---     VUM.write v1 True
---     forM_ (gr ! v1) $ \v2 -> do
---       !b <- VUM.read vec v2
---       loop (v2, v2 : acc)
---     VUM.write v1 False
--- 
--- main :: IO ()
--- main = do
---   !n <- int
---   !edges <- zip [0 :: Int ..] . map pred <$> ints
---   let !_ = dbg (edges)
--- 
---   let !gr = accumArray @Array (flip (:)) [] (0, pred n) $ nubSort $ concatMap2 swapDupe edges
--- 
---   !uf <- newMUF n
---   !lastV <- flip fix edges $ \loop es -> case uncons es of
---     Nothing -> error "unreachable"
---     Just ((!v1, !v2), !es') -> do
---       let !_ = dbg ("edge", v1, v2)
---       !b <- sameMUF uf v1 v2
---       if b
---         then return v1
---         else do
---           uniteMUF uf v1 v2
---           loop es'
--- 
---   !root <- rootMUF uf lastV
--- 
---   !vis <- VUM.replicate n False
---   !result <- flip fix (root, []) $ \loop (v, acc) -> do
---     let !_ = dbg (v, gr ! v, acc)
---     !b <- VUM.read vis v
---     if b
---       then return (v : acc)
---       else do
---         VUM.write vis v True
---         -- !v2 <- fmap head . filterM (liftM2 (&&) (sameMUF uf root) (fmap not . VUM.read vis)) $ (gr ! v) :: IO Int
---         !v2s <-
---             filterM
---               ( \v1 -> do
---                   !b1 <- sameMUF uf root v1
---                   !b2 <- VUM.read vis v1
---                   return $ b1 && not b2
---               )
---             $ gr ! v
---         if null v2s
---           then return (v : acc)
---           else loop (head v2s, v : acc)
--- 
---   print $ length result
---   putStrLn . unwords $ map (show . succ) result
-
+-- Solve as a directed graph
 main :: IO ()
 main = do
   !n <- int
@@ -98,3 +29,30 @@ main = do
   let !vs = head cycles
   print $ length vs
   putStrLn . unwords $ map (show . succ) $ reverse vs
+
+-- feat :: (Int, Int) -> (Int, Int)
+-- feat = ((,) <$> uncurry min <*> uncurry max)
+--
+-- -- As undirected graph (just for practice)
+-- main :: IO ()
+-- main = do
+--   !n <- int
+--   !edges <- concatMap2 swapDupe . nubSort . map feat . zip [0 :: Int ..] . map pred <$> ints
+--   let !_ = dbg (edges)
+--
+--   let !gr = accumArray @Array (flip (:)) [] (0, pred n) edges
+--   let !isInCycle = cyclesSUG gr
+--
+--   let !start = fromJust $ VU.findIndex id isInCycle
+--   let !result = until p f [start]
+--         where
+--           p [_] = False
+--           p (v0 : _) = v0 == start
+--           f [v0] = (head $ filter (isInCycle VU.!) $ gr ! v0) : [v0]
+--           f vs@(v0 : parent : _) = (head $ filter ((&&) <$> (/= parent) <*> (isInCycle VU.!)) $ gr ! v0) : vs
+--           f _ = error "unreachable"
+--
+--   -- WA. directed.
+--   print $ length result
+--   putStrLn . unwords $ map (show . succ) $ reverse result
+

@@ -8,6 +8,8 @@
 --ghc-options "-D DEBUG"
 -}
 
+-- submission for testing the speed of `repM_`
+
 {- ORMOLU_DISABLE -}
 {-# LANGUAGE BangPatterns, BlockArguments, DefaultSignatures, LambdaCase, MultiWayIf #-}
 {-# LANGUAGE NumDecimals, NumericUnderscores, PatternGuards, TupleSections #-}
@@ -219,7 +221,6 @@ rangeMSR !l !r = MS.Stream step r
       | otherwise = return MS.Done
 
 -- | `forM` over monadic stream in the vector package.
--- | NOTE: This is for side effects only. I don't know how to use `MS.mapM` yet.
 {-# INLINE forMS #-}
 forMS :: (Monad m) => MS.Stream m Int -> (Int -> m ()) -> m ()
 forMS = flip MS.mapM_
@@ -1917,14 +1918,13 @@ bfsGrid :: UArray (Int, Int) Char -> (Int, Int) -> UArray (Int, Int) Int
 bfsGrid !grid !start = runSTUArray $ do
   let bounds_ = bounds grid
   let (!h, !w) = both succ $ snd bounds_
-  let isBlock !yx = grid ! yx == '#'
 
   let ix = index bounds_
   let unIndex !i = i `divMod` w
 
   !vis <- newArray bounds_ undef
 
-  let nexts !yx0 = filter (\yx -> inRange bounds_ yx && not (isBlock yx)) $ map (add2 yx0) dyxs
+  let nexts !yx0 = filter (\yx -> inRange bounds_ yx && grid ! yx /= '#') $ map (add2 yx0) dyxs
         where
           dyxs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
@@ -1943,6 +1943,16 @@ bfsGrid !grid !start = runSTUArray $ do
 
   !_ <- inner (0 :: Int) (IS.singleton $ ix start)
   return vis
+
+{-# INLINE repM_ #-}
+repM_ :: Monad m => Int -> Int -> (Int -> m ()) -> m ()
+repM_ !l !r !act = inner l
+  where
+    inner !i
+      | i > r = return ()
+      | otherwise = do
+        act i
+        inner (succ i)
 
 -- Traveling salesman problem (bit DP, set DP)
 -- TODO: clean
@@ -1970,8 +1980,9 @@ tsp !nVerts !mat !bfs0 !lenLimit = runST $ do
     let !s = shift (1 :: Int) v
     writeArray dp (s, v) l
 
-  forMS (rangeMS 1 (pred nSets)) \s -> do
-    forMS (rangeMS 0 (pred nVerts)) \v1 -> do
+  -- TODO: `repM_` vs `forMS_`
+  repM_ 1 (pred nSets) $ \s -> do
+    repM_ 0 (pred nVerts) $ \v1 -> do
       !len0 <- readArray dp (s, v1)
 
       -- REMARK: some vertices are UNREACHABLE
@@ -2033,3 +2044,4 @@ main = do
 
   let bfs0' = VU.fromList $ map (\(!v, !yx) -> (v, bfs0 ! yx)) $ zip [0..] verts
   print $ tsp nVerts mat bfs0' nMove
+

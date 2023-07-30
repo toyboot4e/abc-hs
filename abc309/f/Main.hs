@@ -19,6 +19,24 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+-- TODO: Remove on 2023 langauge update
+-- @since 0.13.0.1
+{-# INLINE groupByVG #-}
+groupByVG :: (VG.Vector v a) => (a -> a -> Bool) -> v a -> [v a]
+groupByVG _ !v | VG.null v = []
+groupByVG !f !v =
+  let !h = VG.unsafeHead v
+      !tl = VG.unsafeTail v
+   in case VG.findIndex (not . f h) tl of
+        Nothing -> [v]
+        Just !n -> VG.unsafeTake (n + 1) v : groupByVG f (VG.unsafeDrop (n + 1) v)
+
+-- | /O(n)/ Split a vector into a list of slices.
+-- @since 0.13.0.1
+{-# INLINE groupVG #-}
+groupVG :: (VG.Vector v a, Eq a) => v a -> [v a]
+groupVG = groupByVG (==)
+
 -- | The @y -> z@ `IntMap` manages @z@ in monotonically ascending order.
 -- This is because we don't need containers that are contained by any other (and to do eager lookup).
 insertMono :: Int -> Int -> IM.IntMap Int -> IM.IntMap Int
@@ -41,17 +59,17 @@ insertMono !y0 !z0 !im0 = case IM.lookupGE y0 im0 of
 main :: IO ()
 main = do
   !n <- int
-  !boxes <- groupBy ((==) `on` fst3) . sortBy (comparing $ Down . fst3) <$> replicateM n (tuple3 . sort <$> ints)
+  !boxes <- groupByVG ((==) `on` fst3) . VU.modify (VAI.sortBy (comparing $ Down . fst3)) <$> VU.replicateM n (tuple3 . sort <$> ints)
   let !_ = dbg (boxes)
 
   let !result = loop IM.empty boxes
         where
           loop _ [] = False
-          loop !containers (!xyzs : boxes) = any isContained xyzs || loop containers' boxes
+          loop !containers (!xyzs : boxes) = VG.any isContained xyzs || loop containers' boxes
             where
               isContained (!_, !y, !z) = case IM.lookupGT y containers of
-                 Just (!_, !z') | z' > z -> True
-                 _ -> False
-              !containers' = foldl' (\im (!_, !y, !z) -> insertMono y z im) containers xyzs
+                Just (!_, !z') | z' > z -> True
+                _ -> False
+              !containers' = VG.foldl' (\im (!_, !y, !z) -> insertMono y z im) containers xyzs
 
   putStrLn $ yn result
