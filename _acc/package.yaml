@@ -1,5 +1,5 @@
 dependencies:
-   - base >= 4.7 && < 5
+   - base
 
    - QuickCheck
    - array
@@ -34,6 +34,8 @@ dependencies:
    - vector
    - vector-algorithms
    - vector-th-unbox
+
+langauge: GHC2021
 
 # DRY for package.yaml executables:
 # <https://www.reddit.com/r/haskell/comments/haeqin/dry_for_packageyaml_executables/>
