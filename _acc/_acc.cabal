@@ -48,7 +48,7 @@ executable a-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable b-exe
   main-is: Main.hs
@@ -90,7 +90,7 @@ executable b-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable c-exe
   main-is: Main.hs
@@ -132,7 +132,7 @@ executable c-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable d-exe
   main-is: Main.hs
@@ -174,7 +174,7 @@ executable d-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable e-exe
   main-is: Main.hs
@@ -216,7 +216,7 @@ executable e-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable ex-exe
   main-is: Main.hs
@@ -258,7 +258,7 @@ executable ex-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable f-exe
   main-is: Main.hs
@@ -300,7 +300,7 @@ executable f-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable g-exe
   main-is: Main.hs
@@ -342,4 +342,4 @@ executable g-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
