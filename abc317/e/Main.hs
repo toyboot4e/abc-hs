@@ -6,6 +6,7 @@
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
 {- ORMOLU_DISABLE -}
 {-# LANGUAGE BlockArguments, CPP, DefaultSignatures, DerivingVia, LambdaCase, MultiWayIf, NumDecimals, QuantifiedConstraints, RecordWildCards, StandaloneDeriving, StrictData, TemplateHaskell, TypeFamilies #-}
+import GHC.Ix (unsafeIndex)
 import Control.Applicative;import Control.Arrow ((***));import Control.Exception (assert);import Control.Monad;import Control.Monad.Fix;import Control.Monad.Primitive;import Control.Monad.ST;import Control.Monad.Trans.State.Strict hiding (get);import Data.Bifunctor;import Data.Bits;import Data.Bool (bool);import Data.Char;import Data.Coerce;import Data.Either;import Data.Foldable;import Data.Function (on);import Data.Functor;import Data.Functor.Identity;import Data.IORef;import Data.List.Extra hiding (nubOn);import Data.Maybe;import Data.Ord;import Data.Primitive.MutVar;import Data.Proxy;import Data.STRef;import Data.Semigroup;import Data.Word;import Debug.Trace;import GHC.Exts;import GHC.Float (int2Float);import GHC.Stack (HasCallStack);import System.Exit (exitSuccess);import System.IO;import Text.Printf;import qualified Data.Ratio as Ratio;import Data.Array.IArray;import Data.Array.IO;import Data.Array.MArray;import Data.Array.ST;import Data.Array.Unboxed (UArray);import Data.Array.Unsafe;import qualified Data.Array as A;import qualified Data.ByteString.Builder as BSB;import qualified Data.ByteString.Char8 as BS;import qualified Data.ByteString.Unsafe as BSU;import Control.Monad.Extra hiding (loop);import Data.IORef.Extra;import Data.List.Extra hiding (merge);import Data.Tuple.Extra hiding (first, second);import Numeric.Extra;import Data.Bool.HT;import qualified Data.Ix.Enum as HT;import qualified Data.List.HT as HT;import qualified Data.Vector.Fusion.Bundle as VFB;import qualified Data.Vector.Generic as VG;import qualified Data.Vector.Generic.Mutable as VGM;import qualified Data.Vector.Primitive as VP;import qualified Data.Vector.Unboxed as VU;import qualified Data.Vector.Unboxed.Base as VU;import qualified Data.Vector.Unboxed.Mutable as VUM;import qualified Data.Vector as V;import qualified Data.Vector.Mutable as VM;import qualified Data.Vector.Fusion.Bundle.Monadic as MB;import qualified Data.Vector.Fusion.Bundle.Size as MB;import qualified Data.Vector.Fusion.Stream.Monadic as MS;import qualified Data.Vector.Algorithms.Intro as VAI;import qualified Data.Vector.Algorithms.Search as VAS;import qualified Data.Graph as G;import qualified Data.IntMap.Strict as IM;import qualified Data.Map.Strict as M;import qualified Data.IntSet as IS;import qualified Data.Set as S;import qualified Data.Sequence as Seq;import qualified Data.Heap as H;import qualified Data.HashMap.Strict as HM;import qualified Data.HashSet as HS
 
 #ifdef DEBUG
@@ -18,50 +19,47 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
-data MyModulo = MyModulo
+type IxUVector i a = IxVector i (VU.Vector a)
+type IxMUVector i s a = IxVector i (VUM.MVector s a)
 
-instance TypeInt MyModulo where
-  -- typeInt _ = 1_000_000_007
-  typeInt _ = 998244353
+-- | Partial unsafe `IxVector` accessor
+{-# INLINE (@!!) #-}
+(@!!) :: (Ix i, VG.Vector v a) => IxVector i (v a) -> i -> a
+(@!!) IxVector {..} i = VG.unsafeIndex vecIV (unsafeIndex boundsIV i)
 
-type MyModInt = ModInt MyModulo
+{-# INLINE unsafeReadIV #-}
+unsafeReadIV :: (Ix i, PrimMonad m, VGM.MVector v a) => IxVector i (v (PrimState m) a) -> i -> m a
+unsafeReadIV IxVector {..} i = VGM.unsafeRead vecIV (unsafeIndex boundsIV i)
 
-modInt :: Int -> MyModInt
-modInt = ModInt . (`mod` typeInt (Proxy @MyModulo))
+{-# INLINE unsafeWriteIV #-}
+unsafeWriteIV :: (Ix i, PrimMonad m, VGM.MVector v a) => IxVector i (v (PrimState m) a) -> i -> a -> m ()
+unsafeWriteIV IxVector {..} i = VGM.unsafeWrite vecIV (unsafeIndex boundsIV i)
 
-undef :: Int
-undef = -1
+bfsGrid317E_MBuffer :: (HasCallStack) => IxUVector (Int, Int) Bool -> (Int, Int) -> IxUVector (Int, Int) Int
+bfsGrid317E_MBuffer !isBlock !start = IxVector bounds_ $ runST $ do
+  !vis <- IxVector bounds_ <$> VUM.replicate (rangeSize bounds_) undef
+  !queue <- newBufferAsQueue (rangeSize bounds_)
 
-bfsGrid317E :: IxVector (Int, Int) (VU.Vector Bool) -> (Int, Int) -> UArray (Int, Int) Int
-bfsGrid317E !isBlock !start = runSTUArray $ do
-  let !bounds_ = boundsIV isBlock
-  let (!_, !w) = both succ $! snd bounds_
+  pushBack start queue
+  unsafeWriteIV vis start 0
 
-  let ix = index bounds_
-  let unIndex !i = i `divMod` w
-  let !undef = -1 :: Int
+  fix $ \loop ->
+    popFront queue >>= \case
+      Nothing -> return ()
+      Just !yx1 -> do
+        !d <- unsafeReadIV vis yx1
+        VU.forM_ (nexts yx1) $ \yx2 -> do
+          whenM ((== undef) <$> unsafeReadIV vis yx2) $ do
+            unsafeWriteIV vis yx2 (d + 1)
+            pushBack yx2 queue
+        loop
 
-  !vis <- newArray bounds_ undef
-
-  let nexts !yx0 = filter (\yx -> inRange bounds_ yx && not (isBlock @! yx)) $! map (add2 yx0) dyxs
-        where
-          !dyxs = fromList [(1, 0), (-1, 0), (0, 1), (0, -1)]
-
-  let inner !depth !vs
-        | IS.null vs = return ()
-        | otherwise = do
-            let yxs = map unIndex $! IS.toList vs
-
-            forM_ yxs $ \yx -> do
-              writeArray vis yx depth
-
-            !vss <- forM yxs $ \yx -> do
-              filterM (fmap (== undef) . readArray vis) $ nexts yx
-
-            inner (succ depth) $! IS.fromList . map ix $! concat vss
-
-  !_ <- inner (0 :: Int) (IS.singleton $ ix start)
-  return vis
+  VU.unsafeFreeze $ vecIV vis
+  where
+    !undef = -1 :: Int
+    !bounds_ = boundsIV isBlock
+    nexts !yx0 = VU.filter ((&&) <$> inRange bounds_ <*> not . (isBlock @!!)) $ VU.map (add2 yx0) dyxs
+    !dyxs = VU.fromList [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
 main :: IO ()
 main = do
@@ -69,7 +67,7 @@ main = do
   let !bounds_ = ((0, 0), (h - 1, w - 1))
 
   !grid <- IxVector bounds_ <$> charsH h
-  let !_ = dbgS (showGrid grid)
+  -- let !_ = dbgS (showGrid grid)
 
   let (!isBlock_, !start, !end) = runST $ do
         !vec <- IxVector bounds_ <$> VUM.replicate (h * w) False
@@ -78,59 +76,55 @@ main = do
 
         repM_ 0 (h - 1) $ \y -> do
           repM_ 0 (w - 1) $ \x -> do
-            case grid @! (y, x) of
+            case grid @!! (y, x) of
               '.' -> return ()
-              '#' -> writeIV vec (y, x) True
+              '#' -> unsafeWriteIV vec (y, x) True
               'S' -> writeSTRef startRef (y, x)
               'G' -> writeSTRef endRef (y, x)
-
               '>' -> flip fix (x + 1) $ \loop x' -> do
-                writeIV vec (y, x) True
+                unsafeWriteIV vec (y, x) True
                 if x' >= w
                   then return ()
-                  else case grid @! (y, x') of
+                  else case grid @!! (y, x') of
                     '.' -> do
-                      writeIV vec (y, x') True
+                      unsafeWriteIV vec (y, x') True
                       loop (x' + 1)
                     _ -> return ()
-
               '<' -> flip fix (x - 1) $ \loop x' -> do
-                writeIV vec (y, x) True
+                unsafeWriteIV vec (y, x) True
                 if x' < 0
                   then return ()
-                  else case grid @! (y, x') of
+                  else case grid @!! (y, x') of
                     '.' -> do
-                      writeIV vec (y, x') True
+                      unsafeWriteIV vec (y, x') True
                       loop (x' - 1)
                     _ -> return ()
-
               'v' -> flip fix (y + 1) $ \loop y' -> do
-                writeIV vec (y, x) True
+                unsafeWriteIV vec (y, x) True
                 if y' >= h
                   then return ()
-                  else case grid @! (y', x) of
+                  else case grid @!! (y', x) of
                     '.' -> do
-                      writeIV vec (y', x) True
+                      unsafeWriteIV vec (y', x) True
                       loop (y' + 1)
                     _ -> return ()
-
               '^' -> flip fix (y - 1) $ \loop y' -> do
-                writeIV vec (y, x) True
+                unsafeWriteIV vec (y, x) True
                 if y' < 0
                   then return ()
-                  else case grid @! (y', x) of
+                  else case grid @!! (y', x) of
                     '.' -> do
-                      writeIV vec (y', x) True
+                      unsafeWriteIV vec (y', x) True
                       loop (y' - 1)
                     _ -> return ()
 
         (,,) <$> VU.unsafeFreeze (vecIV vec) <*> readSTRef startRef <*> readSTRef endRef
 
   let !isBlock = IxVector bounds_ isBlock_
-  let !_ = dbg (start, end)
+  -- let !_ = dbg (start, end)
 
   -- let !isBlockX = IxVector bounds_ (VU.map (\case True -> '#'; _ -> '.') isBlock_)
   -- let !_ = dbgS (showGrid isBlockX)
 
-  let !result = bfsGrid317E isBlock start
-  print $ result ! end
+  let !result = bfsGrid317E_MBuffer isBlock start
+  print $ result @!! end

@@ -12,7 +12,7 @@ executable a-exe
   main-is: Main.hs
   hs-source-dirs:
       a
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -optl-fuse-ld=lld
   build-depends:
       QuickCheck
     , array
@@ -48,13 +48,13 @@ executable a-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable b-exe
   main-is: Main.hs
   hs-source-dirs:
       b
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -optl-fuse-ld=lld
   build-depends:
       QuickCheck
     , array
@@ -90,13 +90,13 @@ executable b-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable c-exe
   main-is: Main.hs
   hs-source-dirs:
       c
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -optl-fuse-ld=lld
   build-depends:
       QuickCheck
     , array
@@ -132,13 +132,13 @@ executable c-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable d-exe
   main-is: Main.hs
   hs-source-dirs:
       d
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -optl-fuse-ld=lld
   build-depends:
       QuickCheck
     , array
@@ -174,13 +174,13 @@ executable d-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable e-exe
   main-is: Main.hs
   hs-source-dirs:
       e
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -optl-fuse-ld=lld
   build-depends:
       QuickCheck
     , array
@@ -216,13 +216,13 @@ executable e-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable ex-exe
   main-is: Main.hs
   hs-source-dirs:
       ex
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -optl-fuse-ld=lld
   build-depends:
       QuickCheck
     , array
@@ -258,13 +258,13 @@ executable ex-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable f-exe
   main-is: Main.hs
   hs-source-dirs:
       f
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -optl-fuse-ld=lld
   build-depends:
       QuickCheck
     , array
@@ -300,13 +300,13 @@ executable f-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable g-exe
   main-is: Main.hs
   hs-source-dirs:
       g
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -optl-fuse-ld=lld
   build-depends:
       QuickCheck
     , array
@@ -342,4 +342,4 @@ executable g-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021

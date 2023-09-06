@@ -1,5 +1,6 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-16.31 --package array --package bytestring --package containers --package extra --package hashable --package unordered-containers --package heaps --package utility-ht --package vector --package vector-th-unbox --package vector-algorithms --package primitive --package transformers --ghc-options "-D DEBUG" -}
+
 {-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds #-}
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
@@ -31,10 +32,64 @@ modInt = ModInt . (`mod` typeInt (Proxy @MyModulo))
 undef :: Int
 undef = -1
 
+tuple6 :: [a] -> (a, a, a, a, a, a)
+tuple6 [!a1, !a2, !a3, !a4, !a5, !a6] = (a1, a2, a3, a4, a5, a6)
+tuple6 _ = error "not a six-item list"
+
+ints6 :: IO (Int, Int, Int, Int, Int, Int)
+ints6 = tuple6 <$> ints
+
+sizedInsert :: Int -> (Int, IS.IntSet) -> (Int, IS.IntSet)
+sizedInsert !i (!sz, !is)
+  | IS.member i is = (sz, is)
+  | otherwise = (succ sz, IS.insert i is)
+
 main :: IO ()
 main = do
-  (!n, !m) <- ints2
-  !xs <- intsVU
+  !n <- int
+  !input <- VU.replicateM n ints6
 
-  putStrLn "TODO"
+  -- because all the coboids DO NOT intersect, we can reduce the calculation order to the space size.
+  let !space = runSTUArray $ do
+        !arr <- newArray ((0, 0, 0), (100, 100, 100)) (-1 :: Int)
 
+        flip VU.imapM_ input $ \i (!x1, !x2, !x3, !y1, !y2, !y3) -> do
+          -- remark: exclude the last as we're iterating through vertices while painting the space.
+          repM_ x1 (y1 - 1) $ \z1 -> do
+            repM_ x2 (y2 - 1) $ \z2 -> do
+              repM_ x3 (y3 - 1) $ \z3 -> do
+                writeArray arr (z1, z2, z3) i
+
+        return arr
+
+  let !counts = V.map fst $ V.create $ do
+        !vec <- VM.replicate n (0, IS.empty)
+
+        flip VU.imapM_ input $ \i (!x1, !x2, !x3, !y1, !y2, !y3) -> do
+          repM_ x1 (y1 - 1) $ \z1 -> do
+            repM_ x2 (y2 - 1) $ \z2 -> do
+              repM_ x3 (y3 - 1) $ \z3 -> do
+                let !i0 = space ! (z1, z2, z3)
+
+                when (i0 /= -1) $ do
+                  -- [unrolled] check neighbors in three direcitons (only three is enough):
+                  do
+                    let !i1 = space ! (1 + z1, z2, z3)
+                    when (i1 /= -1 && i0 /= i1) $ do
+                      VM.unsafeModify vec (sizedInsert i1) i0
+                      VM.unsafeModify vec (sizedInsert i0) i1
+                  do
+                    let !i1 = space ! (z1, 1 + z2, z3)
+                    when (i1 /= -1 && i0 /= i1) $ do
+                      VM.unsafeModify vec (sizedInsert i1) i0
+                      VM.unsafeModify vec (sizedInsert i0) i1
+                  do
+                    let !i1 = space ! (z1, z2, 1 + z3)
+                    when (i1 /= -1 && i0 /= i1) $ do
+                      VM.unsafeModify vec (sizedInsert i1) i0
+                      VM.unsafeModify vec (sizedInsert i0) i1
+
+        return vec
+
+  let !_ = dbg (counts)
+  VG.forM_ counts print

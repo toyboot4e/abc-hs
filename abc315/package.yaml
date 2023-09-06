@@ -35,7 +35,7 @@ dependencies:
    - vector-algorithms
    - vector-th-unbox
 
-langauge: GHC2021
+language: GHC2021
 
 # DRY for package.yaml executables:
 # <https://www.reddit.com/r/haskell/comments/haeqin/dry_for_packageyaml_executables/>
@@ -47,6 +47,8 @@ _exe-defs: &exe-defaults
     - -rtsopts
     - -with-rtsopts=-N
     - -Wall # all warnings
+    # testing!!
+    - -optl-fuse-ld=lld
   other-modules: []
 
 # REMARK: See `README` for the langauge server support.
