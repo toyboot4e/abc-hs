@@ -1,5 +1,4 @@
 **/.stack-work
-**/stack.yaml
 **/*lock*
 **/dist-newstyle
 **/node_modules
@@ -10,3 +9,5 @@ Main
 Main.dyn_hi
 Main.dyn_i
 Main.hi
+
+*past*

@@ -1,4 +1,4 @@
 system-ghc: true
-resolver: lts-16.31
+resolver: lts-21.6
 packages:
 - .
