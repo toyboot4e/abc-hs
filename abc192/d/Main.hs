@@ -1,5 +1,6 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package extra --package hashable --package unordered-containers --package heaps --package utility-ht --package vector --package vector-algorithms --package primitive --package transformers --ghc-options "-D DEBUG" -}
+
 {-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds #-}
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
@@ -20,30 +21,44 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 undef :: Int
 undef = -1
 
-partialDP :: Int -> VU.Vector Int -> VU.Vector Int
-partialDP !maxW !xs = VU.foldl' step s0 xs
+{-# INLINE compareDigits #-}
+compareDigits :: (Integral a) => [a] -> [a] -> Ordering
+compareDigits !xs !ys
+  | lxs < lys = LT
+  | lxs > lys = GT
+  | lxs == lys = inner xs ys
   where
-    !s0 = VU.generate (maxW + 1) (bool @Int 0 1 . (== 0))
-    step !vec !x = VU.imap f vec
-      where
-        f i b = b || fromMaybe False (vec VU.!? (i - x))
+    !lxs = length xs
+    !lys = length ys
+    inner [] [] = EQ
+    inner (x : xrest) (y : yrest)
+      | x > y = GT
+      | x < y = LT
+      | x == y = inner xrest yrest
+    inner _ _ = error "unreachable"
 
-higherPartialDP :: VU.Vector Int -> VU.Vector Int -> VU.Vector Int
-higherpartialDP !vec0 !modifiers = VU.foldl' step vec0 modifiers
-  where
-    step !vec !x = VU.imap f vec
-      where
-        f i b = b || fromMaybe False (vec VU.!? (i - x))
-
+-- FIXME: This is too much..
 main :: IO ()
 main = do
-  (!n, !m) <- ints2
-  !xs <- V.fromList . HT.groupBy (\a b -> a == b || a + 1 == b) . VU.toList . VU.modify VAI.sort <$> intsVU
-  let !_ = dbg (xs)
+  !xs <- map toInteger . VU.toList <$> digitsVU
+  !ys10 <- map toInteger . digits 10 <$> ints1
 
-  -- probably TLE.
-  let !modifiers = V.map partialDP higherPartialDP
-  let !res = VU.foldl' higherPartialDP (VU.generate (maxW + 1) (bool @Int 0 1 . (== 0))) modifiers
+  -- why is such a branch needed?
+  when (length xs == 1) $ do
+    let !xs10 = convertBase 2 10 xs
+    print $ case compareDigits xs10 ys10 of
+      LT -> 1 :: Int
+      EQ -> 1
+      GT -> 0
+    exitSuccess
 
-  VU.forM_ 
+  let !maxD = maximum $ map fromIntegral xs :: Int
+  let !res = maybe (0 :: Int) (\n -> n - maxD) . bsearchL (maxD + 1, 1_000_000_000_000_000_000) $ \base ->
+        let !xs10 = convertBase (toInteger base) 10 xs
+            !_ = dbg (base, xs10)
+         in case compareDigits xs10 ys10 of
+              LT -> True
+              EQ -> True
+              GT -> False
 
+  print res

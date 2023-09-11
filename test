@@ -1,9 +1,9 @@
 #!/usr/bin/env -S bash -x
 
 # stack script:
-# cd "$1"
+oj t -N --directory "$1/test-cases" -c "./$1/Main.hs"
 
-# cabal:
-cabal build "$1-exe"
-oj t -N --directory "$1/test-cases" -c "cabal run $1-exe"
+# # cabal:
+# cabal build "$1-exe" # --ghc-options -DDEBUG
+# oj t -N --directory "$1/test-cases" -c "cabal run $1-exe"
 
