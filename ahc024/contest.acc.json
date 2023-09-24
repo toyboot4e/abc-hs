@@ -1,0 +1,20 @@
+{
+  "contest": {
+    "id": "ahc024",
+    "title": "Marubeni Programming Contest 2023 (AtCoder Heuristic Contest 024)",
+    "url": "https://atcoder.jp/contests/ahc024"
+  },
+  "tasks": [
+    {
+      "id": "ahc024_a",
+      "label": "A",
+      "title": "Topological Map",
+      "url": "https://atcoder.jp/contests/ahc024/tasks/ahc024_a",
+      "directory": {
+        "path": "a",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    }
+  ]
+}
