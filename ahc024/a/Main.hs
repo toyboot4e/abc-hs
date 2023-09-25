@@ -106,18 +106,41 @@ main = do
   --     when b $ do
   --       writeIV grid yx 0
 
-  repM_ 0 2500 $ \_ -> do
+  replicateM_ 500 $ do
+    -- repM_ 0 (n - 1) $ \y -> do
     repM_ 0 (n - 1) $ \y -> do
       repM_ 0 (n - 1) $ \x -> do
         !c <- readIV grid (y, x)
         when (isCorner VU.! c) $ do
-          let !adjs = VU.fromList [(y + dy, x + dx) | dy <- [-1 .. 1], dx <- [-1 .. 1], not $ dy == 0 && dx == 0]
-          !cs <- VU.forM adjs $ \(!y', !x') -> do
+          let !adjs4 = VU.fromList [(y, x + 1), (y + 1, x), (y, x - 1), (y - 1, x)]
+          -- clockwise
+          -- let !adjs8 = VU.fromList [(y + dy, x + dx) | dy <- [-1 .. 1], dx <- [-1 .. 1], not $ dy == 0 && dx == 0]
+          let !adjs8 = VU.fromList [(y - 1, x - 1), (y - 1, x), (y - 1, x + 1), (y, x + 1), (y + 1, x + 1), (y + 1, x), (y + 1, x - 1), (y, x - 1)]
+
+          !cs4 <- flip VU.mapM adjs4 $ \(!y', !x') -> do
             if not $ inRange bounds_ (y', x')
               then return 0
               else readIV grid (y', x')
-          when (VU.any (== 0) cs && VU.all (\c' -> c' == c || c' == 0) cs) $ do
-            writeIV grid (y, x) 0
+
+          !cs8 <- flip VU.mapMaybeM adjs8 $ \(!y', !x') -> do
+            if not $ inRange bounds_ (y', x')
+              then return Nothing
+              else Just <$> readIV grid (y', x')
+
+          when (VU.any (== 0) cs4 && VU.all (\c' -> c' == c || c' == 0) cs8) $ do
+            !bs <- flip VU.mapM adjs8 $ \(!y', !x') -> do
+              if not $ inRange bounds_ (y', x')
+                -- return true?
+                then return False
+                else (== c) <$> readIV grid (y', x')
+
+            -- successive?
+            let !bs' = VU.toList bs ++ VU.toList bs
+            let !lens = map length . filter head $ group bs'
+
+            let !nTrue = VG.length $ VG.filter id bs
+            when (nTrue == 8 || any (== nTrue) lens) $ do
+              writeIV grid (y, x) 0
 
   !result <- VU.unsafeFreeze (vecIV grid)
   let !rows = V.map (\i -> VU.take n . VU.drop (n * i) $ result) (rangeVG 0 (n - 1))
