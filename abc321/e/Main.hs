@@ -27,34 +27,28 @@ countSubtreeVertsInDistance (!treeDepth, !nVerts) (!depth, !root) !dist
   | (depth + dist) == treeDepth =
       let !leftMost = shiftL root dist
           !rightMost = times dist (succ . (* 2)) root
-       in max 0 $ min nVerts rightMost  - (leftMost - 1)
+       in max 0 $ min nVerts rightMost - (leftMost - 1)
 
--- | Too difficult. TODO: Simple, easier solution.
 solve :: Int -> Int -> Int -> Int
 solve !nVerts !start !dist0
   | dist0 == 0 = 1
-  | otherwise = countSubtreeVertsInDistance (treeDepth, nVerts) (startDepth, start) dist0 + inner (startDepth, start) dist0
+  | otherwise =
+      countSubtreeVertsInDistance (treeDepth, nVerts) (startDepth, start) dist0
+        + VU.sum (VU.zipWith3 f upwards (VU.tail upwards) (rangeVU 1 (VG.length upwards - 1)))
   where
     !treeDepth = pred . fromJust $ find ((> nVerts) . bit) [1 .. 63]
     !startDepth = pred . fromJust $ find ((> start) . bit) [1 .. 63]
+    !upwards = VU.unfoldrExactN (startDepth + 1) (\x -> (x, x `div` 2)) start
     !_ = dbg ("start", (nVerts, start), treeDepth, startDepth)
-    -- Go upwards and go down
-    inner :: (Int, Int) -> Int -> Int
-    -- stop
-    inner (_, _) 0 = 0
-    -- at the root: stop.
-    inner (0, 1) _ = 0
-    inner (0, v) _ | v <= 0 = error "unreachable"
-    -- go upwards and stop
-    inner (_, _) 1 = 1
-    -- go upwards, visit their children and loop
-    inner (!childDepth, !child) !dist =
-      let !parent = child `div` 2
-          !cnt =
-            if even child
-              then countSubtreeVertsInDistance (treeDepth, nVerts) (childDepth, 2 * parent + 1) (dist - 2)
-              else countSubtreeVertsInDistance (treeDepth, nVerts) (childDepth, 2 * parent + 0) (dist - 2)
-       in cnt + inner (childDepth - 1, parent) (dist - 1)
+    !_ = dbg ("upwards", upwards)
+
+    f !child !parent !nUp
+      -- be sure to count the end:
+      | nUp == dist0 = 1
+      -- go down:
+      | otherwise =
+          let !child' = bool (2 * parent) (2 * parent + 1) (even child)
+           in countSubtreeVertsInDistance (treeDepth, nVerts) (startDepth - nUp + 1, child') (dist0 - nUp - 1)
 
 -- Thanks: <https://qiita.com/gotoki_no_joe/items/ecf0ef12977c85a98824#e---complete-binary-tree>
 main :: IO ()
