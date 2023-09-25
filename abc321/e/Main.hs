@@ -1,5 +1,6 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package extra --package hashable --package unordered-containers --package heaps --package utility-ht --package vector --package vector-algorithms --package primitive --package transformers --ghc-options "-D DEBUG" -}
+
 {-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds #-}
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
@@ -17,13 +18,47 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
-solve :: Int -> Int -> Int -> Int
-solve !nVerts !v !d = 0
+-- | Although we have a big tree, we don't have to walk through them!
+countSubtreeVertsInDistance :: (Int, Int) -> (Int, Int) -> Int -> Int
+countSubtreeVertsInDistance (!treeDepth, !nVerts) (!depth, !root) !dist
+  | dist < 0 = 0
+  | (depth + dist) > treeDepth = 0
+  | (depth + dist) < treeDepth = bit dist
+  | (depth + dist) == treeDepth =
+      let !leftMost = shiftL root dist
+          !rightMost = times dist (succ . (* 2)) root
+       in max 0 $ min nVerts rightMost  - (leftMost - 1)
 
+-- | Too difficult. TODO: Simple, easier solution.
+solve :: Int -> Int -> Int -> Int
+solve !nVerts !start !dist0
+  | dist0 == 0 = 1
+  | otherwise = countSubtreeVertsInDistance (treeDepth, nVerts) (startDepth, start) dist0 + inner (startDepth, start) dist0
+  where
+    !treeDepth = pred . fromJust $ find ((> nVerts) . bit) [1 .. 63]
+    !startDepth = pred . fromJust $ find ((> start) . bit) [1 .. 63]
+    !_ = dbg ("start", (nVerts, start), treeDepth, startDepth)
+    -- Go upwards and go down
+    inner :: (Int, Int) -> Int -> Int
+    -- stop
+    inner (_, _) 0 = 0
+    -- at the root: stop.
+    inner (0, 1) _ = 0
+    inner (0, v) _ | v <= 0 = error "unreachable"
+    -- go upwards and stop
+    inner (_, _) 1 = 1
+    -- go upwards, visit their children and loop
+    inner (!childDepth, !child) !dist =
+      let !parent = child `div` 2
+          !cnt =
+            if even child
+              then countSubtreeVertsInDistance (treeDepth, nVerts) (childDepth, 2 * parent + 1) (dist - 2)
+              else countSubtreeVertsInDistance (treeDepth, nVerts) (childDepth, 2 * parent + 0) (dist - 2)
+       in cnt + inner (childDepth - 1, parent) (dist - 1)
+
+-- Thanks: <https://qiita.com/gotoki_no_joe/items/ecf0ef12977c85a98824#e---complete-binary-tree>
 main :: IO ()
 main = do
   !nTests <- ints1
-  !xs <- intsVU
-
-  putStrLn "TODO"
-
+  replicateM_ nTests $ do
+    print . uncurry3 solve =<< ints3
