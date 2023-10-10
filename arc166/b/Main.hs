@@ -25,78 +25,102 @@ editDist !cm !x =
       !dist = cm - r
    in bool dist 0 (dist == cm)
 
-minimumEdit :: Int -> VU.Vector Int -> Int
-minimumEdit !cm !xs = VU.minimum $ VU.map (editDist cm) xs
-
-takeEx :: VU.Vector Int -> VU.Vector (Int, Int) -> (Int, Int)
-takeEx !ex !xs0 = inner xs0
-  where
-    inner xs =
-      let (!i, !x) = VU.head xs
-       in if i `VU.elem` ex
-            then inner (VU.tail xs)
-            else (i, x)
-
-solve2 :: VU.Vector Int -> VU.Vector (Int, Int) -> VU.Vector (Int, Int) -> Int
-solve2 !ex !xs1 !xs2 =
-  let !v1 = x1 + snd (takeEx (VU.cons i1 ex) xs2)
-      !v2 = x2 + snd (takeEx (VU.cons i2 ex) xs1)
-   in v1 `min` v2
-  where
-    (!i1, !x1) = takeEx ex xs1
-    (!i2, !x2) = takeEx ex xs2
-
-solve3 :: VU.Vector (Int, Int) -> VU.Vector (Int, Int) -> VU.Vector (Int, Int) -> Int
-solve3 !xs1 !xs2 !xs3 = minimum $ do
-  [!ys1, !ys2, !ys3] <- permutations [xs1, xs2, xs3]
-  let (!i1, !x1) = takeEx (VU.fromList []) ys1
-  let (!i2, !x2) = takeEx (VU.fromList [i1]) ys2
-  let (!i3, !x3) = takeEx (VU.fromList [i1, i2]) ys3
-  return $ x1 + x2 + x3
-
+-- DP answer:
 main :: IO ()
 main = do
   (!n, !a, !b, !c) <- ints4
   !xs <- intsVU
 
-  let !ab = lcm a b
-  let !bc = lcm b c
-  let !ca = lcm c a
-  let !abc = a `lcm` b `lcm` c
+  let !res = VU.foldl' step s0 xs
+        where
+          !s0 = VU.generate (bit 3) $ bool maxBound 0 . (== 0)
+          !abc = VU.fromList [a, b, c]
+          targetCM !bits = VU.foldl' lcm (1 :: Int) . VU.backpermute abc $ VU.filter (testBit bits) (rangeVU 0 2)
+          step !sofar !x = VU.generate (VG.length sofar) f
+            where
+              !_ = dbg ("on", x)
+              f !bits = VU.minimum $$ VU.map (g bits) (powersetVU bits)
+              g !bitsTo !bitsFrom
+                -- unreachable
+                | sofar VU.! bitsFrom == maxBound = maxBound
+                -- transition
+                | otherwise =
+                    let !deltaBits = bitsTo - bitsFrom
+                        !cm = targetCM deltaBits
+                     in sofar VU.! bitsFrom + editDist cm x
 
-  let !dA = VU.modify (VAI.sortBy (comparing snd)) . VU.indexed $ VU.map (editDist a) xs
-  let !dB = VU.modify (VAI.sortBy (comparing snd)) . VU.indexed $ VU.map (editDist b) xs
-  let !dC = VU.modify (VAI.sortBy (comparing snd)) . VU.indexed $ VU.map (editDist c) xs
-  let !dAB = VU.modify (VAI.sortBy (comparing snd)) . VU.indexed $ VU.map (editDist ab) xs
-  let !dBC = VU.modify (VAI.sortBy (comparing snd)) . VU.indexed $ VU.map (editDist bc) xs
-  let !dCA = VU.modify (VAI.sortBy (comparing snd)) . VU.indexed $ VU.map (editDist ca) xs
-  let !dABC = VU.modify (VAI.sortBy (comparing snd)) . VU.indexed $ VU.map (editDist abc) xs
+  print $ VU.last $$ res
 
-  let !_ = dbg (dA)
-  let !_ = dbg (dB)
-  let !_ = dbg (dC)
-  let !_ = dbg (dAB)
-  let !_ = dbg (dBC)
-  let !_ = dbg (dCA)
-  let !_ = dbg (dABC)
+-- Greedy answer:
+-- takeEx :: VU.Vector Int -> VU.Vector (Int, Int) -> (Int, Int)
+-- takeEx !ex !xs0 = inner xs0
+--   where
+--     inner xs =
+--       let (!i, !x) = VU.head xs
+--        in if i `VU.elem` ex
+--             then inner (VU.tail xs)
+--             else (i, x)
+--
+-- solve2 :: VU.Vector Int -> VU.Vector (Int, Int) -> VU.Vector (Int, Int) -> Int
+-- solve2 !ex !xs1 !xs2 =
+--   let !v1 = x1 + snd (takeEx (VU.cons i1 ex) xs2)
+--       !v2 = x2 + snd (takeEx (VU.cons i2 ex) xs1)
+--    in v1 `min` v2
+--   where
+--     (!i1, !x1) = takeEx ex xs1
+--     (!i2, !x2) = takeEx ex xs2
+--
+-- solve3 :: VU.Vector (Int, Int) -> VU.Vector (Int, Int) -> VU.Vector (Int, Int) -> Int
+-- solve3 !xs1 !xs2 !xs3 = minimum $ do
+--   [!ys1, !ys2, !ys3] <- permutations [xs1, xs2, xs3]
+--   let (!i1, !x1) = takeEx (VU.fromList []) ys1
+--   let (!i2, !x2) = takeEx (VU.fromList [i1]) ys2
+--   let (!i3, !x3) = takeEx (VU.fromList [i1, i2]) ys3
+--   return $ x1 + x2 + x3
 
-  -- 3. ABC
-  let !res3 = snd $ VU.head dABC
-
-  when (n == 1) $ do
-    print res3
-    exitSuccess
-
-  let !res21 = solve2 VU.empty dA dBC
-  let !res22 = solve2 VU.empty dB dCA
-  let !res23 = solve2 VU.empty dC dAB
-  let !res2 = res21 `min` res22 `min` res23
-
-  when (n == 2) $ do
-    print $ minimum [res2, res3]
-    exitSuccess
-
-  -- 1. A, B ,C
-  let !res1 = solve3 dA dB dC
-
-  print $ minimum $$ [res1, res2, res3]
+-- main :: IO ()
+-- main = do
+--   (!n, !a, !b, !c) <- ints4
+--   !xs <- intsVU
+--
+--   let !ab = lcm a b
+--   let !bc = lcm b c
+--   let !ca = lcm c a
+--   let !abc = a `lcm` b `lcm` c
+--
+--   let !dA = VU.modify (VAI.sortBy (comparing snd)) . VU.indexed $ VU.map (editDist a) xs
+--   let !dB = VU.modify (VAI.sortBy (comparing snd)) . VU.indexed $ VU.map (editDist b) xs
+--   let !dC = VU.modify (VAI.sortBy (comparing snd)) . VU.indexed $ VU.map (editDist c) xs
+--   let !dAB = VU.modify (VAI.sortBy (comparing snd)) . VU.indexed $ VU.map (editDist ab) xs
+--   let !dBC = VU.modify (VAI.sortBy (comparing snd)) . VU.indexed $ VU.map (editDist bc) xs
+--   let !dCA = VU.modify (VAI.sortBy (comparing snd)) . VU.indexed $ VU.map (editDist ca) xs
+--   let !dABC = VU.modify (VAI.sortBy (comparing snd)) . VU.indexed $ VU.map (editDist abc) xs
+--
+--   let !_ = dbg (dA)
+--   let !_ = dbg (dB)
+--   let !_ = dbg (dC)
+--   let !_ = dbg (dAB)
+--   let !_ = dbg (dBC)
+--   let !_ = dbg (dCA)
+--   let !_ = dbg (dABC)
+--
+--   -- 3. ABC
+--   let !res3 = snd $ VU.head dABC
+--
+--   when (n == 1) $ do
+--     print res3
+--     exitSuccess
+--
+--   let !res21 = solve2 VU.empty dA dBC
+--   let !res22 = solve2 VU.empty dB dCA
+--   let !res23 = solve2 VU.empty dC dAB
+--   let !res2 = res21 `min` res22 `min` res23
+--
+--   when (n == 2) $ do
+--     print $ minimum [res2, res3]
+--     exitSuccess
+--
+--   -- 1. A, B ,C
+--   let !res1 = solve3 dA dB dC
+--
+--   print $ minimum $$ [res1, res2, res3]

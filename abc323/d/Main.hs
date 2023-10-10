@@ -21,18 +21,18 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 main :: IO ()
 main = do
   !n <- ints1
-  !css <- fromVecM <$> VU.replicateM n ints2
+  !css <- fromVecIM <$> VU.replicateM n ints2
   let !_ = dbg (css)
 
   let !res = until p f s0
         where
           !s0 = (0 :: Int, css)
-          p (!_acc, !input) = M.null input
+          p (!_acc, !input) = IM.null input
           f (!acc, !css) =
-            let ((!key, !cnt), css') = M.deleteFindMin css
+            let ((!key, !cnt), css') = IM.deleteFindMin css
                 !key' = 2 * key
                 (!d, !r) = cnt `divMod` 2
-                css'' = bool css' (M.insertWith (+) key' d css') (d > 0)
+                css'' = bool css' (IM.insertWith (+) key' d css') (d > 0)
              in (acc + r, css'')
 
   print $ fst res

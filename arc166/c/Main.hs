@@ -1,5 +1,6 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package extra --package hashable --package unordered-containers --package heaps --package utility-ht --package vector --package vector-algorithms --package primitive --package transformers --ghc-options "-D DEBUG" -}
+
 {-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds #-}
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
@@ -18,13 +19,31 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
-col :: Int -> VU.Vector (Int, Int)
-col !h =
+data MyModulo = MyModulo
+
+instance TypeInt MyModulo where
+  -- typeInt _ = 1_000_000_007
+  typeInt _ = 998244353
+
+type MyModInt = ModInt MyModulo
+
+myMod :: Int
+myMod = typeInt (Proxy @MyModulo)
+
+modInt :: Int -> MyModInt
+modInt = ModInt . (`rem` myMod)
+
+fib :: VU.Vector Int
+fib = VU.constructN (10 ^ 6 + 3) $ \sofar -> case VG.length sofar of
+  0 -> 1
+  1 -> 1
+  i -> sofar VU.! (i - 1) + sofar VU.! (i - 2)
+
+solve :: Int -> Int -> MyModInt
+solve !h !w = modInt 0
 
 main :: IO ()
 main = do
   !nTests <- ints1
   replicateM_ nTests $ do
-    (!h, !w) <- ints2
-    print $ col (h + 1)
-
+    print . uncurry solve =<< get
