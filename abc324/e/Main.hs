@@ -31,31 +31,23 @@ matchLenBS !s !t = snd $ BS.foldl' step s0 s
 main :: IO ()
 main = do
   (!n, !t) <- get @(Int, BS.ByteString)
-  !ssOrg <- V.replicateM n BS.getLine
+  !ss <- V.replicateM n BS.getLine
 
   let !_ = dbg (t)
-  let !_ = dbg (ssOrg)
+  let !_ = dbg (ss)
 
-  let !ss' = flip V.filter ssOrg $ \s -> dbgId (matchLenBS s t) < BS.length t
-
-  -- the number of containers
-  let !nc = n - VG.length ss'
-  let !fromC = nc * n + n * nc - nc * nc
-
-  let !rhsLens = VU.convert . flip V.map ss' $ \s -> matchLenBS s t
-  let !lhsLens = VU.convert . flip V.map ss' $ \s -> matchLenBS (BS.reverse s) (BS.reverse t)
+  let !rhsLens = VU.convert . flip V.map ss $ \s -> matchLenBS s t
+  let !lhsLens = VU.convert . flip V.map ss $ \s -> matchLenBS (BS.reverse s) (BS.reverse t)
   let !_ = dbg ("rhs", rhsLens)
   let !_ = dbg ("lhs", lhsLens)
 
-  -- REMARK: boundary: count 1, count 2, .. count (n - 1)
-  let !csumLhsLens = VU.init . VU.init . VU.tail . VU.scanl1' (+) . VU.accumulate (+) (VU.replicate (BS.length t + 2) (0 :: Int)) $ VU.concatMap (\i -> VU.fromList [(0, 1), (i + 1, -1)]) lhsLens
+  let !csumLhsLens = VU.init . VU.scanl1' (+) . VU.accumulate (+) (VU.replicate (BS.length t + 2) (0 :: Int)) $ VU.concatMap (\i -> VU.fromList [(0, 1), (i + 1, -1)]) lhsLens
   let !_ = dbg ("csumL", csumLhsLens)
 
-  -- REMARK: boundary: len \in [1, len(t) - 1]
-  let !rhsCounts = VU.tail $ VU.accumulate (+) (VU.replicate (BS.length t) (0 :: Int)) $ VU.map (,1) rhsLens
+  let !rhsCounts = VU.accumulate (+) (VU.replicate (BS.length t + 1) (0 :: Int)) $ VU.map (,1) rhsLens
   let !_ = dbg ("rhsCounts", rhsCounts)
 
   let !contribs = VU.sum (VU.zipWith (*) rhsCounts (VU.reverse csumLhsLens))
   let !_ = dbg ("contribs", contribs)
 
-  print $ contribs + fromC
+  print contribs

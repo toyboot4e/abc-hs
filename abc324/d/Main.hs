@@ -1,5 +1,6 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package extra --package hashable --package unordered-containers --package heaps --package utility-ht --package vector --package vector-algorithms --package primitive --package transformers --ghc-options "-D DEBUG" -}
+
 {-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds #-}
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
@@ -17,19 +18,24 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
--- gen :: V.Vector (VU.Vector Int)
--- gen = V.map (\x -> f $ x * x) $ rangeV 1 3162278
---   where
---     f :: Int -> VU.Vector Int
---     f x = VU.accumulate (+) (VU.replicate 10 (0 :: Int)) . VU.map (\c -> (ord c - ord '0', 1)) . VU.fromList $ show x
-
 main :: IO ()
 main = do
-  -- print worstGen
-
   !n <- ints1
   !nums <- digitsVU
+
   let !counts = VU.accumulate (+) (VU.replicate 10 (0 :: Int)) $ VU.map (,1) nums
+  let !nNonZeros = VU.sum $ VU.tail counts
 
-  print $ VG.length $ VG.filter (VU.and . VU.zipWith (<=) counts) gen
+  let seeds = [0 .. 3162278] :: [Int]
+  let !res = length $$ filter p seeds
+        where
+          p seed =
+            let !sq = seed * seed
+                !cnt = f sq
+                !cnt' = VU.accumulate (+) (VU.replicate 10 (0 :: Int)) $ VU.map (,1) $ VU.fromList cnt
+             in VU.and (VU.zipWith (<=) cnt' counts) && VU.sum (VU.tail cnt') == nNonZeros
+          f sq = case sq `divMod` 10 of
+            (0, !r) -> [r]
+            (!d, !r) -> r : f d
 
+  print res
