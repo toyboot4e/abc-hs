@@ -17,35 +17,10 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
-data MyModulo = MyModulo
-
-instance TypeInt MyModulo where
-  typeInt _ = 1_000_000_007
-  -- typeInt _ = 998244353
-
-type MyModInt = ModInt MyModulo
-
-myMod :: Int
-myMod = typeInt (Proxy @MyModulo)
-
-modInt :: Int -> MyModInt
-modInt = ModInt . (`rem` myMod)
-
-add3ModInt :: (MyModInt, MyModInt, MyModInt) -> (MyModInt, MyModInt, MyModInt) -> (MyModInt, MyModInt, MyModInt)
-add3ModInt (!x1, !x2, !x3) (!y1, !y2, !y3) = (x1 + y1, x2 + y2, x3 + y3)
-
 main :: IO ()
 main = do
-  !s <- BS.getLine
+  !n <- ints1
+  !xs <- intsVU
 
-  let !res = BS.foldl' (dbgId .: step) s0 s
-        where
-          !s0 = (modInt 1, (modInt 0, modInt 0, modInt 0))
-          step (!nq, (!a, !b, !c)) 'A' = (nq, (a, b, c) `add3ModInt` (nq, 0, 0))
-          step (!nq, (!a, !b, !c)) 'B' = (nq, (a, b, c) `add3ModInt` (0, a, 0))
-          step (!nq, (!a, !b, !c)) 'C' = (nq, (a, b, c) `add3ModInt` (0, 0, b))
-          step (!nq, (!a, !b, !c)) '?' = (modInt 3 * nq, (3 * a, 3 * b, 3 * c) `add3ModInt` (nq, a, b))
-          step _ _ = error "unreachable"
-
-  print $ thd3 (snd res)
+  putStrLn "TODO"
 

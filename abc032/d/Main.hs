@@ -1,5 +1,6 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package extra --package hashable --package unordered-containers --package heaps --package utility-ht --package vector --package vector-algorithms --package primitive --package transformers --ghc-options "-D DEBUG" -}
+
 {-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds #-}
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
@@ -17,35 +18,39 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
-data MyModulo = MyModulo
-
-instance TypeInt MyModulo where
-  typeInt _ = 1_000_000_007
-  -- typeInt _ = 998244353
-
-type MyModInt = ModInt MyModulo
-
-myMod :: Int
-myMod = typeInt (Proxy @MyModulo)
-
-modInt :: Int -> MyModInt
-modInt = ModInt . (`rem` myMod)
-
-add3ModInt :: (MyModInt, MyModInt, MyModInt) -> (MyModInt, MyModInt, MyModInt) -> (MyModInt, MyModInt, MyModInt)
-add3ModInt (!x1, !x2, !x3) (!y1, !y2, !y3) = (x1 + y1, x2 + y2, x3 + y3)
-
 main :: IO ()
 main = do
-  !s <- BS.getLine
+  (!nInput, !wMax) <- ints2
+  !vws <- VU.replicateM nInput ints2
 
-  let !res = BS.foldl' (dbgId .: step) s0 s
+  -- -- sparse + monotoniously increasing DP
+  -- let !res = VU.foldl' step s0 vws
+  --       where
+  --         !s0 = [(0, 0)] :: [(Int, Int)]
+  --         step !is !vw =
+  --           let !is' = filter ((<= wMax) . snd) $ map (add2 vw) is
+  --            in merge (-1) is is'
+  --           where
+  --             merge _ [] [] = []
+  --             merge maxV [] (y : ys)
+  --               | maxV' > maxV = y : merge maxV' [] ys
+  --               | otherwise = merge maxV' [] ys
+  --               where
+  --                 maxV' = max (fst y) maxV
+  --             merge maxV xs [] = merge maxV [] xs
+  --             merge maxV xss@(x : xs) yss@(y : ys) = case compare (snd x) (snd y) of
+  --               EQ ->
+  --                 let !maxV' = max (fst x) (fst y) `max` maxV
+  --                  in if maxV' > maxV
+  --                       then (maxV', snd x) : merge maxV' xs ys
+  --                       else merge maxV' xs ys
+  --               LT | fst x > maxV -> x : merge (fst x) xs yss
+  --               LT -> merge maxV xs yss
+  --               GT | fst y > maxV -> y : merge (fst y) xss ys
+  --               GT -> merge maxV xss ys
+  --
+  -- print $ fst (last res)
+
+  let !res = VU.foldl' step s0 vws
         where
-          !s0 = (modInt 1, (modInt 0, modInt 0, modInt 0))
-          step (!nq, (!a, !b, !c)) 'A' = (nq, (a, b, c) `add3ModInt` (nq, 0, 0))
-          step (!nq, (!a, !b, !c)) 'B' = (nq, (a, b, c) `add3ModInt` (0, a, 0))
-          step (!nq, (!a, !b, !c)) 'C' = (nq, (a, b, c) `add3ModInt` (0, 0, b))
-          step (!nq, (!a, !b, !c)) '?' = (modInt 3 * nq, (3 * a, 3 * b, 3 * c) `add3ModInt` (nq, a, b))
-          step _ _ = error "unreachable"
-
-  print $ thd3 (snd res)
-
+          !s0 = 
