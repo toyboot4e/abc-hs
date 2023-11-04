@@ -1,5 +1,6 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package extra --package hashable --package unordered-containers --package heaps --package utility-ht --package vector --package vector-algorithms --package primitive --package random --package transformers --ghc-options "-D DEBUG" -}
+
 {-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds #-}
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
@@ -17,28 +18,43 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+memberSUF :: Int -> SparseUnionFind -> Bool
+memberSUF = IM.member
+
+insertSUF :: Int -> SparseUnionFind -> SparseUnionFind
+insertSUF !x !uf = IM.insert x (-1) uf
+
+-- from edges
+fromVecSUF :: U.Vector (Int, Int) -> SparseUnionFind
+fromVecSUF = U.foldl' (uncurry . uniteSUF) newSUF
+
+uniteSUF2 :: HasCallStack => Int -> Int -> SparseUnionFind -> SparseUnionFind
+uniteSUF2 !i !j !uf
+  | a == b = uf
+  | r >= s = IM.insert a (negate $! r + s) $ IM.insert b a uf
+  | otherwise = IM.insert b (negate $! r + s) $ IM.insert a b uf
+  where
+    (!a, !r) = rootSUF uf i
+    (!b, !s) = rootSUF uf j
+
 main :: IO ()
 main = do
   !n <- ints1
   !xys <- U.replicateM n ints2
+
   let !bnd = ((-1001, -1001), (1001, 1001))
+  let !uf = (`execState` newSUF) $ do
+        U.forM_ xys $ \(!x, !y) -> do
+          let !i1 = index bnd (x, y)
+          modify $ insertSUF i1
+          let !dxys = U.fromList [(-1, -1), (-1, 0), (0, -1), (0, 1), (1, 0), (1, 1)]
+          U.forM_ dxys $ \(!dx, !dy) -> do
+            let !i2 = index bnd (x + dx, y + dy)
+            whenM (gets $ memberSUF i2) $ do
+              modify $ uniteSUF2 i1 i2
 
-  !explored <- UM.replicate (rangeSize bnd) False
-  !uf <- newMUF (rangeSize bnd)
-  U.forM_ xys $ \(!x, !y) -> do
-    let !i1 = index bnd (x, y)
-    UM.write explored i1 True
-    let !dxys = U.fromList [(-1, -1), (-1, 0), (0, -1), (0, 1), (1, 0), (1, 1)]
-    U.forM_ dxys $ \(!dx, !dy) -> do
-      let !_ = dbg ((x, y), (x + dx, y + dy))
-      let !i2 = index bnd (x + dx, y + dy)
-      !b <- UM.read explored i2
-      when b $ do
-        uniteMUF uf i1 i2
-        UM.write explored i2 True
-
-  -- !roots <- U.filterM (UM.read explored) . U.uniq . U.modify VAI.sort =<< U.generateM (rangeSize bnd) (rootMUF uf)
-  !roots <- U.filterM (UM.read explored) . U.uniq . U.modify (VAI.sortBy compare) =<< U.generateM (rangeSize bnd) (rootMUF uf)
-
-  print $ U.length roots
+  let !_ = dbg uf
+  let !_ = dbg . map (fst . rootSUF uf) $ IM.keys uf
+  let !roots = nubSort . map (fst . rootSUF uf) $ IM.keys uf
+  print $ length roots
 
