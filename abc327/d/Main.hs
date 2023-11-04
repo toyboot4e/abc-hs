@@ -17,25 +17,36 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
-takeIt :: U.Vector Int -> Maybe Int
-takeIt xs
-  | U.length xs < 2 = Nothing
-  | otherwise =
-    let !xs' = U.modify (VAI.sortBy (comparing Down)) xs
-     in Just $ U.sum (U.take 2 xs')
-
 main :: IO ()
 main = do
-  !n <- ints1
-  !xs <- intsU
+  (!nVerts, !nConstraints) <- ints2
+  !xs <- U.map pred <$> intsU
+  !ys <- U.map pred <$> intsU
 
-  let (!es, !os) = U.partition even xs
+  let !gr = buildUSG (0, nVerts - 1) input
+        where
+          input = U.concatMap (\x -> U.fromList [x, swap x]) (U.zip xs ys)
 
-  let !n1 = takeIt es
-  let !n2 = takeIt os
-  let !res = fmap getMax . V.foldMap (fmap Max) $ V.fromList [n1, n2]
+  -- TODO: better result retrieval
+  !color <- UM.replicate nVerts (-1 :: Int)
+  !err <- newIORef False
 
-  case res of
-    Nothing -> print (-1 :: Int)
-    Just x -> print x
+  let dfs c1 v1 = do
+        UM.write color v1 c1
+        U.forM_ (gr `adj` v1) $ \v2 -> do
+          !c2 <- UM.read color v2
+          let !_ = dbg ((v1, c1), (v2, c2))
+          case c2 of
+            (-1) -> dfs (c1 `xor` 1) v2
+            _ | c2 == c1 -> writeIORef' err True
+            _ -> return ()
+
+  -- TODO: test `forM_ [l .. r]` speed after contest
+  repM_ 0 (nVerts - 1) $ \v1 -> do
+    !c <- UM.read color v1
+    when (c == -1) $ do
+      dfs (0 :: Int) v1
+
+  !res <- readIORef err
+  printYn $ not res
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package extra --package hashable --package unordered-containers --package heaps --package utility-ht --package vector --package vector-algorithms --package primitive --package random --package transformers --ghc-options "-D DEBUG" -}
+
 {-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds #-}
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
@@ -17,25 +18,32 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
-takeIt :: U.Vector Int -> Maybe Int
-takeIt xs
-  | U.length xs < 2 = Nothing
-  | otherwise =
-    let !xs' = U.modify (VAI.sortBy (comparing Down)) xs
-     in Just $ U.sum (U.take 2 xs')
-
 main :: IO ()
 main = do
   !n <- ints1
-  !xs <- intsU
+  !xs <- dbgId <$> intsU
 
-  let (!es, !os) = U.partition even xs
+  let !p = 0.9 :: Double
 
-  let !n1 = takeIt es
-  let !n2 = takeIt os
-  let !res = fmap getMax . V.foldMap (fmap Max) $ V.fromList [n1, n2]
+  let !ps = U.iterateN n (* p) (1.0 :: Double)
+  let !downs = note "down" $ U.scanl1' (+) $ U.iterateN n (* p) (1.0 :: Double)
+  let !subs = note "sub" $ U.map ((1200.0 /) . sqrt . intToDouble) (rangeU 1 n) :: U.Vector Double
 
-  case res of
-    Nothing -> print (-1 :: Int)
-    Just x -> print x
+  let !ups = dbgId $ U.foldl' step s0 (U.map intToDouble xs)
+        where
+          !s0 = U.singleton 0.0
+          !undef = -0.0000000000000001
+          step !vec !x = U.constructN (G.length vec + 1) $ \sofar -> case G.length sofar of
+            0 -> 0.0
+            len ->
+              let !xLast = fromMaybe undef $ vec U.!? pred len
+                  !x' = relax xLast (len - 1) x
+                  !xCur = fromMaybe undef $ vec U.!? len
+                  !_ = dbg (len, xLast, x', xCur)
+               in max x' xCur
+          relax !up !i !x = 0.9 * up + x
 
+  let calc :: Double -> Int -> Double
+      calc !up !i = up / downs U.! i - subs U.! i
+
+  print $ U.maximum . dbgId $ U.map (uncurry calc . swap) (U.indexed (U.tail ups))

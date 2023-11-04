@@ -17,25 +17,13 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
-takeIt :: U.Vector Int -> Maybe Int
-takeIt xs
-  | U.length xs < 2 = Nothing
-  | otherwise =
-    let !xs' = U.modify (VAI.sortBy (comparing Down)) xs
-     in Just $ U.sum (U.take 2 xs')
+candidates :: [(Int, Int)]
+candidates = map f [1 .. 17]
+  where
+    f x = (x, x ^ x)
 
 main :: IO ()
 main = do
   !n <- ints1
-  !xs <- intsU
-
-  let (!es, !os) = U.partition even xs
-
-  let !n1 = takeIt es
-  let !n2 = takeIt os
-  let !res = fmap getMax . V.foldMap (fmap Max) $ V.fromList [n1, n2]
-
-  case res of
-    Nothing -> print (-1 :: Int)
-    Just x -> print x
+  print $ maybe (-1) fst $ find ((== n) . snd) candidates
 

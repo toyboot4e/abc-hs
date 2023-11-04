@@ -1,5 +1,6 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package extra --package hashable --package unordered-containers --package heaps --package utility-ht --package vector --package vector-algorithms --package primitive --package random --package transformers --ghc-options "-D DEBUG" -}
+
 {-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds #-}
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
@@ -17,25 +18,36 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
-takeIt :: U.Vector Int -> Maybe Int
-takeIt xs
-  | U.length xs < 2 = Nothing
-  | otherwise =
-    let !xs' = U.modify (VAI.sortBy (comparing Down)) xs
-     in Just $ U.sum (U.take 2 xs')
+testRows :: IxUVector (Int, Int) Int -> Bool
+testRows !gr =
+  let !rows = V.unfoldrExactN 9 (U.splitAt 9) (vecIV gr)
+   in V.all f rows
+  where
+    f = (== 9) . IS.size . fromVecIS
+
+testCols :: IxUVector (Int, Int) Int -> Bool
+testCols !gr =
+  let !cols = V.generate 9 $ \x ->
+        U.generate 9 $ \y ->
+          gr @! (y, x)
+   in V.all f cols
+  where
+    f = (== 9) . IS.size . fromVecIS
+
+testSq :: IxUVector (Int, Int) Int -> Bool
+testSq !gr =
+  let !offsets = U.map (both (* 3)) $ U.fromList [(dy, dx) | dx <- [0 .. 2], dy <- [0 .. 2]]
+   in U.all f offsets
+  where
+    f (!y0, !x0) =
+      let !dyxs = U.fromList [(dy, dx) | dy <- [0 .. 2], dx <- [0 .. 2]]
+          !yxs = U.map (add2 (y0, x0)) dyxs
+          !nums = U.map (gr @!) yxs
+       in g nums
+    g = (== 9) . IS.size . fromVecIS
 
 main :: IO ()
 main = do
-  !n <- ints1
-  !xs <- intsU
-
-  let (!es, !os) = U.partition even xs
-
-  let !n1 = takeIt es
-  let !n2 = takeIt os
-  let !res = fmap getMax . V.foldMap (fmap Max) $ V.fromList [n1, n2]
-
-  case res of
-    Nothing -> print (-1 :: Int)
-    Just x -> print x
-
+  !gr <- getGrid 9 9
+  let !res = testRows gr && testCols gr && testSq gr
+  printYn res
