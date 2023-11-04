@@ -87,8 +87,3 @@ executables:
     source-dirs: "g"
     main:                Main.hs
 
-  ex-exe:
-    <<: *exe-defaults
-    source-dirs: "ex"
-    main:                Main.hs
-

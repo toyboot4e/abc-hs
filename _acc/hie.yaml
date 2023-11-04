@@ -15,9 +15,6 @@ cradle:
     - path: "./e/Main.hs"
       component: "_acc:exe:e-exe"
 
-    - path: "./ex/Main.hs"
-      component: "_acc:exe:ex-exe"
-
     - path: "./f/Main.hs"
       component: "_acc:exe:f-exe"
 
