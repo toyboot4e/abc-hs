@@ -43,8 +43,9 @@ solve !end !xs =
             _ -> return ()
         readSTRef res
 
+data Dir = L | R | U | D
 
-dir = L | R | U | D
+testST = runST getLine
 
 main :: IO ()
 main = do
