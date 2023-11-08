@@ -1,5 +1,6 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package extra --package hashable --package unordered-containers --package heaps --package utility-ht --package vector --package vector-algorithms --package primitive --package random --package transformers --ghc-options "-D DEBUG" -}
+
 {-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds #-}
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
@@ -17,10 +18,79 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+dbgSTree :: (Show (v a), GM.MVector (G.Mutable v) a, G.Vector v a, PrimMonad m) => SegmentTree (G.Mutable v) (PrimState m) a -> m ()
+dbgSTree (SegmentTree _ mVec) = do
+  !vec <- G.unsafeFreeze mVec
+  -- REMARK: I'm using 0-based index and it has 2^n - 1 vertices
+  let !_ = dbg (G.drop (G.length vec `div` 2 - 1) vec)
+  return ()
+
+dbgSTreeAll :: (Show (v a), GM.MVector (G.Mutable v) a, G.Vector v a, PrimMonad m) => SegmentTree (G.Mutable v) (PrimState m) a -> m ()
+dbgSTreeAll (SegmentTree _ mVec) = do
+  !vec <- G.unsafeFreeze mVec
+  flip fix (0 :: Int, 1 :: Int) $ \loop (!n, !len) -> do
+    -- REMARK: I'm using 0-based index and it has 2^n - 1 vertices
+    unless (G.length vec <= len) $ do
+      let !vec' = G.take len . G.drop (len - 1) $ vec
+      let !_ = dbgS $ "> " ++ show vec'
+      loop (n + 1, 2 * len)
+
 main :: IO ()
 main = do
-  !n <- ints1
-  !xs <- intsU
+  (!n, !dt, !w) <- ints3
+  !txs <- U.modify (VAI.sortBy (comparing fst)) <$> U.replicateM n ints2
 
-  putStrLn "TODO"
+  let !_ = dbg (txs)
+  let !xMax = U.maximum $ U.map snd txs
+  let !_ = dbg (xMax, w)
 
+  -- 1 点加算累積和 Max のセグメント木
+  -- https://atcoder.jp/contests/abc327/editorial/7588
+  let f :: (Int, Int) -> (Int, Int) -> (Int, Int)
+      -- REMARK: max1 `max` (x2 + max2) is very clever
+      f (!x1, !max1) (!x2, !max2) = (x1 + x2, max1 `max` (x1 + max2))
+
+  !sumMax <- newSTreeU f (xMax + 1 + w) (0 :: Int, 0 :: Int)
+  !res <- newIORef (0 :: Int)
+
+  -- 範囲に対して加算・減算を行う
+  -- (Max を調べる時は 1 点のみを見れば良い)
+  let g stree !i !dx = do
+        (!sum0, !max0) <- fromJust <$> querySTree stree (i, i)
+        insertSTree stree i (sum0 + dx, max0 + dx)
+
+  let addRange !stree (!i, !width) !dx = do
+        -- imos left
+        g stree i dx
+        -- imos right
+        g stree (i + width) (-dx)
+        let !_ = dbg (i, dx)
+        -- dbgSTree stree
+        -- dbgSTreeAll stree
+        return ()
+
+  let updateResult !stree = do
+        (!d, !maxValue) <- fromJust <$> querySTree stree (0, xMax + 1 + w)
+        let !_ = dbg ("-->", maxValue, d)
+        modifyIORef' res (max maxValue)
+
+  -- TODO: use state monad to carry the result (needs liftIO though..)
+  flip fix (txs, txs) $ \loop (!ltxs, !rtxs) -> case (U.uncons ltxs, U.uncons rtxs) of
+    (_, Nothing) -> return ()
+    (Nothing, Just _) -> do
+      (!acc, !_) <- fromJust <$> querySTree sumMax (0, xMax)
+      modifyIORef' res $ max (acc + U.sum (U.map snd rtxs))
+      return ()
+    (Just ((!t1, !x1), !ltxs'), Just ((!t2, !x2), rtxs'))
+      | t2 - t1 < dt -> do
+          -- insert right
+          addRange sumMax (x2, w) 1
+          updateResult sumMax
+          loop (ltxs, rtxs')
+      | otherwise -> do
+          -- pop left
+          addRange sumMax (x1, w) (-1)
+          loop (ltxs', rtxs)
+
+  !result <- readIORef res
+  print result
