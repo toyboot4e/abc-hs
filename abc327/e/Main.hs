@@ -1,11 +1,12 @@
 #!/usr/bin/env stack
-{- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package extra --package hashable --package unordered-containers --package heaps --package utility-ht --package vector --package vector-algorithms --package primitive --package random --package transformers --ghc-options "-D DEBUG" -}
+{- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package extra --package hashable --package unordered-containers --package heaps --package utility-ht --package vector --package vector-algorithms --package primitive --package random --package transformers --ghc-options "-D DEBUG" --package quick-check -}
 
 {-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds #-}
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
 {- ORMOLU_DISABLE -}
 {-# LANGUAGE BlockArguments, CPP, DefaultSignatures, DerivingVia, LambdaCase, MultiWayIf, NumDecimals, PatternSynonyms, QuantifiedConstraints, RecordWildCards, StandaloneDeriving, StrictData, TypeFamilies #-}
+import qualified Test.QuickCheck as QC
 import Control.Applicative;import Control.Exception (assert);import Control.Monad;import Control.Monad.Fix;import Control.Monad.Primitive;import Control.Monad.ST;import Control.Monad.Trans.State.Strict hiding (get);import Data.Bifunctor;import Data.Bits;import Data.Bool (bool);import Data.Char;import Data.Coerce;import Data.Either;import Data.Foldable;import Data.Function (on);import Data.Functor;import Data.Functor.Identity;import Data.IORef;import Data.List.Extra hiding (nubOn);import Data.Maybe;import Data.Ord;import Data.Primitive.MutVar;import Data.Proxy;import Data.STRef;import Data.Semigroup;import Data.Word;import Debug.Trace;import GHC.Exts;import GHC.Float (int2Float);import GHC.Ix (unsafeIndex);import GHC.Stack (HasCallStack);import System.Exit (exitSuccess);import System.IO;import System.Random;import System.Random.Stateful;import Text.Printf;import qualified Data.Ratio as Ratio;import Data.Array.IArray;import Data.Array.IO;import Data.Array.MArray;import Data.Array.ST;import Data.Array.Unboxed (UArray);import Data.Array.Unsafe;import qualified Data.Array as A;import qualified Data.ByteString.Builder as BSB;import qualified Data.ByteString.Char8 as BS;import qualified Data.ByteString.Unsafe as BSU;import Control.Monad.Extra hiding (loop);import Data.IORef.Extra;import Data.List.Extra hiding (merge);import Data.Tuple.Extra hiding (first, second);import Numeric.Extra;import Data.Bool.HT;import qualified Data.Ix.Enum as HT;import qualified Data.List.HT as HT;import qualified Data.Vector.Fusion.Bundle as FB;import qualified Data.Vector.Generic as G;import qualified Data.Vector.Generic.Mutable as GM;import qualified Data.Vector.Primitive as P;import qualified Data.Vector.Unboxed as U;import qualified Data.Vector.Unboxed.Base as U;import qualified Data.Vector.Unboxed.Mutable as UM;import qualified Data.Vector as V;import qualified Data.Vector.Mutable as VM;import qualified Data.Vector.Fusion.Bundle.Monadic as MB;import qualified Data.Vector.Fusion.Bundle.Size as MB;import qualified Data.Vector.Fusion.Stream.Monadic as MS;import qualified Data.Vector.Algorithms.Intro as VAI;import qualified Data.Vector.Algorithms.Search as VAS;import qualified Data.Graph as Gr;import qualified Data.IntMap.Strict as IM;import qualified Data.Map.Strict as M;import qualified Data.IntSet as IS;import qualified Data.Set as S;import qualified Data.Sequence as Seq;import qualified Data.Heap as H;import qualified Data.HashMap.Strict as HM;import qualified Data.HashSet as HS
 
 #ifdef DEBUG
@@ -18,32 +19,72 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
-main :: IO ()
-main = do
-  !n <- ints1
-  !xs <- dbgId <$> intsU
-
+solveAC :: Int -> U.Vector Int -> Double
+solveAC n xs =
   let !p = 0.9 :: Double
+      !downs = U.scanl1' (+) $ U.iterateN n (* p) (1.0 :: Double)
+      !subs =  U.map ((1200.0 /) . sqrt . intToDouble) (rangeU 1 n) :: U.Vector Double
 
-  let !ps = U.iterateN n (* p) (1.0 :: Double)
-  let !downs = note "down" $ U.scanl1' (+) $ U.iterateN n (* p) (1.0 :: Double)
-  let !subs = note "sub" $ U.map ((1200.0 /) . sqrt . intToDouble) (rangeU 1 n) :: U.Vector Double
-
-  let !ups = dbgId $ U.foldl' step s0 (U.map intToDouble xs)
+      !ups = U.foldl' step s0 (U.map intToDouble xs)
         where
           !s0 = U.singleton 0.0
-          !undef = -0.0000000000000001
+          !undef = -10 ^ 18 :: Double
           step !vec !x = U.constructN (G.length vec + 1) $ \sofar -> case G.length sofar of
             0 -> 0.0
             len ->
               let !xLast = fromMaybe undef $ vec U.!? pred len
                   !x' = relax xLast (len - 1) x
                   !xCur = fromMaybe undef $ vec U.!? len
-                  !_ = dbg (len, xLast, x', xCur)
                in max x' xCur
           relax !up !i !x = 0.9 * up + x
 
-  let calc :: Double -> Int -> Double
+      calc :: Double -> Int -> Double
       calc !up !i = up / downs U.! i - subs U.! i
+   in U.maximum $ U.map (uncurry calc . swap) (U.indexed (U.tail ups))
 
-  print $ U.maximum . dbgId $ U.map (uncurry calc . swap) (U.indexed (U.tail ups))
+solveWA :: Int -> U.Vector Int -> Double
+solveWA n xs =
+  let !p = 0.9 :: Double
+      !downs = U.scanl1' (+) $ U.iterateN n (* p) (1.0 :: Double)
+      !subs = U.map ((1200.0 /) . sqrt . intToDouble) (rangeU 1 n) :: U.Vector Double
+
+      !ups = U.foldl' step s0 (U.map intToDouble xs)
+        where
+          !s0 = U.singleton 0.0
+          -- !undef = -10 ^ 5001 :: Double
+          !undef = -10^18 :: Double
+          step !vec !x = U.constructN (n + 1) $ \sofar -> case G.length sofar of
+            0 -> 0.0
+            len ->
+              let !xLast = fromMaybe undef $ vec U.!? pred len
+                  !x' = relax xLast (len - 1) x
+                  !xCur = fromMaybe undef $ vec U.!? len
+               in max x' xCur
+          relax !up !i !x = 0.9 * up + x
+
+      calc :: Double -> Int -> Double
+      calc !up !i = up / downs U.! i - subs U.! i
+   in U.maximum $ U.map (uncurry calc . swap) (U.indexed (U.tail ups))
+
+prop :: QC.Property
+prop =
+  QC.forAll (QC.choose (1, maxN)) $ \n ->
+    QC.forAll (QC.vectorOf n (QC.choose (1, 5000))) \xs ->
+      let !xs' = U.fromList xs
+       in solveAC n xs' QC.=== solveWA n xs'
+  where
+    maxN = 1000
+
+-- 実行制限時間 [ms] を付けるなら:
+-- QC.within (1000 * 1000) $
+runTest :: IO ()
+runTest = QC.quickCheck prop
+
+main = runTest
+
+-- main :: IO ()
+-- main = do
+--   !n <- ints1
+--   !xs <- intsU
+--   print $ solveWA n xs
+
