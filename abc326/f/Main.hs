@@ -1,11 +1,14 @@
 #!/usr/bin/env stack
-{- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package extra --package hashable --package unordered-containers --package heaps --package utility-ht --package vector --package vector-algorithms --package primitive --package transformers --package random --ghc-options "-D DEBUG" -}
+{- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package deepseq --package exceptions --package extra --package hashable --package unordered-containers --package heaps --package utility-ht --package vector --package vector-algorithms --package primitive --package transformers --package random --ghc-options "-D DEBUG -prof -fprof-auto" -}
 
 {-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds #-}
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
 {- ORMOLU_DISABLE -}
 {-# LANGUAGE BlockArguments, CPP, DefaultSignatures, DerivingVia, LambdaCase, MultiWayIf, NumDecimals, PatternSynonyms, QuantifiedConstraints, RecordWildCards, StandaloneDeriving, StrictData, TypeFamilies #-}
+import Control.DeepSeq
+import Control.Monad.Catch
+import System.IO.Unsafe qualified as Unsafe
 import Control.Applicative;import Control.Exception (assert);import Control.Monad;import Control.Monad.Fix;import Control.Monad.Primitive;import Control.Monad.ST;import Control.Monad.Trans.State.Strict hiding (get);import Data.Bifunctor;import Data.Bits;import Data.Bool (bool);import Data.Char;import Data.Coerce;import Data.Either;import Data.Foldable;import Data.Function (on);import Data.Functor;import Data.Functor.Identity;import Data.IORef;import Data.List.Extra hiding (nubOn);import Data.Maybe;import Data.Ord;import Data.Primitive.MutVar;import Data.Proxy;import Data.STRef;import Data.Semigroup;import Data.Word;import Debug.Trace;import GHC.Exts;import GHC.Float (int2Float);import GHC.Ix (unsafeIndex);import GHC.Stack (HasCallStack);import System.Exit (exitSuccess);import System.IO;import System.Random;import System.Random.Stateful;import Text.Printf;import qualified Data.Ratio as Ratio;import Data.Array.IArray;import Data.Array.IO;import Data.Array.MArray;import Data.Array.ST;import Data.Array.Unboxed (UArray);import Data.Array.Unsafe;import qualified Data.Array as A;import qualified Data.ByteString.Builder as BSB;import qualified Data.ByteString.Char8 as BS;import qualified Data.ByteString.Unsafe as BSU;import Control.Monad.Extra hiding (loop);import Data.IORef.Extra;import Data.List.Extra hiding (merge);import Data.Tuple.Extra hiding (first, second);import Numeric.Extra;import Data.Bool.HT;import qualified Data.Ix.Enum as HT;import qualified Data.List.HT as HT;import qualified Data.Vector.Fusion.Bundle as VFB;import qualified Data.Vector.Generic as VG;import qualified Data.Vector.Generic.Mutable as VGM;import qualified Data.Vector.Primitive as VP;import qualified Data.Vector.Unboxed as VU;import qualified Data.Vector.Unboxed.Base as VU;import qualified Data.Vector.Unboxed.Mutable as VUM;import qualified Data.Vector as V;import qualified Data.Vector.Mutable as VM;import qualified Data.Vector.Fusion.Bundle.Monadic as MB;import qualified Data.Vector.Fusion.Bundle.Size as MB;import qualified Data.Vector.Fusion.Stream.Monadic as MS;import qualified Data.Vector.Algorithms.Intro as VAI;import qualified Data.Vector.Algorithms.Search as VAS;import qualified Data.Graph as G;import qualified Data.IntMap.Strict as IM;import qualified Data.Map.Strict as M;import qualified Data.IntSet as IS;import qualified Data.Set as S;import qualified Data.Sequence as Seq;import qualified Data.Heap as H;import qualified Data.HashMap.Strict as HM;import qualified Data.HashSet as HS
 
 #ifdef DEBUG
@@ -18,52 +21,93 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
--- | 2^20 ~ 10^6
-solveHalf :: VU.Vector Int -> VU.Vector (Int, [Bool])
--- TODO: path?
-solveHalf !dxs | VG.null dxs = VU.empty
-solveHalf !dxs = VU.foldl' step s0 (VU.tail dxs)
+-- | 2^20 ~ 10^6. Returns a vector of (x, [sign]).
+solveHalf :: VU.Vector Int -> V.Vector (Int, [Bool])
+solveHalf !dxs | VG.null dxs = V.empty
+solveHalf !dxs = V.foldl' step s0 (VU.convert $ VU.tail dxs)
   where
-    s0 = VU.singleton (VU.head dxs, [True])
-    step !xs !dx = VU.concatMap (\(!x, !path) -> VU.fromList [(x + dx, True : path), (abs (x - dx), False : path)]) xs
+    s0 = V.fromList [(VU.head dxs, [True]), (-VU.head dxs, [False])]
+    step !xs !dx = V.concatMap (\(!x, !path) -> V.fromList [(x + dx, True : path), (x - dx, False : path)]) xs
 
-solve :: Int -> VU.Vector Int -> Maybe (Int, [Bool])
-solve !end !xs | VG.length xs == 1 = if end == VU.head xs then Just (0, [True]) else Nothing
+solve :: Int -> VU.Vector Int -> Maybe [Bool]
+solve !end !xs
+  | VG.length xs == 1 && end == VU.head xs = Just [True]
+  | VG.length xs == 1 && end == -VU.head xs = Just [False]
+  | VG.length xs == 1 = Nothing
 solve !end !xs =
   let (!xs1, !xs2) = VU.splitAt (VG.length xs `div` 2) xs
       !is1 = solveHalf xs1
-      !is2 = fromVecIM $ solveHalf xs2
-      !_ = dbg (end, is1, is2)
-   in runST $ do
-        !res <- newSTRef Nothing
-        VU.forM_ is1 $ \(!x, !path1) -> do
-          case (IM.lookup (abs (end - x)) is2, IM.lookup (end + x) is2) of
-            (Just !path2, _) -> modifySTRef res (const . Just $ path1 ++ path2)
-            (_, Just !path2) -> modifySTRef res (const . Just $ path1 ++ path2)
-            _ -> return ()
-        readSTRef res
+      !is2 = V.foldl' (\im (!k, !v) -> IM.insert k v im) IM.empty $ solveHalf xs2
+      !_ = dbg ("solve", end, is1, is2)
+   in (V.!? 0) . flip V.mapMaybe is1 $ \(!x, !path1) ->
+        (\path2 -> reverse path1 ++ reverse path2) <$> IM.lookup (end - x) is2
 
-data Dir = L | R | U | D
+pattern L, R, U, D :: Int
+pattern L = 0
+pattern R = 1
+pattern U = 2
+pattern D = 3
 
-testST = runST getLine
+interleave :: [a] -> [a] -> [a]
+interleave xs [] = xs
+interleave [] ys = ys
+interleave (x : xs) (y : ys) = x : y : interleave xs ys
 
+runSolver :: (Int, Int) -> VU.Vector Int -> Maybe [Bool]
+runSolver (!yEnd, !xEnd) !input = do
+  let !dys = VU.ifilter (const . even) input
+  let !dxs = VU.ifilter (const . odd) input
+  !path1 <- solve yEnd dys
+  !path2 <- solve xEnd dxs
+  return $ interleave path1 path2
+
+-- REMARK: Do not use `abs`.
 main :: IO ()
 main = do
   (!nInput, !xEnd, !yEnd) <- ints3
-  !input0 <- intsVU
-  let !input = VU.map abs input0
+  !input <- intsVU
 
-  let !dys = VU.backpermute input $ VU.enumFromStepN 0 2 (uncurry (+) (VG.length input `divMod` 2))
-  let !dxs = VU.backpermute input $ VU.enumFromStepN 1 2 (VG.length input `div` 2)
-  let !_ = dbg (dys)
-  let !_ = dbg (dxs)
+  -- !path <- case runSolver (yEnd, xEnd) input of
+  --   Just res -> res
+  --   Nothing -> do
+  --     putStrLn "No"
+  --     exitSuccess
 
-  let !path1 = VU.fromList . reverse $ solve (abs xEnd) dxs
-  let !path2 = VU.fromList . reverse $ solve (abs yEnd) dys
+  !path <- case runSolver (yEnd, xEnd) input of
+    Just x -> return x
+    Nothing -> do
+      putStrLn "No"
+      exitSuccess
 
-  !d <- newIORef L
-  VU.forM_ (rangeVU 0 (nInput - 1)) $ \i -> do
-    let (!i2, !i1) = i `divMod` 2
-    let !sgn = if i1 == 0 then path1 VU.! i2 else path2 VU.! i1
-    let !dir' = case (input VU.! i >= 0, sgn)
+  -- TODO: interleave two vectors into one
 
+  -- current direction
+  -- TODO: use `StateT`
+
+  !dirs <- do
+    !d <- newIORef R
+    !buf <- newBufferAsQueue nInput
+
+    forM_ (zip (VU.toList input) path) $ \(!x, !sgn) -> do
+      !dir <- readIORef d
+      let (!dir', !c) = case (dir, sgn) of
+            (R, True) -> (U, 'L')
+            (R, False) -> (D, 'R')
+            (L, True) -> (U, 'R')
+            (L, False) -> (D, 'L')
+            (U, True) -> (R, 'R')
+            (U, False) -> (L, 'L')
+            (D, True) -> (R, 'L')
+            (D, False) -> (L, 'R')
+
+      writeIORef d dir'
+      pushBack buf c
+      return c
+
+    unsafeFreezeBuffer buf
+
+  putStrLn "Yes"
+  putStrLn $ VU.toList dirs
+
+-- !buf' <- unsafeFreezeBuffer buf
+-- VU.forM_ buf' print
