@@ -21,14 +21,26 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+-- | `bsearchL` over a vector
+{-# INLINE bsearchLG #-}
+bsearchLG :: (VG.Vector v a) => v a -> (a -> Bool) -> Maybe a
+bsearchLG !vec !p = (vec VG.!) <$> bsearchL (0, VG.length vec - 1) (p . (vec VG.!))
+
+{-# INLINE bsearchExact #-}
+bsearchExact :: (VG.Vector v a, Ord b, Eq b) => v a -> (a -> b) -> b -> Maybe a
+bsearchExact !vec f !xref = case bsearchL (0, VG.length vec - 1) ((<= xref) . f . (vec VG.!)) of
+  Just !x | f (vec VG.! x) == xref -> Just (vec VG.! x)
+  _ -> Nothing
+
 -- | 2^20 ~ 10^6. Returns a vector of (x, [sign]).
 solveHalf :: VU.Vector Int -> V.Vector (Int, [Bool])
 solveHalf !dxs | VG.null dxs = V.empty
 solveHalf !dxs = V.foldl' step s0 (VU.convert $ VU.tail dxs)
   where
-    s0 = V.fromList [(VU.head dxs, [True]), (-VU.head dxs, [False])]
+    !s0 = V.fromList [(VU.head dxs, [True]), (-VU.head dxs, [False])]
     step !xs !dx = V.concatMap (\(!x, !path) -> V.fromList [(x + dx, True : path), (x - dx, False : path)]) xs
 
+-- | Is binary search faster than `IntMap`? <- much faster!
 solve :: Int -> VU.Vector Int -> Maybe [Bool]
 solve !end !xs
   | VG.length xs == 1 && end == VU.head xs = Just [True]
@@ -37,10 +49,10 @@ solve !end !xs
 solve !end !xs =
   let (!xs1, !xs2) = VU.splitAt (VG.length xs `div` 2) xs
       !is1 = solveHalf xs1
-      !is2 = V.foldl' (\im (!k, !v) -> IM.insert k v im) IM.empty $ solveHalf xs2
+      !is2 = V.modify (VAI.sortBy (comparing fst)) $ solveHalf xs2
       !_ = dbg ("solve", end, is1, is2)
-   in (V.!? 0) . flip V.mapMaybe is1 $ \(!x, !path1) ->
-        (\path2 -> reverse path1 ++ reverse path2) <$> IM.lookup (end - x) is2
+   in (V.!? 0) . flip V.mapMaybe is1 $ \(!i1, !path1) ->
+        (\path2 -> reverse path1 ++ reverse path2) . snd <$> bsearchExact is2 fst (end - i1)
 
 pattern L, R, U, D :: Int
 pattern L = 0

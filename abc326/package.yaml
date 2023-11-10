@@ -48,6 +48,8 @@ _exe-defs: &exe-defaults
     - -with-rtsopts=-N
     - -Wall # all warnings
     - -DDEBUG # debug flag
+    # デバッグ
+    - -prof -fprof-auto
   other-modules: []
 
 # REMARK: See `README` for the langauge server support.
