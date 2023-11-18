@@ -1,0 +1,25 @@
+cradle:
+  stack:
+    - path: "./a/Main.hs"
+      component: "past202212-open:exe:a-exe"
+
+    - path: "./b/Main.hs"
+      component: "past202212-open:exe:b-exe"
+
+    - path: "./c/Main.hs"
+      component: "past202212-open:exe:c-exe"
+
+    - path: "./d/Main.hs"
+      component: "past202212-open:exe:d-exe"
+
+    - path: "./e/Main.hs"
+      component: "past202212-open:exe:e-exe"
+
+    - path: "./ex/Main.hs"
+      component: "past202212-open:exe:ex-exe"
+
+    - path: "./f/Main.hs"
+      component: "past202212-open:exe:f-exe"
+
+    - path: "./g/Main.hs"
+      component: "past202212-open:exe:g-exe"
