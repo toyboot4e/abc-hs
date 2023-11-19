@@ -1,0 +1,75 @@
+{
+  "contest": {
+    "id": "arc168",
+    "title": "ALGO ARTIS Programming Contest 2023 Autumn（AtCoder Regular Contest 168）",
+    "url": "https://atcoder.jp/contests/arc168"
+  },
+  "tasks": [
+    {
+      "id": "arc168_a",
+      "label": "A",
+      "title": "<Inversion>",
+      "url": "https://atcoder.jp/contests/arc168/tasks/arc168_a",
+      "directory": {
+        "path": "a",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "arc168_b",
+      "label": "B",
+      "title": "Arbitrary Nim",
+      "url": "https://atcoder.jp/contests/arc168/tasks/arc168_b",
+      "directory": {
+        "path": "b",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "arc168_c",
+      "label": "C",
+      "title": "Swap Characters",
+      "url": "https://atcoder.jp/contests/arc168/tasks/arc168_c",
+      "directory": {
+        "path": "c",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "arc168_d",
+      "label": "D",
+      "title": "Maximize Update",
+      "url": "https://atcoder.jp/contests/arc168/tasks/arc168_d",
+      "directory": {
+        "path": "d",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "arc168_e",
+      "label": "E",
+      "title": "Subsegments with Large Sums",
+      "url": "https://atcoder.jp/contests/arc168/tasks/arc168_e",
+      "directory": {
+        "path": "e",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "arc168_f",
+      "label": "F",
+      "title": "Up-Down Queries",
+      "url": "https://atcoder.jp/contests/arc168/tasks/arc168_f",
+      "directory": {
+        "path": "f",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    }
+  ]
+}
