@@ -1,5 +1,5 @@
 dependencies:
-   - base >= 4.7 && < 5
+   - base
 
    - QuickCheck
    - array
@@ -35,6 +35,8 @@ dependencies:
    - vector-algorithms
    - vector-th-unbox
 
+language: GHC2021
+
 # DRY for package.yaml executables:
 # <https://www.reddit.com/r/haskell/comments/haeqin/dry_for_packageyaml_executables/>
 _exe-defs: &exe-defaults
@@ -45,6 +47,7 @@ _exe-defs: &exe-defaults
     - -rtsopts
     - -with-rtsopts=-N
     - -Wall # all warnings
+    - -DDEBUG # debug flag
   other-modules: []
 
 # REMARK: See `README` for the langauge server support.
@@ -82,10 +85,5 @@ executables:
   g-exe:
     <<: *exe-defaults
     source-dirs: "g"
-    main:                Main.hs
-
-  ex-exe:
-    <<: *exe-defaults
-    source-dirs: "ex"
     main:                Main.hs
 
