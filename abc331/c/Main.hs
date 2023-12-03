@@ -16,17 +16,33 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+-- If @x@ varies a lot
+
+{-# INLINE csum1D #-}
+csum1D :: (Num a, U.Unbox a) => U.Vector a -> U.Vector a
+csum1D = U.scanl' (+) 0
+
+{-# INLINE (+!) #-}
+(+!) :: (Num a, U.Unbox a) => U.Vector a -> (Int, Int) -> a
+(+!) csum (!l, !r) = csum U.! succ r - csum U.! l
+
+compressU' :: (HasCallStack) => U.Vector Int -> (U.Vector Int, U.Vector Int)
+compressU' xs = (indexer, U.map (fromJust . fst . f) xs)
+  where
+    -- !indexer = U.fromList $ nubSort $ U.toList xs
+    !indexer = U.uniq $ U.modify VAI.sort xs
+    f !x = bsearch (0, pred $ U.length indexer) $ \i -> indexer U.! i <= x
+
 main :: IO ()
 main = do
   !n <- ints1
   !xs <- intsU
 
-  let !xMax = G.maximum xs
-  !stree <- newSTreeU (+) (xMax + 2) (0 :: Int)
-  U.forM_ xs $ \x -> do
-    modifySTree stree (+ x) x
+  let (!vs, !is) = dbgId $ compressU' xs
+  let !seedIn = U.zipWith (,) is (U.backpermute vs is)
+  let !seed = U.accumulate (+) (U.replicate (G.length vs) (0 :: Int)) seedIn
+  let !csum = dbgId $ csum1D seed
 
-  U.forM_ xs $ \x -> do
-    !v <- fromJust <$> querySTree stree (x + 1, xMax + 2)
-    print v
+  let !res = U.map (\i -> csum +! (i + 1, G.length vs - 1)) is
+  U.forM_ res print
 

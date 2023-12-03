@@ -4,9 +4,9 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           abc331
-version:        0.0.0
-build-type:     Simple
+name:          abc331
+version:       0.0.0
+build-type:    Simple
 
 executable a-exe
   main-is: Main.hs

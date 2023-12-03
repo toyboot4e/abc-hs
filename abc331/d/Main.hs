@@ -19,9 +19,12 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 
 -- librarify? such a word here
 
+{-# INLINE mapIV #-}
+
 -- | Calculates two-dimensional cummulative sum.
 --
 -- NOTE: Returns a 2D graph with one-based index with a zero row and a column inserted.
+{-# INLINE csum2D #-}
 csum2D :: (Num a, U.Unbox a) => IxUVector (Int, Int) a -> IxUVector (Int, Int) a
 csum2D !gr = IxVector bnd $ U.constructN (rangeSize bnd) $ \sofar -> case unindex bnd (G.length sofar) of
   (0, _) -> 0
@@ -45,6 +48,7 @@ csum2D !gr = IxVector bnd $ U.constructN (rangeSize bnd) $ \sofar -> case uninde
 -- = = # # #
 -- = = # # #
 -- @
+{-# INLINE (@+!) #-}
 (@+!) :: (Num a, U.Unbox a) => IxUVector (Int, Int) a -> ((Int, Int), (Int, Int)) -> a
 (@+!) !csum ((!y1, !x1), (!y2, !x2)) = s1 + s4 - s2 - s3
   where
