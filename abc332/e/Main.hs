@@ -1,5 +1,6 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package deepseq --package extra --package hashable --package unordered-containers --package heaps --package mtl --package utility-ht --package vector --package vector-algorithms --package primitive --package QuickCheck --package random --package transformers --ghc-options "-D DEBUG" -}
+
 {-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds -Wno-orphans #-}
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
@@ -16,90 +17,46 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
--- -- TODO: with fixed number of sets
--- enum2 :: Int -> [[Int]]
--- enum2 !n = inner [[]] [] (bit n - 1)
---   where
---     inner :: [[Int]] -> [Int] -> Int -> [[Int]]
---     inner !results !acc 0 = acc : results
---     inner !results !acc !rest = U.foldl' step results (powersetU rest')
---       where
---         !lsb = countTrailingZeros rest
---         !rest' = clearBit rest lsb
---         step !res !set =
---           let !set' = set .|. bit lsb
---            in inner res (set' : acc) (rest' .&. complement set')
-
--- -- TODO: nMaxGroup -> nGroups
--- enum3 :: Int -> Int -> [[Int]]
--- enum3 !nMaxGroup !n = inner [[]] [] n nMaxGroup (bit n - 1)
---   where
---     inner :: [[Int]] -> [Int] -> Int -> Int -> Int -> [[Int]]
---     inner !results !acc 0 0 0 = acc : results
---     -- discard
---     inner !results !acc !restN !restG 0 = results
---     inner !results !acc !restN 0 !rest = results
---     inner !results !acc 0 !restG !rest = results
---     -- distribute at least one good to a group, or else it's always a worse case
---     inner !results !acc !restN !restG !rest
---       | restN < restG = results
---     inner !results !acc !restN !restG !rest = U.foldl' step results (powersetU rest')
---       where
---         !lsb = countTrailingZeros rest
---         !rest' = clearBit rest lsb
---         step !res !set = inner res (set' : acc) restN' restG' (rest' .&. complement set')
---           where
---             !restN' = restN - popCount set'
---             !restG' = restG - 1
---             !set' = set .|. bit lsb
-
--- eval :: U.Vector Int -> Int -> [Int] -> Double
--- eval !xs !nGroups !groups
---   | n > nGroups = 10000000000000.0
---   | otherwise = up / intToDouble nGroups
---     where
---       !n = length groups
---       sums = map (sum . map (xs U.!) . unBitSet (G.length xs)) groups
---       -- sums = note (show groups) $ map (sum . map (xs U.!) . unBitSet (G.length xs)) groups
---       -- REMARK: divide by the maximum number of groups
---       avg = intToDouble (sum sums) / intToDouble nGroups
---       up = sum $ map ((\x -> (x - avg) * (x - avg)) . intToDouble) sums
-
 unBitSet :: Int -> Int -> U.Vector Int
 unBitSet n bits = U.filter (testBit bits) (U.generate n id)
 
+-- https://atcoder.jp/contests/abc332/editorial/7916
 main :: IO ()
 main = do
-  -- (!n, !nGroups) <- ints2
-  -- !xs <- intsU
-  (!n, !nTeams) <- ints2
+  (!nPlayers, !nTeams) <- ints2
   !xs <- intsU
-  let !aver = intToDouble (U.sum xs) / intToDouble n
-  let !bounds_ = dbgId ((0, 0), (bit n - 1, nTeams))
 
-  let !vec0 = U.replicate (rangeSize bounds_) (100000000000 :: Double)
+  -- let !xbar = dbgId $ intToDouble (U.sum xs) / intToDouble nTeams
+  let !bnd = dbgId ((0, 0), (bit nPlayers - 1, nTeams))
+
+  let !undef = maxBound @Int
+  let !vec0 = U.generate (rangeSize bnd) (bool undef 0 . (== 0))
   let !res = pushBasedConstructN min vec0 $ \i vec -> case i `divMod` succ nTeams of
-        -- guard for empty vec
-        (!_, !iTeam)
+        (!s, !iTeam)
+          -- guard for empty vec.
           | iTeam == nTeams -> U.empty
-        -- super important guard to not add up at the end.
-        (!s, !_)
-          | s == bit nTeams - 1 -> U.empty
-        -- push!
-        (!s, !iTeam) ->
-          let !x = G.last vec
-              !rest = complement s .&. (bit nTeams - 1)
-              !lsb = countTrailingZeros rest
-              !rests = U.map (bit lsb .|.) . powersetU $ clearBit rest lsb
-              !_ = dbg ("in", s, iTeam)
-           in flip U.map rests $ \sub ->
-                let !s' = s .|. sub
-                    !dx = (intToDouble . U.sum . U.backpermute xs $ unBitSet nTeams sub)
-                    !_ = dbg ((s, iTeam), (s', iTeam + 1), x)
-                in (index bounds_ (s', iTeam + 1), x + (dx - aver) * (dx - aver))
+          -- super important guard to not add up at the end.
+          | s == bit nPlayers - 1 -> U.empty
+          -- do not distribute from an invalid slot.
+          | G.last vec == undef -> U.empty
+        (!s, !iTeam) -> U.map f rests
+          where
+            !x0 = G.last vec
+            !rest = complement s .&. (bit nPlayers - 1)
+            !lsb = countTrailingZeros rest
+            !rests = U.map (bit lsb .|.) . powersetU $ clearBit rest lsb
+            !_ = dbg ("in", s, iTeam, rests)
+            -- push!
+            f !sub = (index bnd (s', iTeam + 1), x')
+              where
+                !s' = s .|. sub
+                !x = U.sum . U.backpermute xs $ unBitSet nPlayers sub
+                !x' = x0 + x * x
+                !_ = dbg ((s, iTeam), (s', iTeam + 1), x0, x')
 
-  print $ U.last res / intToDouble nTeams
+  -- let !_ = dbgGridN 10 (IxVector bnd res)
+  -- let !_ = dbg (U.filter (<= 100000.0) res)
 
-  -- let res = minimum $ map (eval xs nGroups) (init (enum3 nGroups n))
-  -- print res
+  -- TODO: prove
+  print $ intToDouble (nTeams * U.last res - G.sum xs * G.sum xs) / intToDouble (nTeams * nTeams)
 
