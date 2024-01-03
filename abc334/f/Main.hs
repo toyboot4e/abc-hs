@@ -17,12 +17,6 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
-dist2 :: (Int, Int) -> (Int, Int) -> Double
-dist2 (!y1, !x1) (!y2, !x2) = sqrt . intToDouble $ (y1 - y2) * (y1 - y2) + (x1 - x2) * (x1 - x2)
-
-distABC :: (Int, Int) -> (Int, Int) -> (Int, Int) -> Double
-distABC home yx1 yx2 = dist2 home yx1 + dist2 home yx2
-
 -- int main() {
 --     int n, k, sx, sy;
 --     cin >> n >> k >> sx >> sy;
@@ -46,6 +40,12 @@ distABC home yx1 yx2 = dist2 home yx1 + dist2 home yx2
 --     cout << fixed << setprecision(15) << ans << endl;
 -- }
 
+dist2 :: (Int, Int) -> (Int, Int) -> Double
+dist2 (!y1, !x1) (!y2, !x2) = sqrt . intToDouble $ (y1 - y2) * (y1 - y2) + (x1 - x2) * (x1 - x2)
+
+costABC :: (Int, Int) -> (Int, Int) -> (Int, Int) -> Double
+costABC home yx1 yx2 = dist2 home yx1 + dist2 home yx2 - dist2 yx1 yx2
+
 -- https://atcoder.jp/contests/abc334/editorial/8982
 main :: IO ()
 main = do
@@ -56,12 +56,9 @@ main = do
 
   let !dists = dbgId $ U.zipWith dist2 (U.tail yxs) yxs
   let !_ = dbg (U.sum dists)
+  let !costs = dbgId $ U.zipWith (costABC (hy, hx)) (U.tail yxs) yxs
 
-  let !onRet = dbgId $ U.zipWith (distABC (hy, hx)) (U.tail yxs) yxs
-  let !costs = dbgId $ U.zipWith subtract dists onRet
-
-  -- TODO: add `generateSTree`
-  !stree <- newSTreeU min (n + 1) (10 ^ 18 :: Double)
+  !stree <- newSTreeU min (n + 2) (10 ^ 18 :: Double)
   insertSTree stree 0 (0.0 :: Double)
 
   U.iforM_ costs $ \r cost -> do
@@ -70,4 +67,5 @@ main = do
     insertSTree stree (r + 1) $! c + cost
 
   dbgSTree stree
-  print . (+ U.sum dists) . fromJust =<< querySTree stree (n - 1, n - 1)
+  print . (+ U.sum dists) . fromJust =<< querySTree stree (n + 1, n + 1)
+
