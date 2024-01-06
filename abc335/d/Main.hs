@@ -16,9 +16,6 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
-rot90 :: (Int, Int) -> (Int, Int)
-rot90 (!y, !x) = (-x, y)
-
 main :: IO ()
 main = do
   !n_ <- ints1
@@ -27,19 +24,19 @@ main = do
   let bnd = ((0, 0), (2 * n, 2 * n))
   !grid <- IxVector bnd <$> UM.replicate (rangeSize bnd) (0 :: Int)
 
-  void . (\f -> foldM f ((n - 1, n - 1), (1, 0), 2, 0, 0) [1 .. rangeSize bnd - 1]) $ \(!pos, !dir, !len, !lenCnt, !edgeCnt) i -> do
-    let pos' = add2 pos dir
-    let !_ = dbg (i, pos, dir, pos', (len, lenCnt, edgeCnt))
-    writeIV grid pos' i
+  let dir4 :: U.Vector (Int, Int)
+      dir4 = U.fromList [(1, 0), (0, 1), (-1, 0), (0, -1)]
 
-    return $ case (succ lenCnt, succ edgeCnt) of
-      (lenCnt', edgeCnt')
-        -- next edges
-        | lenCnt' == len && edgeCnt' == 4 -> (add2 (-1, -1) pos', rot90 dir, len + 2, 0, 0)
-        -- next dir
-        | lenCnt' == len -> (pos', rot90 dir, len, 0, edgeCnt')
-        -- keep going
-        | otherwise -> (pos', dir, len, lenCnt', edgeCnt)
+  void . (`runStateT` (1 :: Int, (n - 1, n - 1))) $ do
+    forM_ [1 .. n] $ \i -> do
+      modify $ second (const (n - i, n - i))
+      U.forM_ dir4 $ \dir -> do
+        forM_ [1 .. 2 * i] $ \_ -> do
+          yx' <- gets $ add2 dir . snd
+          let !_ = dbg (yx')
+          acc <- gets fst
+          writeIV grid yx' acc
+          modify $ bimap succ (const yx')
 
   !res <- U.unsafeFreeze (vecIV grid)
   forM_ [0 .. 2 * n] $ \y -> do
