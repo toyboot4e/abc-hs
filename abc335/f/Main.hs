@@ -38,18 +38,19 @@ main = do
   !n <- ints1
   !xs <- intsU
 
+  !dp <- UM.unsafeNew n
   let rn = isqrt n
   let bnd = ((0, 0), (rn, rn - 1))
-  !cycle <- IxVector bnd <$> UM.replicate (rangeSize bnd) (modInt 0)
+  !periodic <- IxVector bnd <$> UM.replicate (rangeSize bnd) (modInt 0)
 
   forM_ [n - 1, n - 2 .. 0] $ \i -> do
     let !x = xs U.! i
-    let !iCycle = (x, i `mod` x)
+    let !iPeriodic = (x, i `mod` x)
 
     !s <-
       if x < rn
         then do
-          succ <$> readIV cycle iCycle
+          succ <$> readIV periodic iPeriodic
         else do
           -- i + x, i + 2x, ..
           let is = takeWhile (< n) . tail $ iterate (+ x) i
@@ -57,9 +58,9 @@ main = do
 
     UM.write dp i s
 
-    -- update all of the cycle sums
+    -- update all of the periodic sums
     forM_ [1 .. rn] $ \j -> do
-      modifyIV cycle (+ s) (j, i `rem` j)
+      modifyIV periodic (+ s) (j, i `rem` j)
 
   !res <- UM.read dp 0
   print res
