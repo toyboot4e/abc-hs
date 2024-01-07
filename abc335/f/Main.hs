@@ -31,6 +31,41 @@ myMod = typeInt (Proxy @MyModulo)
 modInt :: Int -> MyModInt
 modInt = ModInt . (`rem` myMod)
 
+{-# INLINE constructNM #-}
+constructNM :: forall a m. (PrimMonad m, U.Unbox a) => Int -> (U.Vector a -> m a) -> m (U.Vector a)
+constructNM !n f = do
+  v <- GM.new n
+  v' <- G.unsafeFreeze v
+  fill v' 0
+  where
+    fill :: U.Vector a -> Int -> m (U.Vector a)
+    fill !v i
+      | i < n = do
+          x <- f (G.unsafeTake i v)
+          G.elemseq v x $ do
+            v' <- G.unsafeThaw v
+            GM.unsafeWrite v' i x
+            v'' <- G.unsafeFreeze v'
+            fill v'' (i + 1)
+    fill v _ = return v
+
+{-# INLINE constructrNM #-}
+constructrNM :: forall a m. (PrimMonad m, U.Unbox a) => Int -> (U.Vector a -> m a) -> m (U.Vector a)
+constructrNM !n f = do
+  v <- n `seq` GM.new n
+  v' <- G.unsafeFreeze v
+  fill v' 0
+  where
+    fill :: U.Vector a -> Int -> m (U.Vector a)
+    fill !v i | i < n = do
+      x <- f (G.unsafeSlice (n - i) i v)
+      G.elemseq v x $ do
+        v' <- G.unsafeThaw v
+        GM.unsafeWrite v' (n - i - 1) x
+        v'' <- G.unsafeFreeze v'
+        fill v'' (i + 1)
+    fill v _ = return v
+
 -- evima's solution
 -- <https://www.youtube.com/watch?v=cJiP8-Mq1jI>
 main :: IO ()
@@ -43,7 +78,8 @@ main = do
   let bnd = ((0, 0), (rn, rn - 1))
   !periodic <- IxVector bnd <$> UM.replicate (rangeSize bnd) (modInt 0)
 
-  forM_ [n - 1, n - 2 .. 0] $ \i -> do
+  !res <- constructrNM n $ \sofar -> do
+    let !i = G.length sofar
     let !x = xs U.! i
     let !iPeriodic = (x, i `mod` x)
 
@@ -53,7 +89,7 @@ main = do
           succ <$> readIV periodic iPeriodic
         else do
           -- i + x, i + 2x, ..
-          let is = takeWhile (< n) . tail $ iterate (+ x) i
+          let is = takeWhile (< i) . tail $ iterate (+ x) x
           succ . sum <$> mapM (UM.read dp) is
 
     UM.write dp i s
@@ -62,5 +98,6 @@ main = do
     forM_ [1 .. rn] $ \j -> do
       modifyIV periodic (+ s) (j, i `rem` j)
 
-  !res <- UM.read dp 0
-  print res
+    return s
+
+  print $ G.head res
