@@ -73,30 +73,26 @@ main = do
   !n <- ints1
   !xs <- intsU
 
-  !dp <- UM.unsafeNew n
   let rn = isqrt n
   let bnd = ((0, 0), (rn, rn - 1))
   !periodic <- IxVector bnd <$> UM.replicate (rangeSize bnd) (modInt 0)
 
-  !res <- constructrNM n $ \sofar -> do
-    let !i = G.length sofar
-    let !x = xs U.! i
-    let !iPeriodic = (x, i `mod` x)
+  !res <- fmap dbgId . constructrNM n $ \sofar -> do
+    let !len = G.length sofar
+    let !x = xs U.! (n - 1 - len)
+    let !iPeriodic = (x, len `mod` x)
 
     !s <-
       if x < rn
         then do
           succ <$> readIV periodic iPeriodic
         else do
-          -- i + x, i + 2x, ..
-          let is = takeWhile (< i) . tail $ iterate (+ x) x
-          succ . sum <$> mapM (UM.read dp) is
-
-    UM.write dp i s
+          let is = takeWhile (< len) $ iterate (+ x) (x - 1)
+          return . succ . U.sum $ U.backpermute sofar $ U.fromList is
 
     -- update all of the periodic sums
     forM_ [1 .. rn] $ \j -> do
-      modifyIV periodic (+ s) (j, i `rem` j)
+      modifyIV periodic (+ s) (j, len `rem` j)
 
     return s
 
