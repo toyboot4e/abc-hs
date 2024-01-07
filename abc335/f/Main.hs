@@ -1,5 +1,6 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package deepseq --package extra --package hashable --package unordered-containers --package heaps --package mtl --package utility-ht --package vector --package vector-algorithms --package primitive --package QuickCheck --package random --package transformers --ghc-options "-D DEBUG" -}
+
 {-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds -Wno-orphans #-}
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
@@ -30,13 +31,35 @@ myMod = typeInt (Proxy @MyModulo)
 modInt :: Int -> MyModInt
 modInt = ModInt . (`rem` myMod)
 
+-- evima's solution
+-- <https://www.youtube.com/watch?v=cJiP8-Mq1jI>
 main :: IO ()
 main = do
   !n <- ints1
   !xs <- intsU
 
-  let f (!v1, !n1)
-  !stree <- newSTreeU
+  let rn = isqrt n
+  let bnd = ((0, 0), (rn, rn - 1))
+  !cycle <- IxVector bnd <$> UM.replicate (rangeSize bnd) (modInt 0)
 
-  putStrLn "TODO"
+  forM_ [n - 1, n - 2 .. 0] $ \i -> do
+    let !x = xs U.! i
+    let !iCycle = (x, i `mod` x)
 
+    !s <-
+      if x < rn
+        then do
+          succ <$> readIV cycle iCycle
+        else do
+          -- i + x, i + 2x, ..
+          let is = takeWhile (< n) . tail $ iterate (+ x) i
+          succ . sum <$> mapM (UM.read dp) is
+
+    UM.write dp i s
+
+    -- update all of the cycle sums
+    forM_ [1 .. rn] $ \j -> do
+      modifyIV cycle (+ s) (j, i `rem` j)
+
+  !res <- UM.read dp 0
+  print res
