@@ -39,9 +39,7 @@ main = do
         where
           !input = concatMap (\xs -> map (,head xs) xs) $ dbgId (topSccSG gr)
 
-  -- TODO: uniquify the edges?
-  -- TODO: no need of a new graph, just create @es'@
-  let !gr' = buildSG (0, nVerts - 1) $ U.concatMap g es
+  let !es' = U.modify (VAI.sortBy (comparing ((xs U.!) . fst))) $ U.concatMap g es
         where
           g :: (Int, Int) -> U.Vector (Int, Int)
           g (!v1, !v2)
@@ -58,12 +56,10 @@ main = do
         !dp <- UM.replicate nVerts (0 :: Int)
         UM.write dp (U.head rs) 1
 
-        let !rs' = U.modify (VAI.sortBy (comparing (xs U.!))) $ U.ifilter (==) rs
-        U.forM_ rs' $ \r -> do
-          !x <- UM.read dp r
+        U.forM_ es' $ \(!r1, !r2)-> do
+          !x <- UM.read dp r1
           when (x > 0) $ do
-            U.forM_ (gr' `adj` r) $ \r' -> do
-              UM.modify dp (max (x + 1)) r'
+            UM.modify dp (max (x + 1)) r2
 
         return dp
 
