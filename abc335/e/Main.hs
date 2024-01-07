@@ -39,13 +39,13 @@ main = do
         where
           !input = concatMap (\xs -> map (,head xs) xs) $ dbgId (topSccSG gr)
 
-  let !es' = U.modify (VAI.sortBy (comparing ((xs U.!) . fst))) $ U.concatMap g es
+  let !es' = U.modify (VAI.sortBy (comparing ((xs U.!) . fst))) $ U.mapMaybe g es
         where
-          g :: (Int, Int) -> U.Vector (Int, Int)
+          g :: (Int, Int) -> Maybe (Int, Int)
           g (!v1, !v2)
-            | x1 == x2 = U.empty
-            | x1 < x2 = U.singleton (r1, r2)
-            | x2 < x1 = U.singleton (r2, r1)
+            | x1 == x2 = Nothing
+            | x1 < x2 = Just (r1, r2)
+            | x2 < x1 = Just (r2, r1)
             where
               x1 = xs U.! v1
               x2 = xs U.! v2
