@@ -17,6 +17,36 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+-- | Longest path Dijkstra
+abc335e :: U.Vector Int -> SparseGraph Int () -> U.Vector Int
+abc335e !xs gr@SparseGraph {..} = U.create $ do
+  let !undef = 0 :: Int
+  !dist <- UM.replicate nVertsSG undef
+  !done <- UM.replicate nVertsSG False
+
+  let !heap0 = H.singleton $ H.Entry (xs U.! 0, Down 1) 0
+  UM.write dist 0 (1 :: Int)
+
+  flip fix heap0 $ \loop heap -> case H.uncons heap of
+    Nothing -> return ()
+    Just (H.Entry (!_, Down !w1) !v1, !heap') -> do
+      UM.read done v1 >>= \case
+        -- already visited
+        True -> loop heap'
+        False -> do
+          UM.write done v1 True
+          loop <=< (\f -> U.foldM' f heap' (gr `adj` v1)) $ \h v2 -> do
+            let !w2' = bool (w1 + 1) w1 (xs U.! v1 == xs U.! v2)
+            !b2 <- UM.read done v2
+            !w2 <- UM.read dist v2
+            if not b2 && w2' > w2
+              then do
+                UM.write dist v2 w2'
+                return $ H.insert (H.Entry (xs U.! v2, Down w2') v2) h
+              else return h
+
+  return dist
+
 -- Make it easier..
 main :: IO ()
 main = do
@@ -27,40 +57,58 @@ main = do
   let !gr = buildSG (0, nVerts - 1) $ dbgId $ U.concatMap f es
         where
           f :: (Int, Int) -> U.Vector (Int, Int)
-          f (!v1, !v2)
-            | x1 == x2 = U.fromListN 2 [(v1, v2), (v2, v1)]
-            | x1 < x2 = U.singleton (v1, v2)
-            | x2 < x1 = U.singleton (v2, v1)
-            where
-              x1 = xs U.! v1
-              x2 = xs U.! v2
+          f (!v1, !v2) = case compare (xs U.! v1) (xs U.! v2) of
+            EQ -> U.fromListN 2 [(v1, v2), (v2, v1)]
+            LT -> U.singleton (v1, v2)
+            GT -> U.singleton (v2, v1)
 
-  let !rs = dbgId $ U.accumulate (flip const) (U.generate nVerts id) $ U.fromList input
-        where
-          !input = concatMap (\xs -> map (,head xs) xs) $ dbgId (topSccSG gr)
+  let !res = abc335e xs gr
+  print $ U.last res
 
-  let !es' = U.modify (VAI.sortBy (comparing ((xs U.!) . fst))) $ U.mapMaybe g es
-        where
-          g :: (Int, Int) -> Maybe (Int, Int)
-          g (!v1, !v2)
-            | x1 == x2 = Nothing
-            | x1 < x2 = Just (r1, r2)
-            | x2 < x1 = Just (r2, r1)
-            where
-              x1 = xs U.! v1
-              x2 = xs U.! v2
-              r1 = rs U.! v1
-              r2 = rs U.! v2
-
-  let !res = dbgId $ U.create $ do
-        !dp <- UM.replicate nVerts (0 :: Int)
-        UM.write dp (U.head rs) 1
-
-        U.forM_ es' $ \(!r1, !r2)-> do
-          !x <- UM.read dp r1
-          when (x > 0) $ do
-            UM.modify dp (max (x + 1)) r2
-
-        return dp
-
-  print $ res U.! U.last rs
+-- -- Make it easier..
+-- main :: IO ()
+-- main = do
+--   (!nVerts, !nEdges) <- ints2
+--   !xs <- intsU
+--   !es <- U.replicateM nEdges (both pred <$> ints2)
+--
+--   let !gr = buildSG (0, nVerts - 1) $ dbgId $ U.concatMap f es
+--         where
+--           f :: (Int, Int) -> U.Vector (Int, Int)
+--           f (!v1, !v2)
+--             | x1 == x2 = U.fromListN 2 [(v1, v2), (v2, v1)]
+--             | x1 < x2 = U.singleton (v1, v2)
+--             | x2 < x1 = U.singleton (v2, v1)
+--             where
+--               x1 = xs U.! v1
+--               x2 = xs U.! v2
+--
+--   let !rs = dbgId $ U.accumulate (flip const) (U.generate nVerts id) $ U.fromList input
+--         where
+--           !input = concatMap (\xs -> map (,head xs) xs) $ dbgId (topSccSG gr)
+--
+--   let !es' = U.modify (VAI.sortBy (comparing ((xs U.!) . fst))) $ U.mapMaybe g es
+--         where
+--           g :: (Int, Int) -> Maybe (Int, Int)
+--           g (!v1, !v2)
+--             | x1 == x2 = Nothing
+--             | x1 < x2 = Just (r1, r2)
+--             | x2 < x1 = Just (r2, r1)
+--             where
+--               x1 = xs U.! v1
+--               x2 = xs U.! v2
+--               r1 = rs U.! v1
+--               r2 = rs U.! v2
+--
+--   let !res = dbgId $ U.create $ do
+--         !dp <- UM.replicate nVerts (0 :: Int)
+--         UM.write dp (U.head rs) 1
+--
+--         U.forM_ es' $ \(!r1, !r2) -> do
+--           !x <- UM.read dp r1
+--           when (x > 0) $ do
+--             UM.modify dp (max (x + 1)) r2
+--
+--         return dp
+--
+--   print $ res U.! U.last rs
