@@ -1,0 +1,46 @@
+cradle:
+  stack:
+    - path: "./o/Main.hs"
+      component: "past202290-open:exe:o-exe"
+
+    - path: "./n/Main.hs"
+      component: "past202290-open:exe:n-exe"
+
+    - path: "./m/Main.hs"
+      component: "past202290-open:exe:m-exe"
+
+    - path: "./l/Main.hs"
+      component: "past202290-open:exe:l-exe"
+
+    - path: "./l/Main.hs"
+      component: "past202290-open:exe:k-exe"
+
+    - path: "./j/Main.hs"
+      component: "past202290-open:exe:j-exe"
+
+    - path: "./i/Main.hs"
+      component: "past202290-open:exe:i-exe"
+
+    - path: "./h/Main.hs"
+      component: "past202290-open:exe:h-exe"
+
+    - path: "./g/Main.hs"
+      component: "past202290-open:exe:g-exe"
+
+    - path: "./f/Main.hs"
+      component: "past202290-open:exe:f-exe"
+
+    - path: "./e/Main.hs"
+      component: "past202290-open:exe:e-exe"
+
+    - path: "./d/Main.hs"
+      component: "past202290-open:exe:d-exe"
+
+    - path: "./c/Main.hs"
+      component: "past202290-open:exe:c-exe"
+
+    - path: "./b/Main.hs"
+      component: "past202290-open:exe:b-exe"
+
+    - path: "./a/Main.hs"
+      component: "past202290-open:exe:a-exe"
