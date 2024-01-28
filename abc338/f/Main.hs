@@ -17,74 +17,64 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+-- | /O(V^3)/ Floyd-Warshall algorith. It uses `max` as relax operator and the second argument is
+-- usually like @maxBound `div` 2@.
+--
+-- It's strict about path connection and invalid paths are ignored.
+distsNN :: (U.Unbox w, Num w, Ord w) => Int -> w -> U.Vector (Int, Int, w) -> IxUVector (Int, Int) w
+distsNN !nVerts !undef !wEdges = IxVector bnd $ U.create $ do
+  !vec <- UM.replicate (nVerts * nVerts) undef
+
+  U.forM_ wEdges $ \(!v1, !v2, !w) -> do
+    UM.write vec (index bnd (v1, v2)) w
+
+  -- `forM_ vs repM_
+  forM_ [0 .. nVerts - 1] $ \k -> do
+    forM_ [0 .. nVerts - 1] $ \i -> do
+      forM_ [0 .. nVerts - 1] $ \j -> do
+        !x1 <- UM.read vec (index bnd (i, j))
+        !x2 <- do
+           !tmp1 <- UM.read vec (index bnd (i, k))
+           !tmp2 <- UM.read vec (index bnd (k, j))
+           return $! bool (tmp1 + tmp2) undef $ tmp1 == undef || tmp2 == undef
+        let !res = min x1 x2
+        UM.write vec (index bnd (i, j)) res
+
+  return vec
+  where
+    bnd :: ((Int, Int), (Int, Int))
+    bnd = ((0, 0), (nVerts - 1, nVerts - 1))
+
 main :: IO ()
 main = do
   (!nVerts, !nEdges) <- ints2
-  !es <- U.replicateM nEdges ((\(!v1, !v2, !w) -> (v1 - 1, v2 - 1, w)) <$> ints3)
+  !wEdges <- U.replicateM nEdges ((\(!v1, !v2, !w) -> (v1 - 1, v2 - 1, w)) <$> ints3)
 
   -- dense graph
   let !undef = maxBound `div` 2 :: Int
-  let !bndN = ((0, 0), (nVerts - 1, nVerts - 1))
-  let !gr = IxVector bndN $ U.accumulate (flip const) (U.replicate (nVerts * nVerts) undef) $ U.map (\(!v1, !v2, !w) -> (index bndN (v1, v2), w)) es
-  let !_ = dbgGrid gr
+  let !gr = distsNN nVerts undef wEdges
 
   let !bnd = ((0, 0), (bit nVerts, nVerts - 1))
 
-  let !_ = dbg ("1")
-  -- let res :: IxUVector (Int, Int) Int
-  --     !res = constructIV bnd $ \sofar i -> case i of
-  --       (0, _) -> 0 :: Int
-  --       (!s, !v) | not $ testBit s v -> undef
-  --       (!s, !v) | popCount s == 1 -> 0 :: Int
-  --       (!s, !v) -> minimumOr undef $ U.map f vs
-  --         where
-  --           s' = clearBit s v
-  --           vs = U.filter (testBit s') $ U.generate nVerts id
-  --           f !v'
-  --             | w == undef || dw == undef = undef
-  --             | otherwise = w + dw
-  --             where
-  --               !w = sofar @! (s', v')
-  --               !dw = gr @! (v', v)
-
+  -- TSP with optional edges
   let res :: IxUVector (Int, Int) Int
-      !res = IxVector bnd $ U.create $ do
-        !vec <- IxVector bnd <$> UM.replicate (rangeSize bnd) undef
-        forM_ [0 .. bit nVerts -1] $ \s -> do
-          forM_ [0 .. nVerts - 1] $ \v -> do
-            if popCount s == 1
-              then do
-                writeIV vec (s, v) 1
-              else do
-                when (testBit s v) $ do
-                  sofar <- unsafeFreezeIV vec
-                  let s' = clearBit s v
-                      vs = U.filter (testBit s') $ U.generate nVerts id
-                      f !v'
-                        | w == undef || dw == undef = undef
-                        | otherwise = w + dw
-                        where
-                          !w = sofar @! (s', v')
-                          !dw = gr @! (v', v)
-                  writeIV vec (s, v) $ minimumOr undef $ U.map f vs
+      !res = constructIV bnd $ \sofar i -> case i of
+        (0, _) -> 0 :: Int
+        (!s, !v) | not $ testBit s v -> undef
+        (!s, !_) | popCount s == 1 -> 0 :: Int
+        (!s, !v) -> minimumOr undef $ U.map f vs
+          where
+            s' = clearBit s v
+            vs = U.filter (testBit s') $ U.generate nVerts id
+            f !v'
+              | w == undef || dw == undef = undef
+              | otherwise = w + dw
+              where
+                !w = sofar @! (s', v')
+                !dw = gr @! (v', v)
 
-          forM_ [0 .. nVerts - 1] $ \v1 -> do
-            forM_ [0 .. nVerts - 1] $ \v2 -> do
-              !acc <- readIV vec (s, v1)
-              when (acc /= undef && gr @! (v1, v2) < 0) $ do
-                modifyIV vec (min (acc + gr @! (v1, v2))) (s, v2)
-        return (vecIV vec)
+  let !res' = U.minimum $ U.generate nVerts $ \i -> res @! (bit nVerts - 1, i)
 
-  let !_ = dbgGrid res
-
-  let !_ = dbg ("2")
-  let res' = U.minimum . dbgId $ U.generate nVerts (\vEnd -> dbgId (res @! (bit nVerts - 1, vEnd)) + negWalk vEnd)
-        where
-          !negEs = U.filter ((<= 0) . thd3) es
-          !negGr = buildWSG (0, nVerts - 1) negEs
-          negWalk v0 = min 0 . U.minimum . vecIV $ djSG negGr (maxBound @Int `div` 4) (U.singleton v0)
-
-  let !_ = dbg ("3")
-  let res'' = if res' >= undef `div` 4 then "No" else show res'
-  putStrLn res''
-
+  if res' == undef
+    then putStrLn "No"
+    else print res'
