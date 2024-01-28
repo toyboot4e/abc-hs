@@ -19,11 +19,8 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 
 main :: IO ()
 main = do
-  !s <- U.fromList . map (subtract (ord 'a') . ord) . BS.unpack <$> BS.getLine
-
-  let !cnts = U.accumulate (+) (U.replicate 26 (0 :: Int)) $ U.map (,1 :: Int) s
-  let !x = U.maximum cnts
-  let !i = fromJust $ U.findIndex (== x) cnts
-
-  putChar $ ['a' .. 'z'] !! i
+  !s <- BS.unpack <$> BS.getLine
+  let !cns = map (head &&& length) . group . sort $ s :: [(Char, Int)]
+  let !res = foldl' (\x1@(!_, !n1) x2@(!_, !n2) -> bool x1 x2 (n2 > n1)) (' ', 0) cns
+  putChar $ fst res
 
