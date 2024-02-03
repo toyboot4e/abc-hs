@@ -17,10 +17,50 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+getYMD :: IO [Int]
+getYMD = f . BS.unpack <$> BS.getLine
+  where
+    f :: String -> [Int]
+    f = map (read @Int) . words . map (\c -> bool c ' ' (c == '-'))
+
+isLeap :: Int -> Bool
+isLeap y = b1 || b2
+  where
+    b1 = y `mod` 400 == 0
+    b2 = y `mod` 4 == 0 && y `mod` 100 /= 0
+
+monthDays :: U.Vector Int
+monthDays = U.fromList [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+monthDaysCSum :: U.Vector Int
+monthDaysCSum = csum1D monthDays
+
+normalize :: Int -> Int -> Int -> Int
+normalize y m d = y' + m' + (d - 1)
+  where
+    y' = 365 * y + (y `div` 4 - y `div` 100 + y `div` 400)
+    m' = monthDaysCSum U.! (m - 1) + onLeap
+      where
+        onLeap
+          | isLeap (y + 1) && m > 2 = 1
+          | otherwise = 0
+
+weekendSum :: Int -> Int
+weekendSum (-1) = 0
+weekendSum d = 2 * nWeek + rest
+  where
+    nWeek = d `div` 7
+    rest = max 0 $ (d `rem` 7) - 4
+
+-- count the number of Saturdays and Sundays
 main :: IO ()
 main = do
-  !n <- ints1
-  !xs <- intsU
+  !ymd1 <- dbgId . (\[!y, !m, !d] -> normalize (y - 1) m d) . dbgId <$> getYMD
+  let !_ = dbg (ymd1 `mod` 7)
+  let !n1 = dbgId $ weekendSum (ymd1 - 1)
 
-  putStrLn "TODO"
+  !ymd2 <- dbgId . (\[!y, !m, !d] -> normalize (y - 1) m d) . dbgId <$> getYMD
+  let !_ = dbg (ymd1 `mod` 7)
+  let !n2 = dbgId $ weekendSum ymd2
 
+  print $ n2 - n1

@@ -19,8 +19,34 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 
 main :: IO ()
 main = do
-  !n <- ints1
-  !xs <- intsU
+  !s <- BS.getLine
+  !t <- BS.getLine
+  !k <- int
 
-  putStrLn "TODO"
+  let !bnd = ((0, 0, 0), (k, BS.length s, BS.length t))
 
+  let !res = constructIV bnd $ \sofar i -> case i of
+        (!_, 0, !_) -> 0 :: Int
+        (!_, !_, 0) -> 0 :: Int
+        (0, !ls, !lt)
+          | cs == ct -> x1 `max` x2 `max` x3
+          | otherwise -> x1 `max` x2
+          where
+            cs = BS.index s (ls - 1)
+            ct = BS.index t (lt - 1)
+            x1 = sofar @! (0, ls - 1, lt)
+            x2 = sofar @! (0, ls, lt - 1)
+            x3 = sofar @! (0, ls - 1, lt - 1) + 1
+        (!lk, !ls, !lt)
+          | cs == ct -> x1 `max` x2 `max` x3 `max` x4
+          | otherwise -> x1 `max` x2 `max` x4
+          where
+            cs = BS.index s (ls - 1)
+            ct = BS.index t (lt - 1)
+            x1 = sofar @! (lk, ls - 1, lt)
+            x2 = sofar @! (lk, ls, lt - 1)
+            x3 = sofar @! (lk, ls - 1, lt - 1) + 1
+            x4 = sofar @! (lk - 1, ls - 1, lt - 1) + 1
+
+  let !_ = dbg (res)
+  print $ U.maximum $ U.generate (k + 1) $ (res @!) . (,BS.length s,BS.length t)

@@ -17,10 +17,39 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+data MyModulo = MyModulo
+
+instance TypeInt MyModulo where
+  -- typeInt _ = 1_000_000_007
+  typeInt _ = 998244353
+
+type MyModInt = ModInt MyModulo
+
+myMod :: Int
+myMod = typeInt (Proxy @MyModulo)
+
+modInt :: Int -> MyModInt
+modInt = ModInt . (`rem` myMod)
+
 main :: IO ()
 main = do
-  !n <- ints1
-  !xs <- intsU
+  !s <- BS.getLine
+  !t <- BS.getLine
+
+  -- !stree <- newSTreeU (+) (BS.length s + 1) (0 :: Int)
+  -- (\f -> foldM f IM.empty (BS.unpack s)) $ 
+
+  -- let !bnd = ((0, 0), (BS.length s, BS.length t))
+  -- let !res = constructIV bnd $ \sofar i -> case i of
+  --       (0, 0) -> 0 :: Int
+  --       (0, _) -> 0 :: Int
+  --       (_, 0) -> 0 :: Int
+  --       (!ls, !lt) -> n1 `max` n2 `max` n3
+  --         where
+  --           n1 = sofar @! (ls - 1, lt)
+  --           n2 = sofar @! (ls, lt - 1)
+  --           n3
+  --             | BS.index s (ls - 1) == BS.index t (lt - 1) = sofar @! (ls - 1, lt - 1) + 1
+  --             | otherwise = 1
 
   putStrLn "TODO"
-

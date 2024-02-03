@@ -50,6 +50,6 @@ main = do
                 d3
                   | d1 == 0 || d2 == 0 = 0
                   | otherwise = d1 + d2
-         in runMoPure xs lrs onIns onIns onRem onRem fst (0 :: Int, IM.empty)
+         in runMoPureG xs lrs onIns onIns onRem onRem id (0 :: Int, IM.empty)
 
-  U.forM_ res print
+  V.forM_ res $ print . fst
