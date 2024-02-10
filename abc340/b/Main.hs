@@ -19,13 +19,15 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 main :: IO ()
 main = do
   !q <- ints1
-  !qs <- U.replicateM q ints2
+  !qs0 <- U.replicateM q ints2
 
-  let g !acc (1, !x) = return (x : acc)
-      g !acc (2, !k) = do
-        print $ acc !! pred k
-        return acc
-      g _ _ = error "unreachable"
+  let !res = U.unfoldr f ([], qs0)
+        where
+          f (!acc, !qs) = case U.uncons qs of
+            Nothing -> Nothing
+            Just ((1, !x), qs') -> f (x : acc, qs')
+            Just ((2, !k), qs') -> Just (acc !! pred k, (acc, qs'))
+            _ -> error "unreachable"
 
-  (\f -> U.foldM'_ f [] qs) $ g
+  U.forM_ res print
 

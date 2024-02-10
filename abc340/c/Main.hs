@@ -16,25 +16,20 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+solve :: Int -> IM.IntMap Int -> (Int, IM.IntMap Int)
+solve !x !im0 = case IM.lookup x im0 of
+  Just !cost -> (cost, im0)
+  Nothing -> (cost', IM.insert x cost' im')
+    where
+      !x1 = x `div` 2
+      !x2 = x - x1
+      (!cost', !im') = (`runState` im0) $ do
+        !cost1 <- state $ solve x1
+        !cost2 <- state $ solve x2
+        return $ x + cost1 + cost2
+
 main :: IO ()
 main = do
   !n <- ints1
-
-  let f :: Int -> State (IM.IntMap Int) Int
-      f 1 = return (0 :: Int)
-      f !x = do
-        !o <- gets $ IM.lookup x
-        case o of
-          Just !c -> return c
-          Nothing -> do
-            !c1 <- f x1
-            !c2 <- f x2
-            modify' $! IM.insert x (c1 + c2 + x)
-            return $ c1 + c2 + x
-            where
-              !x1 = x `div` 2
-              !x2 = x - x1
-
-  let !res = (`execState` IM.singleton 1 0) (f n)
-
-  print $ res IM.! n
+  let (!res, !_im) = solve n (IM.singleton 1 0)
+  print res
