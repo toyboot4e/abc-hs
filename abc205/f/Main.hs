@@ -46,7 +46,6 @@ data DinicBuffer s c = DinicBuffer
 -- | /O(V^2E)/ max flow algorithm (Dinic's algorithm)
 maxFlowD :: (Show c, U.Unbox c, Num c, Ord c, Bounded c) => Int -> Int -> Int -> U.Vector (Vertex, Vertex, c) -> c
 maxFlowD !nVerts !src !sink !edges = runST $ do
-  let !_ = dbg ("A")
   !dinic <- buildDinic nVerts edges
   runDinic src sink dinic
 
@@ -121,7 +120,6 @@ runDinic !src !sink dinic@Dinic {..} = do
       <*> U.thaw offsetsD
 
   flip fix 0 $ \loopBfs !flow -> do
-    let !_ = dbg ("B")
     -- clear BFS buffers
     GM.set distsD undefD
     clearBuffer queueD
@@ -132,13 +130,11 @@ runDinic !src !sink dinic@Dinic {..} = do
     if distSink == undefD
       then return flow -- can't increase the flow anymore
       else do
-        let !_ = dbg ("D")
         -- clear dfs buffers
         U.unsafeCopy iterD offsetsD
         -- add flow to the `sink` while we can.
         flip fix flow $ \loopDfs f -> do
           !df <- runDinicDfs src sink maxBound dinic bufs
-          let !_ = dbg (df)
           if df > 0
             then loopDfs $! f + df
             else loopBfs f
@@ -170,8 +166,8 @@ runDinicBfs !src !sink Dinic {..} DinicBuffer {..} = do
           U.forM_ (U.generate (iEnd - iStart) (+ iStart)) $ \i12 -> do
             let !v2 = edgeDstD U.! i12
             !cap12 <- UM.read edgeCapD i12
-            !canFlow <- ((cap12 > 0) &&) <$> ((== undefD) <$> UM.read distsD v2)
-            when canFlow $ do
+            !notVisited <- (== undefD) <$> UM.read distsD v2
+            when (cap12 > 0 && notVisited) $ do
               UM.write distsD v2 (dist1 + 1)
               pushBack queueD v2
 
@@ -190,7 +186,6 @@ runDinicDfs ::
 runDinicDfs !v0 !sink !flow0 Dinic {..} DinicBuffer {..} = runDfs v0 flow0
   where
     runDfs !v1 !flow
-      -- reached the end. some flow
       | v1 == sink = return flow
       | otherwise = fix $ \visitNeighbor -> do
           -- `iterD` holds neighbor iteration counters
@@ -206,14 +201,17 @@ runDinicDfs !v0 !sink !flow0 Dinic {..} DinicBuffer {..} = runDfs v0 flow0
               -- go if it can flow
               let !v2 = edgeDstD U.! i1
               !cap12 <- UM.read edgeCapD i1
-              !canFlow <- ((cap12 > 0) &&) <$> ((<) <$> UM.read distsD v1 <*> UM.read distsD v2)
-              if not canFlow
-                then visitNeighbor
-                else do
+              !connected <- (<) <$> UM.read distsD v1 <*> UM.read distsD v2
+              if cap12 > 0 && connected
+                then do
                   -- get the final flow
                   !flow' <- runDfs v2 $! min flow cap12
-                  modifyFlow i1 flow'
-                  return flow'
+                  if flow' > 0
+                    then do
+                      modifyFlow i1 flow'
+                      return flow'
+                    else visitNeighbor
+                else visitNeighbor
 
     modifyFlow !i1 !flow = do
       UM.modify edgeCapD (subtract flow) i1
@@ -225,13 +223,9 @@ main = do
   !pieces <- U.replicateM n ((\(!a, !b, !c, !d) -> (a - 1, b - 1, c - 1, d - 1)) <$> ints4)
 
   -- vertex numbers
-  let !iS = 0 :: Int
-  let !iE = 1 :: Int
-  let !iRow0 = 2 :: Int
-  let !iCol0 = iRow0 + h
-  let !iPiece0 = iCol0 + w
+  let !cnts = [1, 1, h, w, 2 * G.length pieces]
+  let [!iS, !iE, !iRow0, !iCol0, !iPiece0, !nVerts] = scanl' (+) (0 :: Int) cnts
 
-  let !nVerts = iPiece0 + 2 * G.length pieces + 1
   let !w1 = 1 :: Int
 
   -- start -> row (no capacity limit)
@@ -244,10 +238,10 @@ main = do
   let !viaPieces = flip U.concatMap (U.indexed pieces) $ \(!iPiece, (!y1, !x1, !y2, !x2)) ->
         let !i1 = iPiece0 + 2 * iPiece
             !i2 = i1 + 1
-            !fromRows = U.generate (y2 - y1 + 1) ((,i1,w1) . (+ y1))
-            !fromCols = U.generate (x2 - x1 + 1) ((i2,,w1) . (+ x1))
+            !fromRows = U.generate (y2 - y1 + 1) $ (,i1,w1) . (+ iRow0) . (+ y1)
             !between = U.singleton (i1, i2, 1)
-         in between U.++ fromRows U.++ fromCols
+            !toCols = U.generate (x2 - x1 + 1) $ (i2,,w1) . (+ iCol0) . (+ x1)
+         in between U.++ fromRows U.++ toCols
 
   let !edges = toRows U.++ toEnds U.++ viaPieces
   let !result = maxFlowD nVerts iS iE edges
