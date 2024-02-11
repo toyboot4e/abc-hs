@@ -156,8 +156,8 @@ runDinicBfs !src !sink Dinic {..} DinicBuffer {..} = do
       Nothing -> return ()
       Just !v1 -> do
         -- TODO: rather, stop on filling sink?
-        !distSink <- UM.read distsD sink
-        when (distSink == undefD) $ do
+        !notEnd <- (== undefD) <$> UM.read distsD sink
+        when notEnd $ do
           let !iStart = offsetsD U.! v1
               !iEnd = offsetsD U.! (v1 + 1)
 
@@ -204,10 +204,11 @@ runDinicDfs !v0 !sink !flow0 Dinic {..} DinicBuffer {..} = runDfs v0 flow0
               !connected <- (<) <$> UM.read distsD v1 <*> UM.read distsD v2
               if cap12 > 0 && connected
                 then do
-                  -- get the final flow
+                  -- get to the final flow
                   !flow' <- runDfs v2 $! min flow cap12
                   if flow' > 0
                     then do
+                      -- found the sink
                       modifyFlow i1 flow'
                       return flow'
                     else visitNeighbor
@@ -228,8 +229,8 @@ main = do
 
   let !w1 = 1 :: Int
 
-  -- start -> row (no capacity limit)
-  let !toRows = U.generate h ((iS,,nVerts) . (+ iRow0))
+  -- start -> row
+  let !toRows = U.generate h ((iS,,w1) . (+ iRow0))
 
   -- column -> end
   let !toEnds = U.generate w ((,iE,w1) . (+ iCol0))
