@@ -12,7 +12,7 @@ executable a-exe
   main-is: Main.hs
   hs-source-dirs:
       a
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -DDEBUG
   build-depends:
       QuickCheck
     , array
@@ -54,7 +54,7 @@ executable b-exe
   main-is: Main.hs
   hs-source-dirs:
       b
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -DDEBUG
   build-depends:
       QuickCheck
     , array
@@ -96,7 +96,7 @@ executable c-exe
   main-is: Main.hs
   hs-source-dirs:
       c
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -DDEBUG
   build-depends:
       QuickCheck
     , array
@@ -138,7 +138,7 @@ executable d-exe
   main-is: Main.hs
   hs-source-dirs:
       d
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -DDEBUG
   build-depends:
       QuickCheck
     , array
@@ -180,7 +180,7 @@ executable e-exe
   main-is: Main.hs
   hs-source-dirs:
       e
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -DDEBUG
   build-depends:
       QuickCheck
     , array
@@ -222,7 +222,7 @@ executable f-exe
   main-is: Main.hs
   hs-source-dirs:
       f
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -DDEBUG
   build-depends:
       QuickCheck
     , array
@@ -264,7 +264,7 @@ executable g-exe
   main-is: Main.hs
   hs-source-dirs:
       g
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -DDEBUG
   build-depends:
       QuickCheck
     , array
