@@ -16,25 +16,11 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
--- | https://ouchimath.com/3point-menseki/
-isOk :: (Int, Int) -> (Int, Int) -> Bool
-isOk (!y1, x1) (!y2, !x2) = (x1 * y2 - x2 * y1) `div` 2 == 1
-
 main :: IO ()
 main = do
   (!x0, !y0) <- ints2
-
-  when (x0 == 0) $ do
-    putStrLn "0 1"
-    exitSuccess
-
-  when (y0 == 0) $ do
-    putStrLn "1 0"
-    exitSuccess
-
-  let !slope = intToDouble y0 / intToDouble d0
-
-  let !y1 = 
-
-  putStrLn "TODO"
-
+  let (!g, !y, !x) = dbgId $ exgcd x0 (-y0)
+  putStrLn . maybe "-1" (unwords . map show) $ case abs g of
+    1 -> Just [2 * x, 2 * y]
+    2 -> Just [x, y]
+    _ -> Nothing
