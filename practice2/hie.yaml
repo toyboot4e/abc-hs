@@ -1,0 +1,22 @@
+cradle:
+  stack:
+    - path: "./a/Main.hs"
+      component: "practice2:exe:a-exe"
+
+    - path: "./b/Main.hs"
+      component: "practice2:exe:b-exe"
+
+    - path: "./c/Main.hs"
+      component: "practice2:exe:c-exe"
+
+    - path: "./d/Main.hs"
+      component: "practice2:exe:d-exe"
+
+    - path: "./e/Main.hs"
+      component: "practice2:exe:e-exe"
+
+    - path: "./f/Main.hs"
+      component: "practice2:exe:f-exe"
+
+    - path: "./g/Main.hs"
+      component: "practice2:exe:g-exe"
