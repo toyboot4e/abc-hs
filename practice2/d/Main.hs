@@ -23,11 +23,32 @@ ortho4 = U.fromList [(0, 1), (0, -1), (1, 0), (-1, 0)]
 ortho4' :: ((Int, Int), (Int, Int)) -> (Int, Int) -> U.Vector (Int, Int)
 ortho4' bnd base = U.filter (inRange bnd) $ U.map (add2 base) ortho4
 
+-- | Runs `maxFlow` and retrieves the last state.
+--
+-- TODO: Return a freezed version?
 maxFlow' :: (PrimMonad m, U.Unbox c, Num c, Ord c, Bounded c) => Int -> Int -> Int -> U.Vector (Vertex, Vertex, c) -> m (c, MaxFlow (PrimState m) c)
 maxFlow' !nVerts !src !sink !edges = do
   !container <- buildMaxFlow nVerts edges
   !flow <- runMaxFlow src sink container
   return (flow, container)
+
+-- | Retrieves edge information from the `maxFlow` results.
+--
+-- Be warned that it returns both the forward and the reverse edges.
+edgesMF :: (PrimMonad m, U.Unbox c, Num c, Ord c, Bounded c) => MaxFlow (PrimState m) c -> m (U.Vector (Int, Int, c, c))
+edgesMF MaxFlow {..} = do
+  !edgeCap <- U.unsafeFreeze edgeCapMF
+
+  let next (!i12, !v1)
+        | i12 == offsetsMF U.! (v1 + 1) = next (i12, v1 + 1)
+        | otherwise = ((v1, v2, cap, flow), (i12 + 1, v1))
+        where
+          v2 = edgeDstMF U.! i12
+          i21 = edgeRevIndexMF U.! i12
+          flow = edgeCap U.! i21
+          cap = edgeCap U.! i12 + edgeCap U.! i21
+
+  return $ U.unfoldrExactN nEdgesMF next ((0 :: Vertex), 0 :: Int)
 
 paintGrid :: (PrimMonad m) => IxMUVector (Int, Int) (PrimState m) Char -> Int -> Int -> m ()
 paintGrid gr v1 v2
@@ -104,19 +125,16 @@ main = do
                   !_ = dbgAssert (i /= i' && (y, x) /= (y', x')) $ show (i, i', (y, x), (y', x'))
 
   let !edges = dbgId $ starts U.++ ends U.++ tweens
-  (!flow, MaxFlow {..}) <- maxFlow' (h * w + 2) iStart iEnd edges
+  (!flow, mf@MaxFlow {..}) <- maxFlow' (h * w + 2) iStart iEnd edges
 
   !gr' <- thawIV gr
 
   -- TODO: Easier forward edge iteration
-  (\f -> U.izipWithM_ f offsetsMF (U.tail offsetsMF)) $ \v1 iStart iEnd -> do
-    -- filter forward edges
-    when (isBlack v1) $ do
-      U.forM_ (U.generate (iEnd - iStart) (+ iStart)) $ \i12 -> do
-        let !v2 = edgeDstMF U.! i12
-        !cap21 <- UM.read edgeCapMF (edgeRevIndexMF U.! i12)
-        when (cap21 == 1) $ do
-          paintGrid gr' v1 v2
+  es' <- edgesMF mf
+  U.forM_ es' $ \(!v1, !v2, !_cap, !flow) -> do
+    when (isBlack v1 && v1 < (h * w) && v2 < (h * w)) $ do
+      when (flow == 1) $ do
+        paintGrid gr' v1 v2
 
   !res <- unsafeFreezeIV gr'
   print flow
