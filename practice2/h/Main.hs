@@ -47,9 +47,9 @@ main = do
             when (abs (x1 - y2) < d) $ do
               pushBacks buf $ U.fromListN 2 [(v1, v2), (v2', v1')]
 
-            -- v1 || v2 \iff not v1 => v2, not v2 => v1
+            -- v1 || not v2 \iff not v1 => not v2, v2 => v1
             when (abs (y1 - x2) < d) $ do
-              pushBacks buf $ U.fromListN 2 [(v1', v2), (v2', v1)]
+              pushBacks buf $ U.fromListN 2 [(v1', v2'), (v2, v1)]
 
         return buf
 
