@@ -92,7 +92,7 @@ relaxedCostFlow ::
   CapacityMCF c ->
   U.Vector (Vertex, Vertex, CapacityMCF c, CostMCF c) ->
   Maybe (f (CostMCF c))
-relaxedCostFlow toRelax !nVerts !src !sink !targetFlow !edges = runST do
+relaxedCostFlow toRelax !nVerts !src !sink !targetFlow !edges = runST $ do
   fst <$> relaxedCostFlow' toRelax nVerts src sink targetFlow edges
 
 -- | Returns the minimum cost for getting the flow, or Nothing when impossible.
@@ -143,7 +143,7 @@ maxCostFlow' = relaxedCostFlow' Max
 
 -- | Retrieves edge information @(v1, v2, cap, flow, cost)@ from the `maxFlow` results.
 --
--- Be warned that it contains reverse edges and edge from/to source/sink.
+-- Be warned that it contains reverse edges and edges from/to source/sink.
 edgesMCF ::
   (PrimMonad m, Show c, Num c, U.Unbox c, Integral c, Ord c, Bounded c) =>
   MinCostFlow (PrimState m) c ->
