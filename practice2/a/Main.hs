@@ -19,15 +19,15 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 main :: IO ()
 main = do
   (!n, !q) <- ints2
-  !xs <- intsU
   !qs <- U.replicateM q ints3
 
-  !stree <- newSTreeU (+) n (0 :: Int)
-  U.iforM_ xs $ insertSTree stree
+  !uf <- newMUF n
 
   U.forM_ qs $ \case
-    (0, !i, !dx) -> do
-      modifySTree stree (+ dx) i
-    (1, !l, !r) -> do
-      print . fromJust =<< querySTree stree l (r - 1)
+    (0, !v1, !v2) -> do
+      unifyMUF_ uf v1 v2
+    (1, !v1, !v2) -> do
+      !b <- sameMUF uf v1 v2
+      print $ bool 0 (1 :: Int) b
+    _ -> error "unreachable"
 
