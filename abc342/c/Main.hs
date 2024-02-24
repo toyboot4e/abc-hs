@@ -23,49 +23,16 @@ main = do
   !q <- ints1
   !qs <- U.replicateM q (both (subtract (ord 'a') . ord) <$> (auto @(Char, Char)))
 
-  let !nv = 26 + n
-  !uf <- newMUF nv
-
   let !alpha = U.fromList ['a' .. 'z']
 
-  -- char to root
-  !cr <- UM.replicate 26 (-1 :: Int)
-  forM_ [0 .. 25] $ \i -> UM.write cr i i
+  let !res = U.create $ do
+        !vec <- UM.generate 26 id
+        U.forM_ qs $ \(!c1, !c2) -> do
+          -- BRUTE-FORCE ATTACK (genious)
+          forM_ [0 .. 26 - 1] $ \i -> do
+            !c <- UM.read vec i
+            when (c == c1) $ do
+              UM.write vec i c2
+        return vec
 
-  -- root to char
-  !rc <- UM.replicate nv (-1 :: Int)
-  forM_ [0 .. 25] $ \i -> UM.write rc i i
-
-  forM_ (zip [0 :: Int .. ] (BS.unpack s)) $ \(!i, !c) -> do
-    let !c' = ord c - ord 'a'
-    let !v = 26 + i
-    unifyMUF_ uf c' v
-    !r <- rootMUF uf v
-    UM.write cr c' r
-    UM.write rc r c'
-
-  U.forM_ qs $ \(!c1, !c2) -> do
-    !r1 <- UM.read cr c1
-    !r2 <- UM.read cr c2
-
-    let !_ = dbg ((c1, c2), (r1, r2))
-    case (r1, r2) of
-      (-1, _) -> do
-        return ()
-      (_, -1) -> do
-        let !_ = dbg ("ii")
-        UM.write cr c1 (-1)
-        UM.write cr c2 r1
-        UM.write rc r1 c2
-      _ -> do
-        let !_ = dbg ("iii")
-        unifyMUF_ uf r1 r2
-        !r <- rootMUF uf c2
-        UM.write cr c1 (-1)
-        UM.write cr c2 r
-        UM.write rc r c2
-    return ()
-
-  s' <- mapM ((fmap (alpha U.!) . UM.read rc) <=< rootMUF uf) [26 .. 25 + n]
-  putStrLn s'
-
+  putStrLn $ map ((alpha U.!) . (res U.!) . subtract (ord 'a') . ord) (BS.unpack s)
