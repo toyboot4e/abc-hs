@@ -23,7 +23,7 @@ main = do
   !q <- ints1
   !qs <- U.replicateM q ints2
 
-  let !is = U.accumulate (flip const) (U.replicate (n + 1) (-1)) $ U.imap (flip (,)) xs
+  let !is = U.accumulate (const id) (U.replicate (n + 1) (-1)) $ U.imap (flip (,)) xs
   let !res = U.map f qs
         where
           f (!x1, !x2)

@@ -48,6 +48,8 @@ _exe-defs: &exe-defaults
     - -with-rtsopts=-N
     - -Wall # all warnings
     - -DDEBUG # debug flag
+    # partial functions
+    # forM_ [ .. ] is not slow, at least on the judge
   other-modules: []
 
 # REMARK: See `README` for the langauge server support.

@@ -47,18 +47,17 @@ main = do
     !r1 <- UM.read cr c1
     !r2 <- UM.read cr c2
 
-    when (c1 /= c2) $ do
-      -- be sure to re-create character vertex after move
-      r1' <- readIORef newC
-      writeIORef' newC (r1' + 1)
+    -- be sure to re-create character vertex after move
+    r1' <- readIORef newC
+    writeIORef' newC (r1' + 1)
 
-      unifyMUF_ uf r1 r2
-      !r2' <- rootMUF uf r2
+    unifyMUF_ uf r1 r2
+    !r2' <- rootMUF uf r2
 
-      UM.write cr c1 r1'
-      UM.write rc r1' c1
-      UM.write cr c2 r2'
-      UM.write rc r2' c2
+    UM.write cr c1 r1'
+    UM.write rc r1' c1
+    UM.write cr c2 r2'
+    UM.write rc r2' c2
 
   -- TODO: use `chr`
   let !alpha = U.fromList ['a' .. 'z']
