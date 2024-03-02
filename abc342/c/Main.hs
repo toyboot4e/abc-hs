@@ -23,43 +23,18 @@ main = do
   !q <- ints1
   !qs <- U.replicateM q (both (subtract (ord 'a') . ord) <$> (auto @(Char, Char)))
 
-  let !nv = 26 + n + q
-  !uf <- newMUF nv
+  let sets' = V.create $ do
+        !sets <- VM.replicate 26 IS.empty
+        forM_ (zip [0 :: Int ..] (BS.unpack s)) $ \(!i, !c) -> do
+          VM.modify sets (IS.insert i) (ord c - ord 'a')
 
-  -- char to root
-  !cr <- UM.replicate 26 (-1 :: Int)
-  forM_ [0 .. 25] $ \i -> UM.write cr i i
+        U.forM_ qs $ \(!c1, !c2) -> do
+          !s1 <- VM.read sets c1
+          !s2 <- VM.read sets c2
+          VM.write sets c1 IS.empty
+          VM.write sets c2 $ IS.union s2 s1
 
-  -- root to char
-  !rc <- UM.replicate nv (-1 :: Int)
-  forM_ [0 .. 25] $ \i -> UM.write rc i i
+        return sets
 
-  forM_ (zip [0 :: Int ..] (BS.unpack s)) $ \(!i, !c) -> do
-    let !c' = ord c - ord 'a'
-    let !v = 26 + i
-    unifyMUF_ uf c' v
-    !r <- rootMUF uf v
-    UM.write cr c' r
-    UM.write rc r c'
-
-  !newC <- newIORef (26 + n)
-  U.forM_ qs $ \(!c1, !c2) -> do
-    !r1 <- UM.read cr c1
-    !r2 <- UM.read cr c2
-
-    -- be sure to re-create character vertex after move
-    r1' <- readIORef newC
-    writeIORef' newC (r1' + 1)
-
-    unifyMUF_ uf r1 r2
-    !r2' <- rootMUF uf r2
-
-    UM.write cr c1 r1'
-    UM.write rc r1' c1
-    UM.write cr c2 r2'
-    UM.write rc r2' c2
-
-  -- TODO: use `chr`
-  let !alpha = U.fromList ['a' .. 'z']
-  s' <- mapM ((fmap (alpha U.!) . UM.read rc) <=< rootMUF uf) [26 .. 25 + n]
-  putStrLn s'
+  let s' = U.accumulate (const id) (U.replicate n (-1 :: Int)) . U.fromList $ concatMap (\(!color, !is) -> map (,color) (IS.elems is)) $ V.toList (V.indexed sets')
+  putStrLn . map (chr . (+ ord 'a')) $ U.toList s'
