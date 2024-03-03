@@ -16,18 +16,12 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
--- | Line -> Line
-insec :: Int -> Int -> Int -> Int -> (Int, Int)
-insec l1 r1 l2 r2 =
-  let !l = max l1 l2
-      !r = min r1 r2
-   in (l, r)
-
--- -- | Line -> length
--- insec2 :: Int -> Int -> Int -> Int -> Int
--- insec2 l1 r1 l2 r2 =
---   let (!l', r') = insec l1 r1 l2 r2
---    in max 0 $ r' - l'
+-- | Line -> length
+insec2 :: Int -> Int -> Int -> Int -> Int
+insec2 l1 r1 l2 r2 =
+  let l' = l1 `max` l2
+      r' = r1 `min` r2
+   in max 0 $ r' - l'
 
 -- | Line -> length
 insec3 :: Int -> Int -> Int -> Int -> Int -> Int -> Int
@@ -36,11 +30,18 @@ insec3 l1 r1 l2 r2 l3 r3 =
       r' = r1 `min` r2 `min` r3
    in max 0 $ r' - l'
 
-vol3 :: Int -> Int -> Int -> Int -> Int -> Int -> Int
-vol3 x1 y1 z1 x2 y2 z2 =
-  let !x' = max 0 . uncurry subtract $ insec x1 (x1 + 7) x2 (x2 + 7)
-      !y' = max 0 . uncurry subtract $ insec y1 (y1 + 7) y2 (y2 + 7)
-      !z' = max 0 . uncurry subtract $ insec z1 (z1 + 7) z2 (z2 + 7)
+insecVol2 :: Int -> Int -> Int -> Int -> Int -> Int -> Int
+insecVol2 x1 y1 z1 x2 y2 z2 =
+  let !x' = insec2 x1 (x1 + 7) x2 (x2 + 7)
+      !y' = insec2 y1 (y1 + 7) y2 (y2 + 7)
+      !z' = insec2 z1 (z1 + 7) z2 (z2 + 7)
+   in x' * y' * z'
+
+insecVol3 :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int
+insecVol3 x0 y0 z0 x1 y1 z1 x2 y2 z2 =
+  let !x' = insec3 x0 (x0 + 7) x1 (x1 + 7) x2 (x2 + 7)
+      !y' = insec3 y0 (y0 + 7) y1 (y1 + 7) y2 (y2 + 7)
+      !z' = insec3 z0 (z0 + 7) z1 (z1 + 7) z2 (z2 + 7)
    in x' * y' * z'
 
 solve :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Bool
@@ -49,15 +50,11 @@ solve v1 v2 v3 x1 y1 z1 x2 y2 z2 = v1 == s1 && v2 == s2 && v3 == s3
     !x0 = 0
     !y0 = 0
     !z0 = 0
+    !s3 = insecVol3 x0 y0 z0 x1 y1 z1 x2 y2 z2
 
-    !dx3 = dbgId $ insec3 0 7 x1 (x1 + 7) x2 (x2 + 7)
-    !dy3 = dbgId $ insec3 0 7 y1 (x1 + 7) y2 (x2 + 7)
-    !dz3 = dbgId $ insec3 0 7 z1 (x1 + 7) z2 (x2 + 7)
-    !s3 = dx3 * dy3 * dz3
-
-    !s01 = vol3 x0 y0 z0 x1 y1 z1
-    !s12 = vol3 x1 y1 z1 x2 y2 z2
-    !s20 = vol3 x2 y2 z2 x0 y0 z0
+    !s01 = insecVol2 x0 y0 z0 x1 y1 z1
+    !s12 = insecVol2 x1 y1 z1 x2 y2 z2
+    !s20 = insecVol2 x2 y2 z2 x0 y0 z0
     !s2 = s01 + s12 + s20 - 3 * s3
 
     !s1_0 = 7 * 7 * 7 - (s01 + s20) + s3
@@ -70,17 +67,17 @@ solve v1 v2 v3 x1 y1 z1 x2 y2 z2 = v1 == s1 && v2 == s2 && v3 == s3
 main :: IO ()
 main = do
   (!v1, !v2, !v3) <- ints3
-
-  forM_ [-7 .. 14] $ \x1 -> do
-    forM_ [-7 .. 14] $ \y1 -> do
-      forM_ [-7 .. 14] $ \z1 -> do
-        forM_ [-7 .. 14] $ \x2 -> do
-          forM_ [-7 .. 14] $ \y2 -> do
-            forM_ [-7 .. 14] $ \z2 -> do
+  forM_ [-7 .. 7] $ \x1 -> do
+    forM_ [-7 .. 7] $ \y1 -> do
+      forM_ [-7 .. 7] $ \z1 -> do
+        forM_ [-7 .. 7] $ \x2 -> do
+          forM_ [-7 .. 7] $ \y2 -> do
+            forM_ [-7 .. 7] $ \z2 -> do
               when (solve v1 v2 v3 x1 y1 z1 x2 y2 z2) $ do
                 putStrLn "Yes"
                 putStrLn $ unwords $ map show [0, 0, 0, x1, y1, z1, x2, y2, z2]
                 exitSuccess
 
   putStrLn "No"
+
 
