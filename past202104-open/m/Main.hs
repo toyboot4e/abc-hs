@@ -16,36 +16,12 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
-{-# INLINE lookupMS #-}
-lookupMS :: Int -> MultiSet -> Maybe Int
-lookupMS !k = IM.lookup k . innerMS
-
--- | Partial alternative to `lookupMS`.
-{-# INLINE getMS #-}
-getMS :: (HasCallStack) => Int -> MultiSet -> Int
-getMS !k !ms = case lookupMS k ms of
-  Just x -> x
-  Nothing -> error $ "getMS: panic with key: " ++ show k
-
-{-# INLINE addMS #-}
-addMS :: Int -> Int -> MultiSet -> MultiSet
-addMS !k !dn (!nKeys, !im) =
-  case IM.lookup k im of
-    Just n -> (nKeys, IM.insert k (n + dn) im)
-    Nothing -> (nKeys + 1, IM.insert k dn im)
-
-{-# INLINE subMS #-}
-subMS :: Int -> Int -> MultiSet -> MultiSet
-subMS !k !dn (!nKeys, !im) =
-  case IM.lookup k im of
-    Just n
-      | n > dn -> (nKeys, IM.insert k (n - dn) im)
-      | n == dn -> (nKeys - 1, IM.delete k im)
-      -- TODO: prefer panic?
-      | n < dn -> (nKeys - 1, IM.delete k im)
-    Nothing -> (nKeys, im)
-
 -- TODO: Debug view to the SRD
+
+-- | Index with binary search (and index compression)
+{-# INLINE bindex #-}
+bindex :: (HasCallStack, G.Vector v a, Ord a) => v a -> a -> Int
+bindex !vec !xref = fromJust $ bsearchL vec (<= xref)
 
 main :: IO ()
 main = do
@@ -54,25 +30,30 @@ main = do
   !q <- ints1
   !qs <- U.replicateM q ints110
 
-  let !lenBlock = isqrt n + 1
+  let !ys = U.uniq . U.modify VAI.sort $ xs U.++ (U.map thd3 qs)
+
+  -- let !lenBlock = isqrt n + 1
+  let !lenBlock = min 512 n
+
   let !nBlocks = (n + lenBlock - 1) `div` lenBlock
 
   let !noOp = (-1 :: Int)
-  !slots <- U.thaw xs
+  !slots <- U.thaw $ U.map (bindex ys) xs
   !ops <- UM.replicate nBlocks noOp
 
   -- The block should be considered as a rustic `Emum. It's either:
   -- 1. Closed: set to the same value (freq /= noOp)
   -- 2. Open: set to differnet values
   -- TODO: Interpret as a lazily segment tree?
-  !freqs <- newMutVar emptyMS -- TODO: rename to cnts
-  !res <- newMutVar (0 :: Int)
+  !freqs <- UM.replicate (G.length ys) (0 :: Int)
+  !res <- UM.replicate 1 (0 :: Int)
 
   -- Init
-  U.forM_ xs $ \x -> do
-    !freq <- fromMaybe 0 . lookupMS x <$> readMutVar freqs
-    modifyMutVar res (+ freq)
-    modifyMutVar' freqs $ incMS x
+  U.forM_ xs $ \x_ -> do
+    let !x = bindex ys x_
+    !freq <- UM.read freqs x
+    UM.modify res (+ freq) 0
+    UM.write freqs x (freq + 1)
 
   let -- Write to a slot, without updating the operator.
       -- writeSlot :: forall m. (PrimMonad m) => Int -> Int -> m ()
@@ -80,14 +61,15 @@ main = do
         !x <- UM.read slots i
         UM.write slots i x'
 
-        !freq <- getMS x <$> readMutVar freqs
-        modifyMutVar' freqs (decMS x)
+        !freq <- UM.read freqs x
+        UM.write freqs x (freq - 1)
 
         -- REMARK: Be sure to get `freq'` AFTER updating `freqs` in case `x` equals to `x'`.
-        !freq' <- fromMaybe 0 . lookupMS x' <$> readMutVar freqs
-        modifyMutVar' freqs (incMS x')
+        !freq' <- UM.read freqs x'
+        UM.write freqs x' (freq' + 1)
 
-        modifyMutVar' res ((+ freq') . subtract (freq - 1))
+        -- UM.modify res ((+ freq') . subtract (freq - 1)) 0
+        UM.modify res (+ (freq' - (freq - 1))) 0
 
   -- Opens the block.
   let -- propSRD :: forall m. (PrimMonad m) => Int -> m ()
@@ -115,21 +97,22 @@ main = do
           then do
             updatePartSRD l r op'
           else do
-
-            -- Set operator
-            UM.write ops iBlock op'
-
-            -- Bulk update. Slots are updated lazily.
+            -- \(O(1)\) Bulk update. Slots are updated lazily.
             let !len = r + 1 - l
 
             -- Update frequences. Note that `res` is Group.
-            !freq <- getMS op <$> readMutVar freqs
-            modifyMutVar' freqs (subMS op len)
-            modifyMutVar' res ((+ comb2 (freq - len)) . subtract (comb2 freq))
+            !freq <- UM.read freqs op
+            UM.write freqs op (freq - len)
+            -- UM.modify res ((+ comb2 (freq - len)) . subtract (comb2 freq)) 0
+            UM.modify res (+ ((comb2 (freq - len) - comb2 freq))) 0
 
-            !freq' <- fromMaybe 0 . lookupMS op' <$> readMutVar freqs
-            modifyMutVar' freqs (addMS op' len)
-            modifyMutVar' res ((+ comb2 (freq' + len)) . subtract (comb2 freq'))
+            !freq' <- UM.read freqs op'
+            UM.write freqs op' (freq' + len)
+            -- UM.modify res ((+ comb2 (freq' + len)) . subtract (comb2 freq')) 0
+            UM.modify res (+ ((comb2 (freq' + len)) - comb2 freq')) 0
+
+        -- Be sure to write opreator, but after the update!
+        UM.write ops iBlock op'
         where
           comb2 !x = x * pred x `div` 2
           !l = iBlock * lenBlock
@@ -149,12 +132,7 @@ main = do
           !il = l `div` lenBlock
           !ir = r `div` lenBlock
 
-  U.forM_ qs $ \(!l, !r, !x) -> do
-    updateSRD l r x
-
-    -- Stupid:
-    -- updatePartSRD l r x
-    -- traceShowM =<< U.unsafeFreeze slots
-
-    print =<< readMutVar res
-
+  U.forM_ qs $ \(!l, !r, !op_) -> do
+    let !op = bindex ys op_
+    updateSRD l r op
+    print =<< UM.read res 0
