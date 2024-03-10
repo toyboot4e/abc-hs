@@ -16,6 +16,7 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+-- | I believe it's $O(N^4)$.
 main :: IO ()
 main = do
   !n <- ints1
@@ -35,6 +36,7 @@ main = do
 
   -- dp[y][x][maxEarn]: (minCost, restCost)
   let f :: (HasCallStack) => IxUVector (Int, Int, Int) (Int, Int) -> (Int, Int, Int) -> (Int, Int)
+      {-# INLINE f #-} -- any difference?
       f sofar (!y0, !x0, !iMaxEarn0)
         | (y0, x0) == (0, 0) && maxEarn0 == earn0 = (0, 0)
         | (y0, x0) == (0, 0) = undef2
@@ -44,16 +46,20 @@ main = do
           !earn0 = earns0 @! (y0, x0)
           fromL
             | x0 == 0 = U.empty
-            | earn0 < iMaxEarn0 = case g (xMoves @! (y0, x0 - 1)) y0 (x0 - 1) iMaxEarn0 of
-                Nothing -> U.empty
-                Just !xx -> U.singleton xx
-            | otherwise = U.mapMaybe (g (xMoves @! (y0, x0 - 1)) y0 (x0 - 1)) (U.generate (G.length earns) id)
+            | otherwise = case compare earn0 maxEarn0 of
+                LT -> case g (xMoves @! (y0, x0 - 1)) y0 (x0 - 1) iMaxEarn0 of
+                  Nothing -> U.empty
+                  Just !xx -> U.singleton xx
+                EQ -> U.mapMaybe (g (xMoves @! (y0, x0 - 1)) y0 (x0 - 1)) (U.generate (iMaxEarn0 + 1) id)
+                GT -> U.empty
           fromU
             | y0 == 0 = U.empty
-            | earn0 < iMaxEarn0 = case g (yMoves @! (y0 - 1, x0)) (y0 - 1) x0 iMaxEarn0 of
-                Nothing -> U.empty
-                Just !xx -> U.singleton xx
-            | otherwise = U.mapMaybe (g (yMoves @! (y0 - 1, x0)) (y0 - 1) x0) (U.generate (G.length earns) id)
+            | otherwise = case compare earn0 maxEarn0 of
+                LT -> let !_ = dbg (y0, x0) in case g (yMoves @! (y0 - 1, x0)) (y0 - 1) x0 iMaxEarn0 of
+                  Nothing -> U.empty
+                  Just !xx -> U.singleton xx
+                EQ -> U.mapMaybe (g (yMoves @! (y0 - 1, x0)) (y0 - 1) x0) (U.generate (iMaxEarn0 + 1) id)
+                GT -> U.empty
           g :: Int -> Int -> Int -> Int -> Maybe (Int, Int)
           g moveCost y x iMaxEarn
             | maxEarn' /= earns U.! iMaxEarn0 = Nothing
