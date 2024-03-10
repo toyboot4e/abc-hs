@@ -18,12 +18,7 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 
 main :: IO ()
 main = do
-  !buf <- newBufferAsQueue 100
-  fix $ \loop -> do
-    !x <- int
-    pushBack buf x
-    unless (x == 0) loop
-
-  !buf' <- unsafeFreezeBuffer buf
-  putBSB . unwordsBSB $ U.reverse buf'
-
+  printList <=< flip fix [] $ \loop acc -> do
+    int >>= \case
+      0 -> return (0 : acc)
+      x -> loop (x : acc)
