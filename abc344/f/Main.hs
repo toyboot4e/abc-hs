@@ -19,7 +19,50 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 main :: IO ()
 main = do
   !n <- ints1
-  !xs <- intsU
+  !earns0 <- getMat n n
+  !xMoves <- getMat n (n - 1)
+  !yMoves <- getMat (n - 1) n
 
-  putStrLn "TODO"
+  let !earns = U.uniq $ U.modify VAI.sort (vecIV earns0)
+  let undef2 :: (Int, Int)
+      !undef2 = (maxBound, minBound)
 
+  let relax :: (Int, Int) -> (Int, Int) -> (Int, Int)
+      relax (!c1, !r1) (!c2, !r2) = case compare c1 c2 of
+        LT -> (c1, r1)
+        GT -> (c2, r2)
+        EQ -> (c1, max r1 r2)
+
+  -- dp[y][x][maxEarn]: (minCost, restCost)
+  let f sofar (!y0, !x0, !iMaxEarn0)
+        | (y0, x0) == (0, 0) && maxEarn0 == earn0 = (0, 0)
+        | (y0, x0) == (0, 0) = undef2
+        | otherwise = U.foldl' relax undef2 $ fromL U.++ fromU
+        where
+          !maxEarn0 = earns U.! iMaxEarn0
+          !earn0 = earns0 @! (y0, x0)
+          fromL
+            | x0 == 0 = U.empty
+            | otherwise = U.mapMaybe (g (xMoves @! (y0, x0 - 1)) y0 (x0 - 1)) (U.generate (G.length earns) id)
+          fromU
+            | y0 == 0 = U.empty
+            | otherwise = U.mapMaybe (g (yMoves @! (y0 - 1, x0)) (y0 - 1) x0) (U.generate (G.length earns) id)
+          g :: Int -> Int -> Int -> Int -> Maybe (Int, Int)
+          g moveCost y x iMaxEarn
+            | maxEarn' /= earns U.! iMaxEarn0 = Nothing
+            | (minCost, restCost) == undef2 = Nothing
+            | restCost >= moveCost = Just (1 + minCost, restCost - moveCost)
+            | otherwise =
+                let !nEarn = ((moveCost - restCost) + (maxEarn - 1)) `div` maxEarn
+                 in Just (1 + minCost + nEarn, restCost + nEarn * maxEarn - moveCost)
+            where
+              (!minCost, !restCost) = sofar @! (y, x, iMaxEarn)
+              !maxEarn = earns U.! iMaxEarn
+              !maxEarn' = max earn0 maxEarn
+
+  let !res = constructIV ((0, 0, 0), (n - 1, n - 1, G.length earns - 1)) f
+
+  let !_ = "done"
+  let !_ = dbg (res)
+
+  print $ U.minimum $ U.generate (G.length earns) $ fst . (res @!) . (n - 1,n - 1,)
