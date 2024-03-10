@@ -27,5 +27,5 @@ main = do
   !nqs <- ints1
   !qs <- intsU
 
-  let !xs' = fromVec $ flip U.concatMap xs $ \x -> flip U.concatMap ys $ \y -> flip U.map zs $ \z -> x + y + z
-  U.forM_ qs $ printYn . flip IS.member xs'
+  let !xs' = S.fromList . U.toList . flip U.concatMap xs $ \x -> flip U.concatMap ys $ \y -> flip U.map zs $ \z -> x + y + z
+  U.forM_ qs $ printYn . flip S.member xs'

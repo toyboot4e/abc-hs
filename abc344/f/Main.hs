@@ -34,7 +34,8 @@ main = do
         EQ -> (c1, max r1 r2)
 
   -- dp[y][x][maxEarn]: (minCost, restCost)
-  let f sofar (!y0, !x0, !iMaxEarn0)
+  let f :: (HasCallStack) => IxUVector (Int, Int, Int) (Int, Int) -> (Int, Int, Int) -> (Int, Int)
+      f sofar (!y0, !x0, !iMaxEarn0)
         | (y0, x0) == (0, 0) && maxEarn0 == earn0 = (0, 0)
         | (y0, x0) == (0, 0) = undef2
         | otherwise = U.foldl' relax undef2 $ fromL U.++ fromU
@@ -43,9 +44,15 @@ main = do
           !earn0 = earns0 @! (y0, x0)
           fromL
             | x0 == 0 = U.empty
+            | earn0 < iMaxEarn0 = case g (xMoves @! (y0, x0 - 1)) y0 (x0 - 1) iMaxEarn0 of
+                Nothing -> U.empty
+                Just !xx -> U.singleton xx
             | otherwise = U.mapMaybe (g (xMoves @! (y0, x0 - 1)) y0 (x0 - 1)) (U.generate (G.length earns) id)
           fromU
             | y0 == 0 = U.empty
+            | earn0 < iMaxEarn0 = case g (yMoves @! (y0 - 1, x0)) (y0 - 1) x0 iMaxEarn0 of
+                Nothing -> U.empty
+                Just !xx -> U.singleton xx
             | otherwise = U.mapMaybe (g (yMoves @! (y0 - 1, x0)) (y0 - 1) x0) (U.generate (G.length earns) id)
           g :: Int -> Int -> Int -> Int -> Maybe (Int, Int)
           g moveCost y x iMaxEarn
@@ -60,6 +67,7 @@ main = do
               !maxEarn = earns U.! iMaxEarn
               !maxEarn' = max earn0 maxEarn
 
+  let !_ = dbg ("wip")
   let !res = constructIV ((0, 0, 0), (n - 1, n - 1, G.length earns - 1)) f
 
   let !_ = "done"
