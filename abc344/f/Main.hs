@@ -28,6 +28,7 @@ main = do
       !undef2 = (maxBound, minBound)
 
   let relax :: (Int, Int) -> (Int, Int) -> (Int, Int)
+      {-# INLINE relax #-}
       relax (!c1, !r1) (!c2, !r2) = case compare c1 c2 of
         LT -> (c1, r1)
         GT -> (c2, r2)
@@ -43,18 +44,22 @@ main = do
         where
           !maxEarn0 = earns U.! iMaxEarn0
           !earn0 = earns0 @! (y0, x0)
+          {-# INLINE fromL #-}
           fromL
             | x0 == 0 = undef2
             | otherwise = extract y0 (x0 - 1) (xMoves @! (y0, x0 - 1))
+          {-# INLINE fromU #-}
           fromU
             | y0 == 0 = undef2
             | otherwise = extract (y0 - 1) x0 (yMoves @! (y0 - 1, x0))
+          {-# INLINE extract #-}
           extract y x moveCost = case compare earn0 maxEarn0 of
             LT -> fromMaybe undef2 $ g iMaxEarn0
             EQ -> U.foldl' relax undef2 $ U.mapMaybe g (U.generate (iMaxEarn0 + 1) id)
             GT -> undef2
             where
               g :: Int -> Maybe (Int, Int)
+              {-# INLINE g #-}
               g iMaxEarn
                 | maxEarn' /= earns U.! iMaxEarn0 = Nothing
                 | (minCost, restCost) == undef2 = Nothing
