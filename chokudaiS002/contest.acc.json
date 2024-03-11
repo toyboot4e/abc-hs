@@ -1,0 +1,141 @@
+{
+  "contest": {
+    "id": "chokudai_S002",
+    "title": "Chokudai SpeedRun 002",
+    "url": "https://atcoder.jp/contests/chokudai_S002"
+  },
+  "tasks": [
+    {
+      "id": "chokudai_S002_a",
+      "label": "A",
+      "title": "長方形 α",
+      "url": "https://atcoder.jp/contests/chokudai_S002/tasks/chokudai_S002_a",
+      "directory": {
+        "path": "a",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "chokudai_S002_b",
+      "label": "B",
+      "title": "あまり α",
+      "url": "https://atcoder.jp/contests/chokudai_S002/tasks/chokudai_S002_b",
+      "directory": {
+        "path": "b",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "chokudai_S002_c",
+      "label": "C",
+      "title": "和の最大値 α",
+      "url": "https://atcoder.jp/contests/chokudai_S002/tasks/chokudai_S002_c",
+      "directory": {
+        "path": "c",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "chokudai_S002_d",
+      "label": "D",
+      "title": "和の最大値 β",
+      "url": "https://atcoder.jp/contests/chokudai_S002/tasks/chokudai_S002_d",
+      "directory": {
+        "path": "d",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "chokudai_S002_e",
+      "label": "E",
+      "title": "カツサンドくん α",
+      "url": "https://atcoder.jp/contests/chokudai_S002/tasks/chokudai_S002_e",
+      "directory": {
+        "path": "e",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "chokudai_S002_f",
+      "label": "F",
+      "title": "種類数 α",
+      "url": "https://atcoder.jp/contests/chokudai_S002/tasks/chokudai_S002_f",
+      "directory": {
+        "path": "f",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "chokudai_S002_g",
+      "label": "G",
+      "title": "GCD α",
+      "url": "https://atcoder.jp/contests/chokudai_S002/tasks/chokudai_S002_g",
+      "directory": {
+        "path": "g",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "chokudai_S002_h",
+      "label": "H",
+      "title": "あまり β",
+      "url": "https://atcoder.jp/contests/chokudai_S002/tasks/chokudai_S002_h",
+      "directory": {
+        "path": "h",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "chokudai_S002_i",
+      "label": "I",
+      "title": "カツサンドくん β",
+      "url": "https://atcoder.jp/contests/chokudai_S002/tasks/chokudai_S002_i",
+      "directory": {
+        "path": "i",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "chokudai_S002_j",
+      "label": "J",
+      "title": "GCD β",
+      "url": "https://atcoder.jp/contests/chokudai_S002/tasks/chokudai_S002_j",
+      "directory": {
+        "path": "j",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "chokudai_S002_k",
+      "label": "K",
+      "title": "種類数 β",
+      "url": "https://atcoder.jp/contests/chokudai_S002/tasks/chokudai_S002_k",
+      "directory": {
+        "path": "k",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "chokudai_S002_l",
+      "label": "L",
+      "title": "長方形 β",
+      "url": "https://atcoder.jp/contests/chokudai_S002/tasks/chokudai_S002_l",
+      "directory": {
+        "path": "l",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    }
+  ]
+}
