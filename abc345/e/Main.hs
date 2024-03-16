@@ -19,21 +19,10 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 -- | Top 2
 type AccRepr = (Int, Int, Int, Int)
 
--- | Too slow; don't use
-{-# INLINE top2 #-}
-top2 :: U.Vector (Int, Int) -> Acc
-top2 cvs
-  | v1 == minBound = mempty
-  | otherwise = Acc (c1, v1, c2, v2)
-  where
-    cvs' = U.modify (VAI.sortBy (comparing (Down . snd))) cvs
-    Just ((!c1, !v1), cvs'') = U.uncons cvs'
-    (!c2, !v2) = fromMaybe (-1, minBound) . headMay $ U.filter ((/= c1) . fst) cvs''
-
 instance Semigroup Acc where
+  -- It was bad idea
   {-# INLINE (<>) #-}
-  (Acc (!c1, !v1, !c2, !v2)) <> (Acc (!c3, !v3, !c4, !v4))
-    = top2 $ U.fromList [(c1, v1), (c2, v2), (c3, v3), (c4, v4)]
+  (<>) = undefined
 
 instance Monoid Acc where
   {-# INLINE mempty #-}
@@ -43,22 +32,12 @@ instance Monoid Acc where
 newtype Acc = Acc AccRepr deriving newtype (Eq, Ord, Show) ; unAcc :: Acc -> AccRepr ; unAcc (Acc x) = x ; newtype instance U.MVector s Acc = MV_Acc (U.MVector s AccRepr) ; newtype instance U.Vector Acc = V_Acc (U.Vector AccRepr) ; deriving instance GM.MVector UM.MVector Acc ; deriving instance G.Vector U.Vector Acc ; instance U.Unbox Acc ;
 {- ORMOLU_ENABLE -}
 
--- {-# INLINE onTransite #-}
--- onTransite :: Int -> Int -> Acc -> Acc
--- onTransite c dv (Acc (!c1, !v1, !c2, !v2))
---   | p1 && p2 = mempty
---   | p1 = Acc (c, v2 + dv, -1, minBound)
---   | p2 = Acc (c, v1 + dv, -1, minBound)
---   | otherwise = Acc (c, dv + max v1 v2, -1, minBound)
---   where
---     p1 = c1 == c || c1 == -1
---     p2 = c2 == c || c2 == -1
-
+-- | Record better results
 insA :: Int -> Int -> Acc -> Acc
 insA c v (Acc (!c1, !v1, !c2, !v2))
   | c1 == c = Acc (c1, max v v1, c2, v2)
   | c2 == c = Acc (c1, v1, c2, max v v2)
-  | v > v1 = Acc (c, v, c2, v2)
+  | v > v1 && v1 < v2 = Acc (c, v, c2, v2)
   | v > v2 = Acc (c1, v1, c, v)
   | otherwise = Acc (c1, v1, c2, v2)
 
@@ -76,17 +55,20 @@ main = do
 
   let res = U.foldl' step s0 cvs
         where
-          s0 = U.cons (Acc (-2, 0, -1, minBound)) $ U.replicate nRm (mempty @Acc) :: U.Vector Acc
-          step !vec (!c, !dv) = dbgId $ U.zipWith f (U.cons mempty vec) vec
+          s0 = U.cons (Acc (-2, 0, -1, minBound)) $ U.replicate nRm (mempty @Acc)
+          step !vec (!c, !dv) = U.imap f vec
             where
-              f onRm _onIns@(Acc (!c1, !v1, !c2, !v2)) = insA c v' onRm
+              f i (Acc (!c1, !v1, !c2, !v2)) = insA c v' onRm
                 where
+                  onRm = fromMaybe mempty $ vec U.!? (i - 1)
                   v'
                     | p1 && p2 = minBound
                     | p2 = v1 + dv
-                    | otherwise = v2 + dv
+                    | p1 = v2 + dv
+                    | otherwise = max v1 v2 + dv
                     where
                       p1 = c1 == c || c1 == -1
                       p2 = c2 == c || c2 == -1
 
   print $ takeValue $ U.last res
+
