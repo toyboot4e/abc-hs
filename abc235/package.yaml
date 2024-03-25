@@ -47,6 +47,8 @@ _exe-defs: &exe-defaults
     - -rtsopts
     - -with-rtsopts=-N
     - -Wall # all warnings
+  cpp-options:
+    - -DDEBUG
   other-modules: []
 
 # REMARK: See `README` for the langauge server support.

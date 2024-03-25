@@ -17,43 +17,36 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
-recognize :: BS.ByteString -> Bool -> Bool -> String -> Bool
-recognize !pat !lFree !rFree !s = True
-  where
-    lPats = reverse (BS.inits (BS.tail pat))
-    rPats = map BS.reverse $ reverse (BS.inits (BS.init pat))
-    lrPats = 
-
 main :: IO ()
 main = do
   (!len, !patLen) <- ints2
-  !s0 <- BS.getLine
-  !pat <- BS.getLine
+  !s0 <- U.unfoldr BS.uncons <$> BS.getLine
+  !pat <- U.unfoldr BS.uncons <$> BS.getLine
 
-  -- unintercalate
-  -- Left () | Right s
-  let !parts = V.fromList $ step ([], [], s0)
-        where
-          step (!res, !lexeme, !s)
-            | BS.null s = reverse res
-            | BS.take patLen s == pat =
-                let !res' =
-                      if null lexeme
-                        then Left () : res
-                        else Left () : Right (reverse lexeme) : res
-                 in step (res', [], BS.drop patLen s)
-            | otherwise =
-                step (res, BS.head s : lexeme, BS.tail s)
+  !res <- UM.replicate len False
 
-  let !_ = dbg (parts)
+  !queue <- newBufferAsQueue (len * 2 * patLen)
+  forM_ [0 .. len - 1] $ pushBack queue
 
-  let !results = V.imap f parts
-        where
-          f _ (Left !_) = True
-          f i (Right s) = (recognize pat lFree rFree) s
-            where
-              !lFree = maybe False isLeft (parts V.!? (i - 1))
-              !rFree = maybe False isLeft (parts V.!? (i + 1))
+  let paint l
+        | l < 0 || l >= len = return ()
+        | otherwise = do
+           !cur <- U.take patLen . U.drop l <$> U.unsafeFreeze res
+           when (G.length cur == patLen && not (U.and cur)) $ do
+             let !sub = U.take patLen . U.drop l $ s0
+             when (U.and (U.zipWith3 (\b c1 c2 -> b || c1 == c2) cur sub pat)) $ do
+               -- push the stamp
+               forM_ [l .. l + patLen - 1] $ \i -> do
+                 UM.write res i True
 
-  -- printYn $ all (uncurry3 recognize
-  printYn $ V.and results
+               -- look around
+               pushBacks queue (rangeU (l - (patLen - 1)) (l + (patLen - 1)))
+
+  fix $ \loop -> popFront queue >>= \case
+    Nothing -> return ()
+    Just i -> do
+      paint i
+      loop
+
+  !res' <- U.unsafeFreeze res
+  printYn $ U.and res'

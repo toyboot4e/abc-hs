@@ -18,8 +18,10 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 
 main :: IO ()
 main = do
-  !n <- ints1
-  !xs <- intsU
+  (!n, !nEdges, !k) <- ints3
+  es <- U.concatMap (\(!i, (!v1, !v2)) -> U.fromListN 2 [(v1, v2, i), (v2, v1, i)]) . U.indexed <$> U.replicateM nEdges (both pred <$> ints2)
+
+  let gr = buildWSG (0, n - 1) es
 
   putStrLn "TODO"
 

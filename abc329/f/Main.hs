@@ -22,54 +22,14 @@ main = do
   !cs0 <- U.map pred <$> intsU
   !qs <- U.replicateM q (both pred <$> ints2)
 
-  !uf <- newMUF (3 * n)
+  !boxes <- VM.replicate n S.empty
+  U.iforM_ cs0 $ \i c -> VM.modify boxes (S.insert c) i
 
-  -- root -> verbose
-  !nVerbose <- UM.generate (3 * n) $ bool 0 1 . (< (2 * n))
-
-  U.iforM_ (U.map (+ 2 * n) cs0) $ \i c -> do
-    let !_ = dbg (i, c)
-    !r1 <- rootMUF uf i
-    !r2 <- rootMUF uf c
-    void $ unifyMUF uf i c
-
-    !dup1 <- UM.read nVerbose r1
-    !dup2 <- UM.read nVerbose r2
-    !r' <- rootMUF uf i
-
-    let !dup' = bool (dup1 + dup2) dup1 (r1 == r2)
-    UM.write nVerbose r' dup'
-
-  -- vertex -> semi root
-  !v2r <- UM.generate n id
-
-  U.iforM_ qs $ \i (!v1, !v2) -> do
-    dbgUF uf
-
-    -- new union-find vertex assigned to `v1`:
-    let !vNew = n + i
-
-    !r1 <- rootMUF uf =<< UM.read v2r v1
-    !r2 <- rootMUF uf =<< UM.read v2r v2
-    UM.write v2r v1 vNew
-
-    !dup1 <- UM.read nVerbose r1
-    !dup2 <- UM.read nVerbose r2
-    let !dup' = bool (dup1 + dup2) dup1 (r1 == r2)
-
-    !cnt1 <- sizeMUF uf r1
-    !cnt2 <- sizeMUF uf r2
-
-    -- update root!
-    void $ unifyMUF uf r1 r2
-    !r2' <- rootMUF uf r2
-
-    !cnt <- sizeMUF uf r2'
-    UM.write nVerbose vNew 1
-    UM.write nVerbose r2' dup'
-
-    let !_ = dbg ((v1, v2), (r1, r2), (vNew, r2'), (cnt1, cnt2), cnt, (dup1, dup2, dup'))
-    print $ cnt - dup'
-
-  return ()
+  U.forM_ qs $ \(!v1, !v2) -> do
+    !s1 <- VM.read boxes v1
+    !s2 <- VM.read boxes v2
+    let !s = S.union s1 s2
+    print $ S.size s
+    VM.write boxes v1 S.empty
+    VM.write boxes v2 s
 

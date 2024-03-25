@@ -3,7 +3,7 @@ set -euE
 
 acc='npx acc'
 
-$acc new "$1" --template haskell
+$acc new "$1" --template haskell --choice all
 # mkdir "$1"
 
 # For HLS
@@ -14,6 +14,7 @@ cat _acc/package.yaml > "$1/package.yaml"
 cat _acc/stack.yaml   > "$1/stack.yaml"
 
 # cabal
+package_name="$(printf '%s' "$1" | sed 's/_//g|)"
 cat _acc/_acc.cabal | sed "s;_acc;$1;g" > "$1/$1.cabal"
 
 # Emacs

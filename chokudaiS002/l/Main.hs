@@ -23,7 +23,7 @@ main = do
 
   -- be sure to make wide rectangles
   let !whs' = U.map (\(!w, !h) -> (max w h, min w h)) whs
-  let !dict = U.uniq $ U.modify VAR.sort $ U.map snd whs'
+  let !dict = U.uniq $ U.modify (VAI.sortBy (comparing id)) $ U.map snd whs'
 
   !stree <- generateSTree (U.replicate (G.length dict + 1) (Max (0 :: Int)))
 

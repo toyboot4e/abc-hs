@@ -1,5 +1,6 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package extra --package hashable --package unordered-containers --package heaps --package utility-ht --package vector --package vector-algorithms --package primitive --package transformers --ghc-options "-D DEBUG" -}
+
 {-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds #-}
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
@@ -24,9 +25,18 @@ main = do
   (!l1, !c1, !n1) <- ints3
   (!l2, !c2, !n2) <- ints3
 
-  when (l1 * k1 + l2 * k2 < VU.sum
+  let !res = dbgId $ VU.foldl' (dbgId .: step) s0 lens
+        where
+          !s0 = VU.generate (n1 + 1) $ bool maxBound (0 :: Int) . (== 0)
+          step !vec !v = VU.generate (n1 + 1) f
+            where
+              !i1Max = (v + l1 - 1) `div` l1
+              toI2 i1 = max 0 $ (v - i1 * l1 + (l2 - 1)) `div` l2
+              f !i1 = VU.minimum $ VU.generate (i1Max + 1) $ \di1 -> case vec VU.!? (i1 - di1) of
+                Nothing -> maxBound
+                Just x
+                  | x == maxBound -> maxBound
+                  | otherwise -> x + toI2 di1
 
-  let !csum1 = VU.foldl'
-
-  putStrLn "TODO"
-
+  let !values = VU.imap (\i1 i2 -> if i2 <= n2 then c1 * i1 + c2 * i2 else maxBound) res
+  print $ (\x -> bool x (-1) (x == maxBound)) $ VU.minimum values

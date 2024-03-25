@@ -16,86 +16,28 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
-ints010 :: IO (Int, Int, Int)
-ints010 = (\(!v1, !v2, !w) -> (v1, v2 - 1, w)) <$> ints3
-
 main :: IO ()
 main = do
   (!h, !w, !m) <- ints3
-  !qs <- U.replicateM m ints010
+  !qs <- U.replicateM m ints3
 
-  -- TODO: prefer filterM
-  let !qs' = note "qs'" $ U.fromList . fst3 $ (\f -> U.foldl' f ([] :: [(Int, Int, Int)], IS.empty, IS.empty) (U.reverse qs)) $ \skip@(!acc, !rows, !cols) q -> do
-        case q of
-          (1, !row, !_)
-            | IS.member row rows -> skip
-            | otherwise -> (q : acc, IS.insert row rows, cols)
-          (2, !col, !_)
-            | IS.member col cols -> skip
-            | otherwise -> (q : acc, rows, IS.insert col cols)
-          _ -> error "unreachable"
-
-  -- color dictionary
-  let !dict = note "dict" $ U.uniq $ U.modify VAI.sort $ U.map thd3 qs'
-
-  let !cnts = note "cnts" $ U.scanl' add2 (0, 0) $ U.map f qs'
+  let !res = dbgId . fst3 $ U.foldr' step s0 qs
         where
-          f (1, !_, !_) = (1, 0) :: (Int, Int)
-          f (2, !_, !_) = (0, 1) :: (Int, Int)
-          f _ = error "unreachable"
+          s0 = (IM.empty, (0 :: Int, IS.empty), (0 :: Int, IS.empty))
+          step q skip@(!cnts, sameRow@(!nRow, !doneRows), sameCol@(!nCol, !doneCols)) = case q of
+            (1, !row, !color)
+              | IS.member row doneRows -> skip
+              | otherwise -> (IM.insertWith (+) color (w - nCol) cnts, (nRow + 1, IS.insert row doneRows), sameCol)
+            (2, !col, !color)
+              | IS.member col doneCols -> skip
+              | otherwise -> (IM.insertWith (+) color (h - nRow) cnts, sameRow, (nCol + 1, IS.insert col doneCols))
+            _ -> error "unreachable"
 
-  let !_ = dbg ("wip")
-  res <- UM.replicate (G.length dict) (0 :: Int)
-  U.iforM_ qs' $ \i q -> case q of
-    (1, !_row, !orgColor) -> do
-      let color = bindex dict orgColor
-      -- count the number of col queries that come after the current query
-      let (!_, !nColLater) = sub2 (U.last cnts) (cnts U.! succ i)
-      UM.modify res (+ (w - nColLater)) color
-    (2, !_col, !orgColor) -> do
-      let color = bindex dict orgColor
-      -- count the number of row queries that come after the current query
-      let (!nRowLater, !_) = sub2 (U.last cnts) (cnts U.! succ i)
-      UM.modify res (+ (h - nRowLater)) color
-    _ -> error "unreachable"
+  let !nPainted = sum $ IM.elems res
+  let !nZero = h * w - nPainted
+  let !res' = dbgId $ IM.insertWith (+) 0 nZero res
 
-  let !_ = dbg ("done")
-  res' <- U.unsafeFreeze res
+  let !cns = U.fromList $ filter ((> 0) . snd) $ IM.assocs res'
+  putLnBSB . showBSB $ U.length cns
+  putBSB $ unlinesBSB cns
 
-  -- count + color0
-  let sumNonZero
-        | U.head dict == 0 = U.sum $ U.tail res'
-        | otherwise = U.sum res'
-
-  let !_ = dbg (sumNonZero, h * w)
-  if sumNonZero < h * w
-    then do
-      if G.head dict == 0
-        then print $ G.length $ G.filter (> 0) res'
-        else print . (+ 1) $ G.length $ G.filter (> 0) res'
-      putStrLn . unwords . map show $ [0, h * w - sumNonZero]
-    else do
-      print $ G.length $ G.filter (> 0) res'
-
-  -- else
-  U.iforM_ res' $ \color cnt -> do
-    when (cnt > 0) $ do
-      let orgColor = dict U.! color
-      when (orgColor /= 0) $ do
-        putStrLn . unwords . map show $ [orgColor, cnt]
-
---  -- color' -> number of rows so far
---  rowCnts <- UM.replicate (G.length dict) (0 :: Int)
---  -- color' -> number of cols so far
---  coCnts <- UM.replicate (G.length dict) (0 :: Int)
---
---  let s0 = (0 :: Int, 0 :: Int)
---  let f (!nRowTot, !nColTot) q = do
---        case q of
---          (1, !row, !orgColor) -> do
---            return (nRowTot + 1, nColTot)
---          (2, !col, !orgColor) -> do
---            return (nRowTot, nColTot + 1)
---          _ -> error "unreachable"
---
---  U.foldM'_ f s0 qs

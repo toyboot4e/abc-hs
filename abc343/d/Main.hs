@@ -19,25 +19,14 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 main :: IO ()
 main = do
   (!n, !t) <- ints2
-  -- !iws0 <- U.modify (VAI.sortBy (comparing fst)) <$> U.replicateM t (first pred <$> ints2)
   !iws0 <- U.replicateM t (first pred <$> ints2)
 
   let !ms0 = (1, IM.singleton 0 n)
-
-  -- let g (!ms, !iws) i0 = do
-  --       print $ fst ms'
-  --       return (ms', rest)
-  --       where
-  --         (!pop, !rest) = U.partition (== i0 + 1) iws0
-  --         !ms' = U.foldl' g ms pop
-  --         g !ms_ (!_, !dw) =
-
   !ws <- UM.replicate n (0 :: Int)
   (\f -> U.foldM'_ f ms0 iws0) $ \ms (!i, !dw) -> do
     !w <- UM.read ws i
     UM.write ws i (w + dw)
-    let !_ = dbg (i, w, w + dw)
-    let ms' = incMS (w + dw) $ decMS w ms
+    let ms' = (incMS (w + dw) . decMS w) ms
     print $ fst ms'
     return ms'
 

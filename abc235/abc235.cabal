@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -13,11 +13,12 @@ executable a-exe
   hs-source-dirs:
       a
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  cpp-options: -DDEBUG
   build-depends:
       QuickCheck
     , array
     , attoparsec
-    , base >=4.7 && <5
+    , base
     , bytestring
     , containers
     , deepseq
@@ -48,18 +49,19 @@ executable a-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable b-exe
   main-is: Main.hs
   hs-source-dirs:
       b
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  cpp-options: -DDEBUG
   build-depends:
       QuickCheck
     , array
     , attoparsec
-    , base >=4.7 && <5
+    , base
     , bytestring
     , containers
     , deepseq
@@ -90,18 +92,19 @@ executable b-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable c-exe
   main-is: Main.hs
   hs-source-dirs:
       c
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  cpp-options: -DDEBUG
   build-depends:
       QuickCheck
     , array
     , attoparsec
-    , base >=4.7 && <5
+    , base
     , bytestring
     , containers
     , deepseq
@@ -132,18 +135,19 @@ executable c-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable d-exe
   main-is: Main.hs
   hs-source-dirs:
       d
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  cpp-options: -DDEBUG
   build-depends:
       QuickCheck
     , array
     , attoparsec
-    , base >=4.7 && <5
+    , base
     , bytestring
     , containers
     , deepseq
@@ -174,18 +178,19 @@ executable d-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable e-exe
   main-is: Main.hs
   hs-source-dirs:
       e
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  cpp-options: -DDEBUG
   build-depends:
       QuickCheck
     , array
     , attoparsec
-    , base >=4.7 && <5
+    , base
     , bytestring
     , containers
     , deepseq
@@ -216,18 +221,19 @@ executable e-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable ex-exe
   main-is: Main.hs
   hs-source-dirs:
       ex
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  cpp-options: -DDEBUG
   build-depends:
       QuickCheck
     , array
     , attoparsec
-    , base >=4.7 && <5
+    , base
     , bytestring
     , containers
     , deepseq
@@ -258,18 +264,19 @@ executable ex-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable f-exe
   main-is: Main.hs
   hs-source-dirs:
       f
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  cpp-options: -DDEBUG
   build-depends:
       QuickCheck
     , array
     , attoparsec
-    , base >=4.7 && <5
+    , base
     , bytestring
     , containers
     , deepseq
@@ -300,18 +307,19 @@ executable f-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable g-exe
   main-is: Main.hs
   hs-source-dirs:
       g
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  cpp-options: -DDEBUG
   build-depends:
       QuickCheck
     , array
     , attoparsec
-    , base >=4.7 && <5
+    , base
     , bytestring
     , containers
     , deepseq
@@ -342,4 +350,4 @@ executable g-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021

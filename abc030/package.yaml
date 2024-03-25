@@ -47,6 +47,8 @@ _exe-defs: &exe-defaults
     - -rtsopts
     - -with-rtsopts=-N
     - -Wall # all warnings
+  cpp-options:
+    - -DDEBUG # debug flag
   other-modules: []
 
 # REMARK: See `README` for the langauge server support.
@@ -84,10 +86,5 @@ executables:
   g-exe:
     <<: *exe-defaults
     source-dirs: "g"
-    main:                Main.hs
-
-  ex-exe:
-    <<: *exe-defaults
-    source-dirs: "ex"
     main:                Main.hs
 

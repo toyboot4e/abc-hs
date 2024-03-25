@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -12,7 +12,8 @@ executable a-exe
   main-is: Main.hs
   hs-source-dirs:
       a
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -DDEBUG
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  cpp-options: -DDEBUG
   build-depends:
       QuickCheck
     , array
@@ -54,7 +55,8 @@ executable b-exe
   main-is: Main.hs
   hs-source-dirs:
       b
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -DDEBUG
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  cpp-options: -DDEBUG
   build-depends:
       QuickCheck
     , array
@@ -96,7 +98,8 @@ executable c-exe
   main-is: Main.hs
   hs-source-dirs:
       c
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -DDEBUG
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  cpp-options: -DDEBUG
   build-depends:
       QuickCheck
     , array
@@ -138,7 +141,8 @@ executable d-exe
   main-is: Main.hs
   hs-source-dirs:
       d
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -DDEBUG
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  cpp-options: -DDEBUG
   build-depends:
       QuickCheck
     , array
@@ -180,7 +184,8 @@ executable e-exe
   main-is: Main.hs
   hs-source-dirs:
       e
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -DDEBUG
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  cpp-options: -DDEBUG
   build-depends:
       QuickCheck
     , array
@@ -222,7 +227,8 @@ executable f-exe
   main-is: Main.hs
   hs-source-dirs:
       f
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -DDEBUG
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  cpp-options: -DDEBUG
   build-depends:
       QuickCheck
     , array
@@ -264,7 +270,8 @@ executable g-exe
   main-is: Main.hs
   hs-source-dirs:
       g
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -DDEBUG
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
+  cpp-options: -DDEBUG
   build-depends:
       QuickCheck
     , array

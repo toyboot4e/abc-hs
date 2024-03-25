@@ -1,5 +1,6 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package extra --package hashable --package unordered-containers --package heaps --package utility-ht --package vector --package vector-algorithms --package primitive --package transformers --ghc-options "-D DEBUG" -}
+
 {-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds #-}
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
@@ -17,10 +18,22 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+solve :: SparseGraph Int (Int, Int) -> Double -> Bool
+solve !gr !x0 = (>= 0.0) . VU.last $ VU.constructN (nVertsSG gr) $ \sofar -> case VG.length sofar of
+  0 -> 0.0
+  v1 ->
+    let !vsFrom = gr `adjW` v1
+        !ws = VU.map f vsFrom
+          where
+            f (!vFrom, (!b, !c)) = sofar VU.! vFrom + cost (b, c)
+     in maximumOr (-100000000000000000000000.0) ws
+    where
+      cost (!b, !c) = intToDouble b - x0 * intToDouble c
+
 main :: IO ()
 main = do
-  !n <- ints1
-  !xs <- intsVU
-
-  putStrLn "TODO"
-
+  (!nVerts, !nEdges) <- ints2
+  !edges <- VU.map (\(!v1, !v2, !b, !c) -> (v2 - 1, v1 - 1, (b, c))) <$> VU.replicateM nEdges ints4
+  let !gr = buildWSG (0, nVerts - 1) edges
+  let !res = fromJust $ bsearchF64L (0.0, intToDouble $ 2 * 10 ^ (9 :: Int)) 0.00000000001 (solve gr)
+  print res

@@ -1,5 +1,4 @@
 **/.stack-work
-**/*lock*
 **/dist-newstyle
 **/node_modules
 **/.gitignore
@@ -10,4 +9,5 @@ Main.dyn_hi
 Main.dyn_i
 Main.hi
 
-*past*
+past17
+

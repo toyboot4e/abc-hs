@@ -1,7 +1,7 @@
 #!/usr/bin/env stack
 {- stack script --resolver lts-21.6 --package array --package bytestring --package containers --package deepseq --package extra --package hashable --package unordered-containers --package heaps --package mtl --package utility-ht --package vector --package vector-algorithms --package primitive --package QuickCheck --package random --package transformers --ghc-options "-D DEBUG" -}
 
-{-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds #-}
+{-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds -Wno-orphans #-}
 
 -- {{{ toy-lib: https://github.com/toyboot4e/toy-lib
 {- ORMOLU_DISABLE -}
@@ -17,6 +17,49 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+-- | Returns a sorted indices to the vector of @(l, r)@, first by @l `div` b@ and then @r@.
+{-# INLINE sortMo #-}
+sortMo :: Int -> U.Vector (Int, Int) -> U.Vector Int
+sortMo !maxL !lrs = U.modify (VAI.sortBy compareF) (U.generate q id)
+  where
+    !q = G.length lrs
+    -- TODO: consider length of @maxL / sqrt Q@.
+    !blockLength = max 1 $ (ceiling @Double . sqrt . fromIntegral) maxL
+    -- compare by block, then compare by right
+    compareF !i1 !i2 =
+      let (!l1, !r1) = lrs U.! i1
+          !b1 = l1 `div` blockLength
+          (!l2, !r2) = lrs U.! i2
+          !b2 = l2 `div` blockLength
+       in compare b1 b2 <> compare r1 r2
+
+-- | Runs Mo's algorithm: /O(N * \sqrt Q).
+{-# INLINE runMo #-}
+runMo :: (PrimMonad m, U.Unbox x, U.Unbox a) => U.Vector x -> U.Vector (Int, Int) -> (a -> x -> m a) -> (a -> x -> m a) -> a -> m (U.Vector a)
+runMo !xs !lrs !onIns !onRem !s0 = do
+  !result <- UM.unsafeNew q
+  U.foldM'_ (step result) ((0 :: Int, -1 :: Int), s0) (sortMo maxL lrs)
+  U.unsafeFreeze result
+  where
+    !q = G.length lrs
+    !maxL = U.maximum (U.map fst lrs)
+
+    step result ((!l0, !r0), !n0) iLr = do
+      let (!l, !r) = lrs U.! iLr
+      !n' <- do
+        -- insertionsL
+        !n1 <- U.foldM' onIns n0 (U.backpermute xs (rangeU l (l0 - 1)))
+        -- insertionsR
+        !n2 <- U.foldM' onIns n1 (U.backpermute xs (rangeU (r0 + 1) r))
+        -- removalsL
+        !n3 <- U.foldM' onRem n2 (U.backpermute xs (rangeU l0 (l - 1)))
+        -- removalsR
+        !n4 <- U.foldM' onRem n3 (U.backpermute xs (rangeU (r + 1) r0))
+        return n4
+
+      UM.write result iLr n'
+      return ((l, r), n')
+
 -- | nC3
 cn :: U.Vector Int
 cn = U.generate (200_000 + 1) $ \i ->
@@ -24,6 +67,7 @@ cn = U.generate (200_000 + 1) $ \i ->
     then 0
     else i * (i - 1) * (i - 2) `div` 3 `div` 2
 
+{-# INLINE insert1 #-}
 insert1 :: (PrimMonad m) => UM.MVector (PrimState m) Int -> Int -> Int -> m Int
 insert1 !mvec !cnt !k = do
   !vPrev <- UM.read mvec k
@@ -31,6 +75,7 @@ insert1 !mvec !cnt !k = do
   UM.write mvec k v'
   return $ cnt - cn U.! vPrev + cn U.! v'
 
+{-# INLINE remove1 #-}
 remove1 :: (PrimMonad m) => UM.MVector (PrimState m) Int -> Int -> Int -> m Int
 remove1 !mvec !cnt !k = do
   !vPrev <- UM.read mvec k
@@ -38,59 +83,12 @@ remove1 !mvec !cnt !k = do
   UM.write mvec k v'
   return $ cnt - cn U.! vPrev + cn U.! v'
 
-processRange :: (PrimMonad m) => U.Vector Int -> UM.MVector (PrimState m) Int -> ((Int, Int), Int) -> (Int, Int) -> m ((Int, Int), Int)
-processRange !xs !mvec ((!l0, !r0), !n0) (!l, !r) = do
-  let !insertionsR = bool U.empty (U.backpermute xs (rangeU (r0 + 1) r)) $ r > r0
-  let !insertionsL = bool U.empty (U.backpermute xs (rangeU l (l0 - 1))) $ l < l0
-  let !removalsR = bool U.empty (U.backpermute xs (rangeU (r + 1) r0)) $ r < r0
-  let !removalsL = bool U.empty (U.backpermute xs (rangeU l0 (l - 1))) $ l > l0
-
-  !n1 <- U.foldM' (insert1 mvec) n0 insertionsL
-  !n2 <- U.foldM' (insert1 mvec) n1 insertionsR
-  !n3 <- U.foldM' (remove1 mvec) n2 removalsL
-  !n4 <- U.foldM' (remove1 mvec) n3 removalsR
-
-  return ((l, r), n4)
-
-processBlock :: forall m. (PrimMonad m) => U.Vector Int -> U.Vector (Int, Int) -> UM.MVector (PrimState m) Int -> UM.MVector (PrimState m) Int -> ((Int, Int), Int) -> U.Vector Int -> m ((Int, Int), Int)
-processBlock !xs !lrs !res !mvec (!lr0, !s0) !iLrs = U.foldM' step (lr0, s0) iLrs
-  where
-    step (!lr, !s) iLr = do
-      (lr'@(!_, !_), s') <- processRange xs mvec (lr, s) (lrs U.! iLr)
-
-      -- save
-      UM.write res iLr s'
-      -- let !_ = dbg (iLr, lrs U.! iLr, result)
-
-      return (lr', s')
-
 main :: IO ()
 main = do
   (!len, !q) <- ints2
   !xs <- intsU
   !lrs <- U.replicateM q (both pred <$> ints2)
 
-  -- V.Vector (U.Vector Int), split into block sorted by `l`.
-  let !blockIndices0 = V.unfoldr f (0, U.modify (VAI.sortBy (comparing (fst . (lrs U.!)))) (U.generate q id))
-        where
-          !maxL = U.maximum $ U.map fst lrs
-          !sqrtL = isqrt maxL + 1
-          f (!offset, !iLrs)
-            | offset > maxL = Nothing
-            | otherwise = Just (stripped, (offset', iLrs''))
-            where
-              !offset' = offset + sqrtL
-              (!stripped, !iLrs'') = U.span ((< offset') . fst . (lrs U.!)) iLrs
-
-  -- V.Vector (U.Vector Int). Each block is sorted by `r`.
-  let !blockIndices = V.map (U.modify (VAI.sortBy (comparing (snd . (lrs U.!))))) blockIndices0
-
-  -- query all the answers
-  let !result = U.create $ do
-        !res <- UM.replicate q (-1 :: Int)
-        !mvec <- UM.replicate (200_000 + 1 :: Int) (0 :: Int)
-        (\f -> V.foldM'_ f ((0, -1), 0) blockIndices) $ \acc is -> do
-          processBlock xs lrs res mvec acc is
-        return res
-
-  U.forM_ result print
+  U.mapM_ print $ runST $ do
+    !cnt <- UM.replicate (200_000 + 1) (0 :: Int)
+    runMo xs lrs (insert1 cnt) (remove1 cnt) (0 :: Int)

@@ -23,6 +23,24 @@ undir "U" = (1, 0)
 undir "D" = (-1, 0)
 undir _ = error "unreachable"
 
+viewFrontN :: (U.Unbox a, PrimMonad m) => Buffer (PrimState m) a -> Int -> m (Maybe a)
+viewFrontN Buffer {..} i = do
+  !f <- UM.unsafeRead bufferVars _bufferFrontPos
+  !b <- UM.unsafeRead bufferVars _bufferBackPos
+  if inRange (f, b - 1) (f + i)
+    then Just <$> UM.read internalBuffer (f + i)
+    else return Nothing
+{-# INLINE viewFrontN #-}
+
+viewBackN :: (U.Unbox a, PrimMonad m) => Buffer (PrimState m) a -> Int -> m (Maybe a)
+viewBackN Buffer {..} i = do
+  !f <- UM.unsafeRead bufferVars _bufferFrontPos
+  !b <- UM.unsafeRead bufferVars _bufferBackPos
+  if inRange (f, b - 1) (b - 1 - i)
+    then Just <$> UM.read internalBuffer (b - 1 - i)
+    else return Nothing
+{-# INLINE viewBackN #-}
+
 main :: IO ()
 main = do
   (!n, !nq) <- ints2
@@ -32,24 +50,14 @@ main = do
   forM_ [0 .. n - 1] $ \i -> do
     pushBack buf (0, n - i)
 
-  void . (\f -> foldM f (0 :: Int) qs) $ \nStep q -> case q of
+  forM_ qs $ \case
     ("1", dir) -> do
       (!y0, !x0) <- fromJust <$> viewBack buf
       let (!y, !x) = add2 (y0, x0) (undir dir)
       pushBack buf (y, x)
-
-      !vec <- unsafeFreezeBuffer buf
-      let !_ = dbg (vec)
-
-      return $ succ nStep
     ("2", s) -> do
       let !v = pred $ read @Int s
-
-      !vec <- unsafeFreezeBuffer buf
-      let !i = G.length vec - 1 - v
-      let (!y, !x) = vec U.! i
+      (!y, !x) <- fromJust <$> viewBackN buf v
       putStrLn $ unwords $ map show [x, y]
-
-      return nStep
     _ -> error "unreachable"
 

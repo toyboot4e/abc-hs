@@ -30,51 +30,6 @@ modInt = ModInt . (`rem` myMod)
 -- homogenious coordinates and affine transformation
 -- TODO: maybe just use some existing math library for vectors and matrices with known dimensions?
 
--- | 2x2 matrix
-type OpRepr = (MyModInt, MyModInt, MyModInt, MyModInt)
-
-instance Semigroup Op where
-  (<>) = mm
-
-mm :: Op -> Op -> Op
-mm (Op (!a11, !a12, !a21, !a22)) (Op (!b11, !b12, !b21, !b22)) = Op (a11 * b11 + a12 * b21, a11 * b12 + a12 * b22, a21 * b11 + a22 * b21, a21 * b12 + a22 * b22)
-
-instance Monoid Op where
-  mempty = Op (1, 0, 0, 1)
-
-instance SemigroupAction Op Acc where
-  sact (Op (!a11, !a12, !a21, !a22)) (Acc (!x1, !x2)) = Acc (a11 * x1 + a12 * x2, a21 * x1 + a22 * x2)
-
--- | Sum
-type AccRepr = (MyModInt, MyModInt)
-
-instance Semigroup Acc where
-  (Acc (!a1, !a2)) <> (Acc (!b1, !b2)) = Acc (a1 + b1, a2 + b2)
-
-instance Monoid Acc where
-  mempty = Acc (0, 0)
-
-{- ORMOLU_DISABLE -}
-newtype Op = Op OpRepr deriving newtype (Eq, Ord, Show)
-newtype Acc = Acc AccRepr deriving newtype (Eq, Ord, Show)
-unAcc :: Acc -> AccRepr
-unAcc (Acc x) = x
-
-newtype instance U.MVector s Op = MV_Op (U.MVector s OpRepr)
-newtype instance U.Vector Op = V_Op (U.Vector OpRepr)
-deriving instance GM.MVector UM.MVector Op
-deriving instance G.Vector U.Vector Op
-instance U.Unbox Op
-
-newtype instance U.MVector s Acc = MV_Acc (U.MVector s AccRepr)
-newtype instance U.Vector Acc = V_Acc (U.Vector AccRepr)
-deriving instance GM.MVector UM.MVector Acc
-deriving instance G.Vector U.Vector Acc
-instance U.Unbox Acc
-
-instance MonoidAction Op Acc
-{- ORMOLU_ENABLE -}
-
 -- TODO: Eq op?
 
 main :: IO ()
@@ -86,14 +41,13 @@ main = do
     (x0 : x1 : x2 : x3 : x4 : []) -> (x0, x1, x2, x3, x4)
     _ -> error "unreachable"
 
-  !stree <- generateLazySTreeU n (\i -> Acc (modInt (xs0 U.! i), 1))
+  !stree <- generateLazySTreeU n (\i -> V2 (modInt (xs0 U.! i), 1))
 
   G.forM_ qs $ \case
     (0, !l, !r, !a, !b) -> do
-      let !_ = dbg ("op", (l, r - 1), Op (modInt a, modInt b, 0, 1))
-      updateLazySTree stree l (r - 1) (Op (modInt a, modInt b, 0, 1))
+      updateLazySTree stree l (r - 1) (Mat2x2 (modInt a, modInt b, 0, 1))
     (1, !l, !r, -1, -1) -> do
-      Acc (!x, !_) <- queryLazySTree stree l (r - 1)
+      V2 (!x, !_) <- queryLazySTree stree l (r - 1)
       print x
     _ -> error "unreachable"
 

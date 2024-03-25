@@ -26,49 +26,37 @@ iwiSpansU !l !r = U.map (\len -> ((l, l + len - 1), (l + len + 1, r))) $ rangeU 
 iwiSpansU' :: Int -> Int -> U.Vector ((Int, Int), Int, (Int, Int))
 iwiSpansU' !l !r = U.map (\len -> ((l, l + len - 1), l + len, (l + len + 1, r))) $ rangeU 0 (r - l)
 
--- solveSchedule :: Int -> U.Vector (Int, Int) -> Int
--- solveSchedule !len !lrs = runST $ do
---   !stree <- newSTreeU (||) len True
---   U.foldM' (step stree) s0 lrs'
---   where
---     !lrs' = U.modify (VAI.sortBy (comparing (\(!l, !r) -> (r, Down l)))) lrs
---     !_ = dbg (lrs')
---     !s0 = 0 :: Int
---     step !stree acc (!l, !r) = do
---       !b <- fromJust <$> querySTree stree (l, r)
---       if b
---         then do
---           forM_ [l .. r] $ \i -> do
---             insertSTree stree i False
---           return (acc + 1)
---         else do
---           return acc
-
 main :: IO ()
 main = do
   (!n, !nLrs) <- ints2
   !lrs <- U.replicateM nLrs (both pred <$> ints2)
 
-  -- print (solveSchedule n lrs)
-  -- exitSuccess
-
-  let !bnd = ((0, 0), (n, n))
   let !bnd3 = ((0, 0, 0), (n - 1, n - 1, n - 1))
-  let !is = fromVec (U.map (index bnd) lrs) :: IS.IntSet
 
-  -- Is there a span within [l, r] that contains i
+  -- Is there a span within [l, r] that contains i?
+  -- Be sure to calculate in n^3:
   let !canMark = U.create $ do
         !vec <- GM.replicate (n * n * n) False
         G.forM_ lrs $ \(!l, !r) -> do
           forM_ [l .. r] $ \i -> do
-            forM_ [0 .. l] $ \l1 -> do
-              forM_ [r .. n - 1] $ \r1 -> do
-                GM.write vec (index bnd3 (i, l1, r1)) True
+            !b <- UM.read vec (index bnd3 (i, l, r))
+            unless b $ do
+              forM_ [l, l -1 .. 0] $ \l1 -> do
+                !b2 <- UM.read vec (index bnd3 (i, l1, r))
+                unless b2 $ do
+                  -- forM_ [r .. n - 1] $ \r1 -> do
+                  flip fix r $ \loop r1 -> do
+                    when (r1 < n) $ do
+                      let !i' = index bnd3 (i, l1, r1)
+                      !b3 <- GM.read vec i'
+                      unless b3 $ do
+                        GM.write vec i' True
+                        loop (r1 + 1)
         return vec
 
   let !res = spanDP n (0 :: Int) f1 fi
         where
-          f1 !i = bool 0 1 $ IS.member (index bnd (i, i)) is
+          f1 !i = bool 0 1 $ canMark U.! index bnd3 (i, i, i)
           fi !sofar (!len, !l) =
             let !res1 = U.maximum $ U.map f (iwiSpansU' l r)
                 !res2 = U.maximum $ U.map g (spansU l r)

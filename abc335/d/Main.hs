@@ -16,6 +16,10 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+{-# INLINE unsafeFreezeIV #-}
+unsafeFreezeIV :: (PrimMonad m, G.Vector v a) => IxVector i (G.Mutable v (PrimState m) a) -> m (IxVector i (v a))
+unsafeFreezeIV iv = IxVector (boundsIV iv) <$> G.unsafeFreeze (vecIV iv)
+
 main :: IO ()
 main = do
   !n_ <- ints1
@@ -38,11 +42,11 @@ main = do
           writeIV grid yx' acc
           modify $ bimap succ (const yx')
 
-  !res <- U.unsafeFreeze (vecIV grid)
+  !res <- unsafeFreezeIV grid
   forM_ [0 .. 2 * n] $ \y -> do
     let line = flip map [0 .. 2 * n] $ \x ->
           if y == n && x == n
             then "T"
-            else show (res U.! index bnd (y, x))
+            else show (res @! (y, x))
     putStrLn $ unwords line
 

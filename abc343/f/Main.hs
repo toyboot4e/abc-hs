@@ -16,18 +16,52 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
-{-# INLINE singletonMS #-}
-{-# INLINE fromListMS #-}
-{-# INLINE incMS #-}
-{-# INLINE decMS #-}
+-- type AccRepr = ((Int, Int), (Int, Int))
+-- 
+-- instance Semigroup Acc where
+--   {-# INLINE (<>) #-}
+--   (Acc (!x1@(!_, !_), !x2@(!_, !_))) <> (Acc (!x3@(!_, !_), !x4@(!_, !_))) = Acc (y1, y2)
+--     where
+--       im = IM.fromListWith (+) [x1, x2, x3, x4]
+--       -- TODO: API for taking the take top K?
+--       (!y1, !im') = IM.deleteFindMax im
+--       !y2 = fromMaybe (-1, 0) $ IM.lookupMax im'
+-- 
+-- instance Monoid Acc where
+--   {-# INLINE mempty #-}
+--   mempty = Acc ((-1, 0), (-1, 0))
+-- 
+-- {- ORMOLU_DISABLE -}
+-- newtype Acc = Acc AccRepr deriving newtype (Eq, Ord, Show) ; unAcc :: Acc -> AccRepr ; unAcc (Acc x) = x ;  newtype instance U.MVector s Acc = MV_Acc (U.MVector s AccRepr) ; newtype instance U.Vector Acc = V_Acc (U.Vector AccRepr) ; deriving instance GM.MVector UM.MVector Acc ; deriving instance G.Vector U.Vector Acc ; instance U.Unbox Acc ;
+-- {- ORMOLU_ENABLE -}
+-- 
+-- -- Sergment tree ultra fast
+-- main :: IO ()
+-- main = do
+--   (!n, !q) <- ints2
+--   !xs0 <- intsU
+--   !qs <- U.replicateM q ints3
+-- 
+--   let toM = Acc . (, (-1, 0)) . (,1)
+--   !stree <- generateSTree $ U.map toM xs0
+--   let !_ = dbg ("go")
+-- 
+--   U.forM_ qs $ \case
+--     (1, !i1, !x) -> do
+--       insertSTree stree (i1 - 1) $ toM x
+--     (2, !l1, !r1) -> do
+--       Acc (!_, (!_, !cnt)) <- fromJust <$> querySTree stree (l1 - 1) (r1 - 1)
+--       print cnt
 
+-- Square root decomposition: too slow
 main :: IO ()
 main = do
   (!n, !q) <- ints2
   !xs0 <- intsU
   !qs <- U.replicateM q ints3
 
-  let !len = succ $ isqrt n
+  -- let !len = succ $ isqrt n
+  let !len = min n 1100
   let !nBlocks = (n + (len - 1)) `div` len
 
   !vec <- U.thaw xs0
@@ -50,10 +84,8 @@ main = do
 
   let {-# INLINE getPart #-}
       getPart !l !r = do
-        let !_ = dbg ("part", l, r)
         !xs <- U.unsafeFreeze $ UM.slice l (r - l + 1) vec
         let !ms = fromListMS $ G.toList xs
-        let !_ = dbg ("go")
         return . top2 $ snd ms
 
   let {-# INLINE merge2 #-}
@@ -73,22 +105,20 @@ main = do
               U.foldM'
                 ( \ !acc iBlock -> do
                     !im <- getFull iBlock
-                    return $ merge2 acc im
+                    return $! merge2 acc im
                 )
                 IM.empty
                 (U.generate (ir - 1 - il) (+ succ il))
             !xr <- getPart (ir * len) r
-            return $ xl `merge2` xc `merge2` xr
+            return $! xl `merge2` xc `merge2` xr
 
   U.forM_ qs $ \case
     (1, !q, !x') -> do
-      let !_ = dbg (1, q, x')
       let !i = q - 1
       !x1 <- UM.read vec i
       VM.modify blocks (incMS x' . decMS x1) (i `div` len)
       UM.write vec i x'
     (2, !l_, !r_) -> do
-      let !_ = dbg (2, l_, r_)
       let !l = l_ - 1
       let !r = r_ - 1
       !res <- query l r

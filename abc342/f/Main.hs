@@ -46,6 +46,7 @@ solvePlayer n limit d = runST $ do
   let !r0 = limit - 1 + d
   !p0 <- fromMaybe mempty <$> querySTree dealer l0 r0
   let !_ = dbg ((l0, r0), p0)
+  !x <- in
 
   -- Probability to win when coming to i.
   -- [0 .. n] + 1 for the move query guard.

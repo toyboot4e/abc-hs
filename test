@@ -1,9 +1,19 @@
 #!/usr/bin/env -S bash -x
 
-# stack script:
-oj t -N --directory "$1/test-cases" -c "./$1/Main.hs"
+# script:
+# oj t -N --directory "$1/test-cases" -c "./$1/Main.hs"
+# oj t -N --directory "$1/test-cases" -c "cabal run $1/Main.hs"
 
-# # cabal:
+problem="$1"
+shift 1
+
+if [ $# -eq 0 ] ; then
+    oj t -N --directory "$problem/test-cases" -c "$problem/Main.hs"
+else
+    oj t -N --directory "$problem/test-cases" -c "$problem/Main.hs" # "$problem/test-cases/$i"
+fi
+
+# compile:
 # cabal build "$1-exe" # --ghc-options -DDEBUG
 # oj t -N --directory "$1/test-cases" -c "cabal run $1-exe"
 
