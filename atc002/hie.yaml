@@ -1,0 +1,22 @@
+cradle:
+  stack:
+    - path: "./a/Main.hs"
+      component: "atc002:exe:a-exe"
+
+    - path: "./b/Main.hs"
+      component: "atc002:exe:b-exe"
+
+    - path: "./c/Main.hs"
+      component: "atc002:exe:c-exe"
+
+    - path: "./d/Main.hs"
+      component: "atc002:exe:d-exe"
+
+    - path: "./e/Main.hs"
+      component: "atc002:exe:e-exe"
+
+    - path: "./f/Main.hs"
+      component: "atc002:exe:f-exe"
+
+    - path: "./g/Main.hs"
+      component: "atc002:exe:g-exe"

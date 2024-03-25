@@ -1,0 +1,42 @@
+{
+  "contest": {
+    "id": "atc002",
+    "title": "AtCoder Typical Contest 002",
+    "url": "https://atcoder.jp/contests/atc002"
+  },
+  "tasks": [
+    {
+      "id": "abc007_3",
+      "label": "A",
+      "title": "幅優先探索",
+      "url": "https://atcoder.jp/contests/atc002/tasks/abc007_3",
+      "directory": {
+        "path": "a",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "atc002_b",
+      "label": "B",
+      "title": "n^p mod m",
+      "url": "https://atcoder.jp/contests/atc002/tasks/atc002_b",
+      "directory": {
+        "path": "b",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "atc002_c",
+      "label": "C",
+      "title": "最適二分探索木",
+      "url": "https://atcoder.jp/contests/atc002/tasks/atc002_c",
+      "directory": {
+        "path": "c",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    }
+  ]
+}
