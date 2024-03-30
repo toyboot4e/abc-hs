@@ -1,0 +1,132 @@
+name: abc347
+
+dependencies:
+   - base
+
+   - QuickCheck
+   - array
+   - attoparsec
+   - bytestring
+   - containers
+   - deepseq
+   - extra
+   - fgl
+   - hashable
+   - heaps
+   - integer-logarithms
+   - lens
+   - massiv
+   - mono-traversable
+   - mtl
+   - mutable-containers
+   - mwc-random
+   - parallel
+   - parsec
+   - primitive
+   - psqueues
+   - random
+   - reflection
+   - template-haskell
+   - text
+   - tf-random
+   - transformers
+   - unboxing-vector
+   - unordered-containers
+   - utility-ht
+   - vector
+   - vector-algorithms
+   - vector-th-unbox
+
+language: GHC2021
+
+# DRY for package.yaml executables:
+# <https://www.reddit.com/r/haskell/comments/haeqin/dry_for_packageyaml_executables/>
+_exe-defs: &exe-defaults
+  # dependencies:
+  # - abs
+  ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -Wall # all warnings
+  cpp-options:
+    - -DDEBUG # debug flag
+  other-modules: []
+
+# REMARK: See `README` for the langauge server support.
+executables:
+  a-exe:
+    <<: *exe-defaults
+    source-dirs: "a"
+    main:                Main.hs
+
+  b-exe:
+    <<: *exe-defaults
+    source-dirs: "b"
+    main:                Main.hs
+
+  c-exe:
+    <<: *exe-defaults
+    source-dirs: "c"
+    main:                Main.hs
+
+  d-exe:
+    <<: *exe-defaults
+    source-dirs: "d"
+    main:                Main.hs
+
+  e-exe:
+    <<: *exe-defaults
+    source-dirs: "e"
+    main:                Main.hs
+
+  f-exe:
+    <<: *exe-defaults
+    source-dirs: "f"
+    main:                Main.hs
+
+  g-exe:
+    <<: *exe-defaults
+    source-dirs: "g"
+    main:                Main.hs
+
+  h-exe:
+    <<: *exe-defaults
+    source-dirs: "h"
+    main:                Main.hs
+
+  i-exe:
+    <<: *exe-defaults
+    source-dirs: "i"
+    main:                Main.hs
+
+  j-exe:
+    <<: *exe-defaults
+    source-dirs: "j"
+    main:                Main.hs
+
+  k-exe:
+    <<: *exe-defaults
+    source-dirs: "k"
+    main:                Main.hs
+
+  l-exe:
+    <<: *exe-defaults
+    source-dirs: "l"
+    main:                Main.hs
+
+  m-exe:
+    <<: *exe-defaults
+    source-dirs: "m"
+    main:                Main.hs
+
+  n-exe:
+    <<: *exe-defaults
+    source-dirs: "n"
+    main:                Main.hs
+
+  o-exe:
+    <<: *exe-defaults
+    source-dirs: "o"
+    main:                Main.hs
+
