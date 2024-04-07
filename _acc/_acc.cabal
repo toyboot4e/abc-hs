@@ -19,6 +19,7 @@ executable a-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -42,6 +43,7 @@ executable a-exe
     , template-haskell
     , text
     , tf-random
+    , time
     , transformers
     , unboxing-vector
     , unordered-containers
@@ -62,6 +64,7 @@ executable b-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -85,6 +88,7 @@ executable b-exe
     , template-haskell
     , text
     , tf-random
+    , time
     , transformers
     , unboxing-vector
     , unordered-containers
@@ -105,6 +109,7 @@ executable c-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -128,6 +133,7 @@ executable c-exe
     , template-haskell
     , text
     , tf-random
+    , time
     , transformers
     , unboxing-vector
     , unordered-containers
@@ -148,6 +154,7 @@ executable d-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -171,6 +178,7 @@ executable d-exe
     , template-haskell
     , text
     , tf-random
+    , time
     , transformers
     , unboxing-vector
     , unordered-containers
@@ -191,6 +199,7 @@ executable e-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -214,6 +223,7 @@ executable e-exe
     , template-haskell
     , text
     , tf-random
+    , time
     , transformers
     , unboxing-vector
     , unordered-containers
@@ -234,6 +244,7 @@ executable f-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -257,6 +268,7 @@ executable f-exe
     , template-haskell
     , text
     , tf-random
+    , time
     , transformers
     , unboxing-vector
     , unordered-containers
@@ -277,6 +289,7 @@ executable g-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -300,6 +313,7 @@ executable g-exe
     , template-haskell
     , text
     , tf-random
+    , time
     , transformers
     , unboxing-vector
     , unordered-containers

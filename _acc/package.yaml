@@ -6,6 +6,7 @@ dependencies:
    - QuickCheck
    - array
    - attoparsec
+   - bitvec
    - bytestring
    - containers
    - deepseq
@@ -29,6 +30,7 @@ dependencies:
    - template-haskell
    - text
    - tf-random
+   - time
    - transformers
    - unboxing-vector
    - unordered-containers
