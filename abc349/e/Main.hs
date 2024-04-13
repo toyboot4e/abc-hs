@@ -26,6 +26,14 @@ checks = rows V.++ cols V.++ diags
 isDone :: U.Vector Int -> Bool
 isDone = (&&) <$> U.notElem (-1) <*> ((== 1) . U.length) . U.uniq . U.modify VAI.sort . U.map odd
 
+anyMG :: (Monad m, G.Vector v a) => (a -> m Bool) -> v a -> m Bool
+anyMG !f = fix $ \loop acc -> case G.uncons acc of
+    Nothing -> return False
+    Just (!x, !acc') -> do
+      f x >>= \case
+        True -> return True
+        False -> loop acc'
+
 solve :: StateT BS.ByteString IO ()
 solve = do
   !xs <- vecIV <$> getMat' 3 3
@@ -48,9 +56,9 @@ solve = do
               return $ s1 > s2
             else do
               !cands <- U.findIndices (== -1) <$> U.unsafeFreeze board
-              not . U.or <$> U.mapM (dfs (cnt + 1)) cands
+              not <$> anyMG (dfs (cnt + 1)) cands
 
-  printBSB . bool "Aoki" "Takahashi" . U.or =<< U.generateM 9 (dfs 0)
+  printBSB . bool "Aoki" "Takahashi" =<< anyMG (dfs 0) (U.generate 9 id)
 
 main :: IO ()
 main = runIO solve
