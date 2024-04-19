@@ -18,6 +18,7 @@ executable a-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -60,6 +61,7 @@ executable b-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -102,6 +104,7 @@ executable c-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -144,6 +147,7 @@ executable d-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -186,6 +190,7 @@ executable e-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -228,6 +233,7 @@ executable f-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -270,6 +276,7 @@ executable g-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
