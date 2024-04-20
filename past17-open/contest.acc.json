@@ -1,0 +1,174 @@
+{
+  "contest": {
+    "id": "past17-open",
+    "title": "第17回 アルゴリズム実技検定(過去問)",
+    "url": "https://atcoder.jp/contests/past17-open"
+  },
+  "tasks": [
+    {
+      "id": "past17_a",
+      "label": "A",
+      "title": "BMI",
+      "url": "https://atcoder.jp/contests/past17-open/tasks/past17_a",
+      "directory": {
+        "path": "a",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "past17_b",
+      "label": "B",
+      "title": "Full Combo",
+      "url": "https://atcoder.jp/contests/past17-open/tasks/past17_b",
+      "directory": {
+        "path": "b",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "past17_c",
+      "label": "C",
+      "title": "Turn into Money",
+      "url": "https://atcoder.jp/contests/past17-open/tasks/past17_c",
+      "directory": {
+        "path": "c",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "past17_d",
+      "label": "D",
+      "title": "Web Service",
+      "url": "https://atcoder.jp/contests/past17-open/tasks/past17_d",
+      "directory": {
+        "path": "d",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "past17_e",
+      "label": "E",
+      "title": "Run Length Encoding",
+      "url": "https://atcoder.jp/contests/past17-open/tasks/past17_e",
+      "directory": {
+        "path": "e",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "past17_f",
+      "label": "F",
+      "title": "Parse Tree",
+      "url": "https://atcoder.jp/contests/past17-open/tasks/past17_f",
+      "directory": {
+        "path": "f",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "past17_g",
+      "label": "G",
+      "title": "Find the Snaky",
+      "url": "https://atcoder.jp/contests/past17-open/tasks/past17_g",
+      "directory": {
+        "path": "g",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "past17_h",
+      "label": "H",
+      "title": "Course Registration",
+      "url": "https://atcoder.jp/contests/past17-open/tasks/past17_h",
+      "directory": {
+        "path": "h",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "past17_i",
+      "label": "I",
+      "title": "Subsequence Pair",
+      "url": "https://atcoder.jp/contests/past17-open/tasks/past17_i",
+      "directory": {
+        "path": "i",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "past17_j",
+      "label": "J",
+      "title": "Cafe",
+      "url": "https://atcoder.jp/contests/past17-open/tasks/past17_j",
+      "directory": {
+        "path": "j",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "past17_k",
+      "label": "K",
+      "title": "Correct Check Digit",
+      "url": "https://atcoder.jp/contests/past17-open/tasks/past17_k",
+      "directory": {
+        "path": "k",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "past17_l",
+      "label": "L",
+      "title": "Discount Ticket",
+      "url": "https://atcoder.jp/contests/past17-open/tasks/past17_l",
+      "directory": {
+        "path": "l",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "past17_m",
+      "label": "M",
+      "title": "Rectangle",
+      "url": "https://atcoder.jp/contests/past17-open/tasks/past17_m",
+      "directory": {
+        "path": "m",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "past17_n",
+      "label": "N",
+      "title": "Software Update",
+      "url": "https://atcoder.jp/contests/past17-open/tasks/past17_n",
+      "directory": {
+        "path": "n",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    },
+    {
+      "id": "past17_o",
+      "label": "O",
+      "title": "Flatten Query",
+      "url": "https://atcoder.jp/contests/past17-open/tasks/past17_o",
+      "directory": {
+        "path": "o",
+        "testdir": "test-cases",
+        "submit": "Main.hs"
+      }
+    }
+  ]
+}
