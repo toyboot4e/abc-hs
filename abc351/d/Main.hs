@@ -16,15 +16,11 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
--- REMARK: filter has to be done outside of this function
-genericBfsInPlace :: (PrimMonad m) => (Int -> U.Vector (Int, Bool)) -> Vertex -> UM.MVector (PrimState m) Bool -> Buffer (PrimState m) Vertex -> m Int
+genericBfsInPlace :: (PrimMonad m) => (Int -> U.Vector (Int, Bool)) -> Vertex -> UM.MVector (PrimState m) Int -> Buffer (PrimState m) Vertex -> m Int
 genericBfsInPlace !gr !source !done !queue = do
-  clearBuffer queue
+  clearBuffer queue -- O(1)
   pushBack queue source
-  UM.write done source True
-
-  -- don't share with other searches
-  knownStop <- newMutVar IS.empty
+  UM.write done source source
 
   -- procedural programming is great
   (`execStateT` (1 :: Int)) $ fix $ \loop -> do
@@ -32,18 +28,10 @@ genericBfsInPlace !gr !source !done !queue = do
       Nothing -> return ()
       Just !v1 -> do
         U.forM_ (gr v1) $ \(!v2, !isStop) -> do
-          !isDone <- UM.exchange done v2 True
+          !isDone <- (== source) <$> UM.exchange done v2 source
 
-          if isStop
-            then do
-              !is <- readMutVar knownStop
-              unless (IS.member v2 is) $ do
-                modifyMutVar knownStop $ IS.insert v2
-                modify' succ
-            else do
-              unless isDone $ do
-                let !_ = dbg (v1, v2)
-                modify' succ
+          unless isDone $ do
+            modify' succ
 
           unless (isStop || isDone) $ do
             pushBack queue v2
@@ -62,23 +50,21 @@ solve = do
           adjs = U.filter (inRange bnd) $ U.map (add2 (y, x)) ortho4
           f (!y', !x') = gr @! (y', x')
 
-  let !_ = dbg (isStop (0, 0))
-
   let grF i = U.map f adjs
         where
-          adjs = U.map (`divMod` w) $ orthoWith bnd (not . (gr @!)) i
+          (!y, !x) = i `divMod` w
+          adjs = U.filter ((&&) <$> inRange bnd <*> (not . (gr @!))) $ U.map (add2 (y, x)) ortho4
           f (!y', !x') = (index bnd (y', x'), isStop (y', x'))
 
   !res <- (`execStateT` (1 :: Int)) $ do
-    !done <- UM.replicate (h * w) False
+    !done <- UM.replicate (h * w) (-1 :: Int)
     !queue <- newBufferAsQueue @Int (2 * h * w)
 
     forM_ [0 .. h - 1] $ \y -> do
       forM_ [0 .. w - 1] $ \x -> do
-        !b <- UM.read done (index bnd (y, x))
+        !b <- (/= -1) <$> UM.read done (index bnd (y, x))
         unless (b || isStop (y, x)) $ do
           !cnt <- genericBfsInPlace grF (index bnd (y, x)) done queue
-          let !_ = dbg ("==>", (y, x), cnt)
           modify' $ max cnt
 
   printBSB res

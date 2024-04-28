@@ -17,21 +17,9 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 -- }}}
 
 deltaSum :: U.Vector Int -> Int
-deltaSum xs = runST $ do
-  let !dict = U.uniq $ U.modify VAI.sort xs
-  let !minX = U.head dict
-
-  -- (n, s)
-  stree <- newSTree @(Sum Int, Sum Int) (G.length dict)
-  let !xs' = dbgId . U.fromList . map ((,) <$> U.length <*> subtract minX . U.head) $ U.group $ U.modify VAI.sort xs
-
-  (`execStateT` (0 :: Int)) $ U.iforM_ xs' $ \i (!dn, !x) -> do
-    (Sum n, Sum s) <- fromMaybe mempty <$> foldMaySTree stree 0 (i - 1)
-
-    let delta = dn * (n * x - s)
-    modify' (+ delta)
-
-    writeSTree stree i (Sum dn, Sum (dn * x))
+deltaSum = fst . U.ifoldl' step (0, 0) . U.modify VAI.sort
+  where
+    step (!acc, !s) n x = (acc + (n * x - s), s + x)
 
 calc :: U.Vector (Int, Int) -> Int
 calc xys
@@ -40,16 +28,14 @@ calc xys
       let !xys' = U.map rot45 xys
           !xs = U.map fst xys'
           !ys = U.map snd xys'
-       in dbgId (deltaSum xs) + dbgId (deltaSum ys)
+       in deltaSum xs + deltaSum ys
 
 solve :: StateT BS.ByteString IO ()
 solve = do
   !n <- int'
   !xys <- U.replicateM n ints2'
-
-  let (!xys1, !xys2) = dbgId $ U.partition (\(!x, !y) -> even (x + y)) xys
-  let !_ = dbg $ both (U.map rot45) (xys1, xys2)
-  printBSB . (`div` 2) $ note "res1" (calc xys1) + note "res2" (calc xys2)
+  let (!xys1, !xys2) = U.partition (even . uncurry (+)) xys
+  printBSB $ (calc xys1 + calc xys2) .>>. 1
 
 main :: IO ()
 main = runIO solve
