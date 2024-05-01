@@ -73,7 +73,7 @@ Get into the problem directory first:
 $ cd abc100
 ----
 
-Then run the script at the root of the repository:
+Run the `test` script in the root of the repository:
 
 [source,sh]
 ----
