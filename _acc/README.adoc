@@ -48,15 +48,55 @@ You do need the language server support! If it's not working, check out the foll
 
 === Installation
 
-Your have to have GHC 8.8.3 and HLS 1.5.1 in your `PATH`.
+Your have to have GHC 9.4.5 and HLS 2.2.0 in your `PATH`.
 
-* Install the corresponding versions of packages:
-** Use GHCup to download the required GHC and HLS.
-** On NixOS, WIP..
-// ** On NixOS, compile GHC 8.8.3 using {ghcs-nix}, download
-//   https://github.com/haskell/haskell-language-server/releases/tag/1.5.1[HLS 1.5.1] and download
-//   stack.
+* Use GHCup to install GHC, HLS, Stack and Cabal.
 * Use {direnv} to overwrite your binaries in your `PATH`.
+
+=== Installation  (NixOS)
+
+`nix-direnv` + the following `flake.nix` at least works:
+
+[source,nix]
+----
+{
+  description = "A basic flake with a shell";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+  inputs.flake-utils.url = "github:numtide/flake-utils";
+
+  outputs = { nixpkgs, flake-utils, ... }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+      in
+      {
+        devShells.default = with pkgs; mkShell {
+          nativeBuildInputs = [
+            pkg-config
+            stack
+            cabal-install
+            llvmPackages.bintools
+          ];
+
+          packages = [
+            # atcoder-cli is from npm
+
+            # NOTE: update `oj-path` everytime you update `online-judge-tools`
+            online-judge-tools
+            python311Packages.selenium
+            nodejs
+
+            hlint
+            haskell.compiler.ghc945
+            (haskell-language-server.override { supportedGhcVersions = [ "945" ]; })
+            haskellPackages.hoogle
+            haskellPackages.ghcid
+            haskellPackages.ghcide
+          ];
+        };
+      });
+}
+----
 
 === Project detection
 
