@@ -21,27 +21,6 @@ groupsPUF uf@(DUnionFind !vec !_) = do
   rvs <- V.generateM (GM.length vec) (\v -> (,[v]) <$> rootPUF uf v)
   return $ IM.fromListWith (flip (++)) $ V.toList rvs
 
--- feat :: (PrimMonad m) => PUnionFind (PriState m) -> [Int] -> ((Int, Int), Int)
--- feat uf (v:vrest) = do
---   -- say the first one is zero
---   !ws <- UM.replicate 16 (-1 :: Int)
---   UM.write res v 0
---   forM_ vrest $ \v' -> do
---     -- diff = p(v) - P(v')
---     -- p(v') = p(v) - diff)
---     !diff <-
-
--- allConds :: Int -> [(Int, [Int], [Int])] -> [([Int], [Int])] -> [[([Int], [Int])]] -> [[([Int], [Int])]]
--- allConds _ [] acc res = acc : res
--- allConds n ((!w, !vs, !ps) : wps) acc res = do
---   offset <- [0 .. n - 1 - w]
---   -- FIXME: DO pruning here
---   let !ps' = map (+ offset) ps
---   allConds n wps ((vs, ps') : acc) res
-
--- holds :: Int -> [([Int], [Int])] -> Bool
--- holds n vsps = (== n) . length . nubSort $ concatMap snd vsps
-
 placeEagerly :: Int -> [(Int, [Int], [Int])] -> [([Int], [Int])] -> Int -> IS.IntSet -> Maybe [([Int], [Int])]
 placeEagerly n [] acc offset _
   | n == offset = Just acc
@@ -103,12 +82,13 @@ solve = do
       mapM
         ( fmap
             ( \vps ->
-                let !w = maximum ps - minimum ps
-                    !vs = map fst vps
-                    !ps = map snd vps
+                let !vps' = sortBy (comparing snd) vps
+                    !vs = map fst vps'
+                    !ps = map snd vps'
+                    !w = maximum ps - minimum ps
                     !minP = minimum ps
                     !ps' = map (subtract minP) ps
-                 in (w, vs, sort ps')
+                 in (w, vs, ps')
             )
             . mapM (\v -> (v,) <$> potPUF uf v)
         )
@@ -123,7 +103,7 @@ solve = do
 
   -- REMARK: mark all the duplicates as unsolvable
   -- TODO: faster
-  let ins' :: [(Int, Int)] = note "ins'" $ concatMap (\(!vs, !_) -> map (,-2) vs) $ concat $ filter ((> 1) . length) . groupBy ((==) `on` snd) $ map (\(!_, !vs, !ps) -> (vs, ps)) groups'
+  let ins' :: [(Int, Int)] = note "ins'" $ concatMap (\(!vs, !_) -> map (,-2) vs) $ concat $ filter ((> 1) . length) . groupBy ((==) `on` snd) . sortBy (comparing snd) $ map (\(!_, !vs, !ps) -> (vs, ps)) groups'
 
   let assignments = IM.fromListWith f $ map (second succ) $ ins ++ ins'
         where
