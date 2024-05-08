@@ -1,0 +1,9 @@
+#!/usr/bin/env -S bash +x
+
+# script run by `oj-verify`.
+
+# $1 = contest/problem/Main.hs (example: abc350/f)
+cd "$(dirname "$(dirname "$1")")"
+problem="$(basename "$(dirname "$1")")"
+cabal run "$problem-exe"
+
