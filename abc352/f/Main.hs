@@ -39,20 +39,52 @@ groupsPUF uf@(DUnionFind !vec !_) = do
 --   let !ps' = map (+ offset) ps
 --   allConds n wps ((vs, ps') : acc) res
 
-allConds :: Int -> [(Int, [Int], [Int])] -> [([Int], [Int])] -> Int -> IS.IntSet -> [[([Int], [Int])]] -> [[([Int], [Int])]]
-allConds _ [] acc _ _ res = acc : res
-allConds n ((!w, !vs, !ps) : wps) acc offset is res = do
+-- holds :: Int -> [([Int], [Int])] -> Bool
+-- holds n vsps = (== n) . length . nubSort $ concatMap snd vsps
+
+placeEagerly :: Int -> [(Int, [Int], [Int])] -> [([Int], [Int])] -> Int -> IS.IntSet -> Maybe [([Int], [Int])]
+placeEagerly n [] acc offset _
+  | n == offset = Just acc
+placeEagerly n ((!w, !vs, !ps) : wps) acc offset is = do
   guard $ offset <= n - 1 - w
   let !ps' = map (+ offset) ps
-  -- pruning
   let !is' = IS.union is $ IS.fromList ps'
   guard $ IS.size is' == IS.size is + length ps'
-  case find (`IS.member` is') [offset + 1 .. n - 1] of
-    Nothing -> res
-    Just offset' -> allConds n wps ((vs, ps') : acc) offset' is' res
+  !offset' <- find (`IS.notMember` is') [offset + 1 .. n]
+  placeEagerly n wps ((vs, ps') : acc) offset' is'
 
-holds :: Int -> [([Int], [Int])] -> Bool
-holds n vsps = (== n) . length . nubSort $ concatMap snd vsps
+-- | \(O(N \log N!)\) But unique. It's much faster when there are duplicate entries.
+--
+-- >>> ghci> lexPerms $ U.fromList ([1, 1, 2] :: [Int])
+-- [[1,1,2],[1,2,1],[2,1,1]]
+--
+-- = Typical problems
+-- - [ABC 352 - F](https://atcoder.jp/contests/abc352/tasks/abc352_f)
+lexPerms :: (G.Vector v a, Ord a) => v a -> [v a]
+lexPerms xs = runST $ do
+  vec <- G.unsafeThaw $ G.modify VAI.sort xs
+  fix $ \loop -> do
+    -- TODO: lazy evaluation and unsafeFreeze
+    vec' <- G.freeze vec
+    fmap (vec' :) $
+      GM.nextPermutation vec >>= \case
+        True -> loop
+        False -> return []
+
+-- | List variant of `lextPerms`
+lexPerms' :: (G.Vector v a, Ord a) => v a -> [[a]]
+lexPerms' = map G.toList . lexPerms
+
+-- | Max
+data Acc a b c = Acc (a, b, c)
+
+unAcc (Acc x) = x
+
+instance (Eq a, Eq b, Eq c) => Eq (Acc a b c) where
+  (Acc (!a, !b, !c)) == (Acc (!x, !y, !z)) = a == x && b == y && c == z
+
+instance (Eq a, Eq b, Eq c, Ord c) => Ord (Acc a b c) where
+  compare (Acc (!_, !_, !x)) (Acc (!_, !_, !y)) = compare x y
 
 solve :: StateT BS.ByteString IO ()
 solve = do
@@ -68,25 +100,36 @@ solve = do
   -- [(width, vs, pot)]
   !groups' <-
     fmap IM.elems $
-    mapM
-      ( fmap
-          ( \vps ->
-              let !w = maximum ps - minimum ps
-                  !vs = map fst vps
-                  !ps = map snd vps
-                  !minP = minimum ps
-                  !ps' = map (subtract minP) ps
-               in (w, vs, ps')
-          )
-          . mapM (\v -> (v,) <$> potPUF uf v)
-      )
-      groups
+      mapM
+        ( fmap
+            ( \vps ->
+                let !w = maximum ps - minimum ps
+                    !vs = map fst vps
+                    !ps = map snd vps
+                    !minP = minimum ps
+                    !ps' = map (subtract minP) ps
+                 in (w, vs, sort ps')
+            )
+            . mapM (\v -> (v,) <$> potPUF uf v)
+        )
+        groups
 
   let !_ = dbg groups'
-  let conds = concat [allConds n groups'' [] 0 IS.empty [] | groups'' <- subsequences groups']
+
+  let conds = mapMaybe (\groups'' -> placeEagerly n groups'' [] 0 IS.empty) $ map (map unAcc) $ lexPerms' $ V.fromList $ map Acc groups'
   let !_ = dbg conds
-  let ins = concatMap (\(!vs, !ps) -> zip vs ps) $ concat conds
-  let assignments = IM.fromListWith (\_ _ -> -1) ins
+
+  let ins = note "ins" $ concatMap (\(!vs, !ps) -> zip vs ps) $ concat conds
+
+  -- REMARK: mark all the duplicates as unsolvable
+  -- TODO: faster
+  let ins' :: [(Int, Int)] = note "ins'" $ concatMap (\(!vs, !_) -> map (,-2) vs) $ concat $ filter ((> 1) . length) . groupBy ((==) `on` snd) $ map (\(!_, !vs, !ps) -> (vs, ps)) groups'
+
+  let assignments = IM.fromListWith f $ map (second succ) $ ins ++ ins'
+        where
+          f x y
+            | x == y = x
+            | otherwise = -1
 
   printList $ IM.elems assignments
 
