@@ -19,11 +19,40 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 solve :: StateT BS.ByteString IO ()
 solve = do
   !n <- int'
-  !xs <- intsU'
+  !s <- line'
+  t@(!tl, !tm, !tr) <- (,,) <$> char' <*> char' <*> char'
+  let !_ = dbg (s)
+  let !_ = dbg (t)
 
-  printBSB "TODO"
+  let res = spanDP n (0 :: Int) (const 0) f
+      f sofar (!len, !l)
+        | len < 3 = 0
+        | len == 3 = bool 0 1 $ (BS.index s l, BS.index s (l + 1), BS.index s (l + 2)) == t
+        | otherwise = max fromSplits fromIwi
+        where
+          !_ = dbg (len, (l, r), fromSplits, fromIwi, max fromSplits fromIwi)
+          !r = l + len - 1
+          readSpan (!l', !r') = sofar @! (r' + 1 - l', l')
+          fromSplits = U.maximum $ U.map (\(!s1, !s2) -> readSpan s1 + readSpan s2) $ twoSplits l r
+          fromIwi
+            | lc /= tl || rc /= tr = minBound @Int
+            | len `mod` 3 /= 0 = minBound @Int
+            | otherwise =
+                U.maximum
+                  $ U.map
+                    ( \(!s1, !mid, !s2) ->
+                        if BS.index s mid == tm && 3 * (readSpan s1 + readSpan s2) == (len - 3)
+                          then len `div` 3
+                          else minBound
+                    )
+                  $ iwiSpansU' (l + 1) (r - 1)
+            where
+              !lc = BS.index s l
+              !rc = BS.index s r
+
+  let !_ = dbg (res)
+  printBSB $ res @! (n, 0)
 
 -- verification-helper: PROBLEM <<url>>
 main :: IO ()
 main = runIO solve
-
