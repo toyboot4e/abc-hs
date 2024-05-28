@@ -18,6 +18,7 @@ executable a-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -60,6 +61,7 @@ executable b-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -102,6 +104,7 @@ executable c-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -144,6 +147,7 @@ executable d-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -186,6 +190,7 @@ executable e-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -228,6 +233,7 @@ executable f-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -270,6 +276,7 @@ executable g-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -312,6 +319,7 @@ executable h-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -354,6 +362,7 @@ executable i-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -396,6 +405,7 @@ executable j-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -438,6 +448,7 @@ executable k-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -480,6 +491,7 @@ executable l-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -522,6 +534,7 @@ executable m-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -564,6 +577,7 @@ executable n-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -606,6 +620,7 @@ executable o-exe
     , array
     , attoparsec
     , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
