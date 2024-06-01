@@ -16,43 +16,27 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
--- https://atcoder.jp/contests/past202012-open/editorial/393
 solve :: StateT BS.ByteString IO ()
 solve = do
-  (!n, !m) <- ints2'
-  es0 <- U.replicateM m ints11'
+  !n <- int'
+  !xs <- intsU'
 
-  !q <- int'
-  !qvs <- U.replicateM q $ (,) <$> int' <*> int1'
+  let !csum =
+        U.foldl'
+          ( \(!xMax, !maxSum) x ->
+              let !xMax' = max xMax x
+               in (xMax', xMax' + maxSum)
+          )
+          (minBound @Int, 0 :: zint)
+          xs
 
-  -- notifications by large vertex
-  !fromLarge <- UM.replicate n (0 :: Int)
-  -- pulled notifications
-  !pushed <- UM.replicate n (0 :: Int)
-  -- read notification counts
-  !counts <- UM.replicate n (0 :: Int)
+  let !res = (`evalState` (0 :: Int)) $ U.mapM (state . step) xs
+  where
+    -- step :: x -> acc -> (x', acc')
+    step x acc = (acc, x)
 
-  let !gr = buildSG n $ swapDupeU es0
+  printBSB "TODO"
 
-  -- large vertices are handleded differently
-  let !isLarge = U.generate n ((>= isqrt m) . U.length . (gr `adj`))
-  let !adjLarge = V.generate n $ U.filter (isLarge U.!) . (gr `adj`)
-
-  U.forM_ qvs $ \case
-    (1, !v1) -> do
-      if isLarge U.! v1
-        then UM.modify fromLarge succ v1
-        else U.forM_ (gr `adj` v1) (UM.modify pushed succ)
-    (2, !v1) -> do
-      x1 <- UM.read pushed v1
-      cnt' <- (`execStateT` x1) $ U.forM_ (adjLarge V.! v1) $ \v2 -> do
-        !dx <- UM.read fromLarge v2
-        modify' (+ dx)
-      cnt <- UM.exchange counts v1 cnt'
-      -- let !_ = dbg (v1, (x1, cnt), cnt')
-      printBSB $ cnt' - cnt
-    _ -> error "unreachable"
-
--- verification-helper: PROBLEM https://atcoder.jp/contests/past202012-open/tasks/past202012_o
+-- verification-helper: PROBLEM https://atcoder.jp/contests/abc356/tasks/abc356_e
 main :: IO ()
 main = runIO solve

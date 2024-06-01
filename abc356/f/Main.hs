@@ -16,43 +16,96 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
--- https://atcoder.jp/contests/past202012-open/editorial/393
+-- | k, l, r. merge from left to right only
+type AccRepr = (Int, Int, Int)
+
+instance Semigroup Acc where
+  {-# INLINE (<>) #-}
+  a1@(Acc (!k, !l1, !r1)) <> a2@(Acc (!_, !l2, !r2))
+    | l1 == -1 = a2
+    | l2 == -1 = a1
+    | l2 - r1 <= k = Acc (k, l1, r2)
+    | otherwise = a1
+
+instance Monoid Acc where
+  {-# INLINE mempty #-}
+  mempty = Acc (-1, -1, -1)
+
+{- ORMOLU_DISABLE -}
+newtype Acc = Acc AccRepr deriving newtype (Eq, Ord, Show) ; unAcc :: Acc -> AccRepr ; unAcc (Acc x) = x ; newtype instance U.MVector s Acc = MV_Acc (U.MVector s AccRepr) ; newtype instance U.Vector Acc = V_Acc (U.Vector AccRepr) ; deriving instance GM.MVector UM.MVector Acc ; deriving instance G.Vector U.Vector Acc ; instance U.Unbox Acc ;
+{- ORMOLU_ENABLE -}
+
+-- from right to left. TODO: Dual does not work, right?
+instance Semigroup Acc' where
+  {-# INLINE (<>) #-}
+  a1@(Acc' (!_, !l1, !r1)) <> a2@(Acc' (!k, !l2, !r2))
+    | l2 == -1 = a1
+    | l1 == -1 = a2
+    | l2 - r1 <= k = Acc' (k, l1, r2)
+    | otherwise = a2
+
+instance Monoid Acc' where
+  {-# INLINE mempty #-}
+  mempty = Acc' (-1, -1, -1)
+
+{- ORMOLU_DISABLE -}
+newtype Acc' = Acc' AccRepr deriving newtype (Eq, Ord, Show) ; unAcc' :: Acc' -> AccRepr ; unAcc' (Acc' x) = x ; newtype instance U.MVector s Acc' = MV_Acc' (U.MVector s AccRepr) ; newtype instance U.Vector Acc' = V_Acc' (U.Vector AccRepr) ; deriving instance GM.MVector UM.MVector Acc' ; deriving instance G.Vector U.Vector Acc' ; instance U.Unbox Acc' ;
+{- ORMOLU_ENABLE -}
+
 solve :: StateT BS.ByteString IO ()
 solve = do
-  (!n, !m) <- ints2'
-  es0 <- U.replicateM m ints11'
+  (!q, !k) <- ints2'
+  !qs <- U.replicateM q ints2'
 
-  !q <- int'
-  !qvs <- U.replicateM q $ (,) <$> int' <*> int1'
+  let xs = U.map snd qs
+  let !dict = dbgId $ U.uniq $ U.modify VAI.sort xs
 
-  -- notifications by large vertex
-  !fromLarge <- UM.replicate n (0 :: Int)
-  -- pulled notifications
-  !pushed <- UM.replicate n (0 :: Int)
-  -- read notification counts
-  !counts <- UM.replicate n (0 :: Int)
+  let !len = G.length dict
 
-  let !gr = buildSG n $ swapDupeU es0
+  -- left to right, right to left
+  conTree <- newSTree @Acc len
+  conTree' <- newSTree @Acc' len
+  sumTree <- newSTree @(Sum Int) len
 
-  -- large vertices are handleded differently
-  let !isLarge = U.generate n ((>= isqrt m) . U.length . (gr `adj`))
-  let !adjLarge = V.generate n $ U.filter (isLarge U.!) . (gr `adj`)
+  let !_ = dbg $ (Acc (5, 3, 3)) <> (Acc (5, 7, 7))
+  let !_ = dbg $ (Acc (5, 7, 7)) <> (Acc (5, 10, 10))
+  let !_ = dbg $ (Acc (5, 3, 5)) <> (Acc (5, 10, 10))
 
-  U.forM_ qvs $ \case
-    (1, !v1) -> do
-      if isLarge U.! v1
-        then UM.modify fromLarge succ v1
-        else U.forM_ (gr `adj` v1) (UM.modify pushed succ)
-    (2, !v1) -> do
-      x1 <- UM.read pushed v1
-      cnt' <- (`execStateT` x1) $ U.forM_ (adjLarge V.! v1) $ \v2 -> do
-        !dx <- UM.read fromLarge v2
-        modify' (+ dx)
-      cnt <- UM.exchange counts v1 cnt'
-      -- let !_ = dbg (v1, (x1, cnt), cnt')
-      printBSB $ cnt' - cnt
-    _ -> error "unreachable"
+  U.forM_ qs $ \case
+    (1, !x) -> do
+      -- flip
+      let !i = bindex dict x
+      a <- readSTree conTree i
+      if a == mempty
+        then do
+          writeSTree conTree i (Acc (k, x, x))
+          writeSTree conTree' i (Acc' (k, x, x))
+          writeSTree sumTree i (Sum 1)
+        else do
+          writeSTree conTree i mempty
+          writeSTree conTree' i mempty
+          writeSTree sumTree i mempty
+    (2, !x) -> do
+      -- dbgVec $ unSegmentTree conTree
+      dbgSTree conTree
+      dbgVec (unSegmentTree conTree)
+      a <- foldSTree conTree 0 1
+      let !_ = dbg (a)
 
--- verification-helper: PROBLEM https://atcoder.jp/contests/past202012-open/tasks/past202012_o
+      let !i = bindex dict x
+      !il <- do
+        !i' <- fmap (fromMaybe i) <$> bsearchSTreeR conTree' 0 i $ \(Acc' (!_, !l, !r)) -> not $ inRange (l, r) x
+        Acc (!_, !l, !_) <- foldSTree conTree i' i
+        return $ bindex dict l
+      !ir <- do
+        !i' <- fmap (fromMaybe i) <$> bsearchSTreeL conTree i (len - 1) $ \(Acc (!_, !l, !r)) -> inRange (l, r) x
+        Acc (!_, !_, !r) <- foldSTree conTree i i'
+        return $ bindex dict r
+
+      let !_ = dbg (x, il, ir)
+      Sum s <- foldSTree sumTree il ir
+      printBSB s
+
+-- verification-helper: PROBLEM https://atcoder.jp/contests/abc356/tasks/abc356_f
 main :: IO ()
 main = runIO solve

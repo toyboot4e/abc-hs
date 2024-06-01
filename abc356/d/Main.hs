@@ -16,43 +16,49 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
--- https://atcoder.jp/contests/past202012-open/editorial/393
+{- ORMOLU_DISABLE -}
+type MyModulo = (998244353 :: Nat) -- (1_000_000_007 :: Nat)
+type MyModInt = ModInt MyModulo ; myMod :: Int ; myMod = fromInteger $ natVal' @MyModulo proxy# ; {-# INLINE modInt #-} ; modInt :: Int -> MyModInt ; modInt = ModInt . (`rem` myMod) ; type RH' = RH HashInt MyModulo ;
+{- ORMOLU_ENABLE -}
+
+solveNaive :: Int -> Int -> MyModInt
+solveNaive n m = U.sum $ U.map (\x -> modInt $ popCount (x .&. m)) $ U.generate (n + 1) id
+
+solve' :: Int -> Int -> MyModInt
+solve' n m = do
+  let !msb = msbOf n
+  let !bits = U.generate (msb + 1) $ \i -> (msb - i, testBit n (msb - i))
+  let !_ = dbg (bits)
+
+  let !res = (+ (modInt $ popCount (n .&. m))) . fst . dbgId $ U.foldl' step s0 bits
+        where
+          s0 = (modInt 0, modInt 0)
+          testBitMI = bool (modInt 0) (modInt 1) . testBit m
+          step a@(!acc, !cnt) (!i, False) = (modInt 2 * acc + testBitMI i * cnt, modInt 2 * cnt)
+            where
+              !_ = dbg (a)
+          step a@(!acc, !cnt) (!i, True) = (modInt 2 * acc + testBitMI i * cnt + bool (modInt (popCount (m .&. (n .&. complement (bit (i+1) - 1))))) (modInt 0) (cnt == 0), modInt 2 * cnt + modInt 1)
+            where
+              !_ = dbg (a)
+
+  res
+
 solve :: StateT BS.ByteString IO ()
 solve = do
   (!n, !m) <- ints2'
-  es0 <- U.replicateM m ints11'
+  printBSB $ solve' n m
 
-  !q <- int'
-  !qvs <- U.replicateM q $ (,) <$> int' <*> int1'
-
-  -- notifications by large vertex
-  !fromLarge <- UM.replicate n (0 :: Int)
-  -- pulled notifications
-  !pushed <- UM.replicate n (0 :: Int)
-  -- read notification counts
-  !counts <- UM.replicate n (0 :: Int)
-
-  let !gr = buildSG n $ swapDupeU es0
-
-  -- large vertices are handleded differently
-  let !isLarge = U.generate n ((>= isqrt m) . U.length . (gr `adj`))
-  let !adjLarge = V.generate n $ U.filter (isLarge U.!) . (gr `adj`)
-
-  U.forM_ qvs $ \case
-    (1, !v1) -> do
-      if isLarge U.! v1
-        then UM.modify fromLarge succ v1
-        else U.forM_ (gr `adj` v1) (UM.modify pushed succ)
-    (2, !v1) -> do
-      x1 <- UM.read pushed v1
-      cnt' <- (`execStateT` x1) $ U.forM_ (adjLarge V.! v1) $ \v2 -> do
-        !dx <- UM.read fromLarge v2
-        modify' (+ dx)
-      cnt <- UM.exchange counts v1 cnt'
-      -- let !_ = dbg (v1, (x1, cnt), cnt')
-      printBSB $ cnt' - cnt
-    _ -> error "unreachable"
-
--- verification-helper: PROBLEM https://atcoder.jp/contests/past202012-open/tasks/past202012_o
+-- verification-helper: PROBLEM https://atcoder.jp/contests/abc356/tasks/abc356_d
 main :: IO ()
 main = runIO solve
+
+propQC :: QC.Property
+propQC =
+  QC.forAll (QC.choose (0, maxN)) $ \n -> do
+    QC.forAll (QC.choose (0, maxN)) $ \m -> do
+      solveNaive n m QC.=== solve' n m
+  where
+    maxN = bit (3 - 1) :: Int
+
+runQC :: IO ()
+runQC = QC.quickCheck (QC.withMaxSuccess 100 propQC)
