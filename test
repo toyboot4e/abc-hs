@@ -8,9 +8,9 @@ problem="$1"
 shift 1
 
 if [ $# -eq 0 ] ; then
-    oj t -N --directory "$problem/test-cases" -c "$problem/Main.hs"
+    oj t -M diff-all -N --directory "$problem/test-cases" -c "$problem/Main.hs"
 else
-    oj t -N --directory "$problem/test-cases" -c "$problem/Main.hs" # "$problem/test-cases/$i"
+    oj t -M diff-all -N --directory "$problem/test-cases" -c "$problem/Main.hs" # "$problem/test-cases/$i"
 fi
 
 # compile:
