@@ -21,48 +21,27 @@ solve = do
   !n <- int'
   !es0 <- U.imap (,) <$> U.replicateM n int1'
 
-  let (!selfLoops, !es) = U.partition (uncurry (==)) es0
+  let es = U.filter (uncurry (/=)) es0
   let !gr = buildSG n es
+  vec <- UM.replicate n (0 :: Int)
 
-  -- REMARK: reverse
+  -- REMARK: reverse in order to iterate from downstream (referenced) vertices
   let !sccs = reverse $ topSccSG gr
-  let (!sumScc :: Int, !sccSize :: U.Vector Int) = runST $ do
+  let res = U.create $ do
         !vec <- UM.replicate n (0 :: Int)
-        (!s :: Int) <- (`execStateT` (0 :: Int)) $ forM_ sccs $ \vs -> case vs of
-          [_] -> return ()
+        forM_ sccs $ \vs -> case vs of
+          [v1] -> do
+            UM.write vec v1 1
+            U.forM_ (gr `adj` v1) $ \v2 -> do
+              delta <- UM.read vec v2
+              UM.modify vec (+ delta) v1
           _ -> do
             let !len = length vs
-            -- exclude self
-            modify' (+ (len * pred len))
             forM_ vs $ \v ->
               UM.write vec v len
-        U.forM_ selfLoops $ \(!v, !_) -> do
-          UM.write vec v 1
-        (s,) <$> U.unsafeFreeze vec
+        return vec
 
-  -- number of reachable vertices other than the vertex itself
-  nReach <- UM.replicate n (0 :: Int)
-  forM_ sccs $ \vs -> case vs of
-    [v1] -> do
-      let !_ = dbg (v1, gr `adj` v1)
-      U.forM_ (gr `adj` v1) $ \v2 -> do
-        !delta <- case sccSize U.! v2 of
-          0 -> do
-            c <- UM.read nReach v2
-            let !_ = dbg (v1, (v2, c))
-            (+ 1) <$> UM.read nReach v2
-          k -> return k
-        UM.modify nReach (+ delta) v1
-      return ()
-    _ -> return ()
-
-  nReach' <- U.unsafeFreeze nReach
-
-  let !_ = dbg (sumScc)
-  let !_ = dbg ("scc", sccs)
-  let !_ = dbg ("reach", nReach')
-
-  printBSB $ U.sum nReach' + sumScc + n
+  printBSB $ U.sum res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc357/tasks/abc357_e
 main :: IO ()
