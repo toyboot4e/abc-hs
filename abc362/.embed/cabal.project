@@ -1,0 +1,4 @@
+packages:
+  ./abc362.cabal
+  verify/verify.cabal
+

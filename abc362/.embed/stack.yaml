@@ -1,0 +1,5 @@
+system-ghc: true
+# GHC 9.4.6
+resolver: lts-21.11
+packages:
+- .
