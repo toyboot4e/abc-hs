@@ -67,37 +67,33 @@ data MinCostFlowBuffer r s c = MinCostFlowBuffer
   }
 
 -- | Returns the wrapped cost for getting the flow, or Nothing when impossible.
---
--- TODO: Return tuple just like ACL.
 relaxedCostFlow' ::
-  (Show (f (CostMCF c)),Num (f (CostMCF c)), Monoid (f (CostMCF c)), U.Unbox (f (CostMCF c)), Ord (f (CostMCF c)), Num (f (CostMCF c)), PrimMonad m, Show c, Num c, U.Unbox c, Integral c, Ord c, Bounded c) =>
+  (Show (f (CostMCF c)), Num (f (CostMCF c)), Monoid (f (CostMCF c)), U.Unbox (f (CostMCF c)), Ord (f (CostMCF c)), Num (f (CostMCF c)), PrimMonad m, Show c, Num c, U.Unbox c, Integral c, Ord c, Bounded c) =>
   (CostMCF c -> f (CostMCF c)) ->
   Int ->
   Int ->
   Int ->
   CapacityMCF c ->
   U.Vector (Vertex, Vertex, CapacityMCF c, CostMCF c) ->
-  m (Maybe (f (CostMCF c)), MinCostFlow (PrimState m) c)
+  m ((f (CostMCF c), CapacityMCF c), MinCostFlow (PrimState m) c)
 relaxedCostFlow' toRelax !nVerts !src !sink !targetFlow !edges = do
   !container <- buildMinCostFlow nVerts edges
   !minCost <- runMinCostFlow toRelax src sink targetFlow container
   return (minCost, container)
 
 relaxedCostFlow ::
-  (Show (f (CostMCF c)),Num (f (CostMCF c)), Monoid (f (CostMCF c)), U.Unbox (f (CostMCF c)), Ord (f (CostMCF c)), Num (f (CostMCF c)), Show c, Num c, U.Unbox c, Integral c, Ord c, Bounded c) =>
+  (Show (f (CostMCF c)), Num (f (CostMCF c)), Monoid (f (CostMCF c)), U.Unbox (f (CostMCF c)), Ord (f (CostMCF c)), Num (f (CostMCF c)), Show c, Num c, U.Unbox c, Integral c, Ord c, Bounded c) =>
   (CostMCF c -> f (CostMCF c)) ->
   Int ->
   Int ->
   Int ->
   CapacityMCF c ->
   U.Vector (Vertex, Vertex, CapacityMCF c, CostMCF c) ->
-  Maybe (f (CostMCF c))
+  (f (CostMCF c), CapacityMCF c)
 relaxedCostFlow toRelax !nVerts !src !sink !targetFlow !edges = runST $ do
   fst <$> relaxedCostFlow' toRelax nVerts src sink targetFlow edges
 
--- | Returns the minimum cost for getting the flow, or Nothing when impossible.
---
--- TODO: Return tuple just like ACL.
+-- | Returns @(minCost, flow)@.
 minCostFlow ::
   (Show c, Num c, U.Unbox c, Integral c, Ord c, Bounded c) =>
   Int ->

@@ -3,6 +3,7 @@
 **/node_modules
 **/.gitignore
 **/.projectile
+**/.submit.hs
 
 Main
 Main.dyn_hi
@@ -10,4 +11,5 @@ Main.dyn_i
 Main.hi
 
 past17
+past18-2
 

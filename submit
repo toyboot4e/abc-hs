@@ -1,8 +1,9 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S bash -euE
 
 # npm install atcoder-cli
 acc='npx acc'
 
+toy-lib -e "$1/Main.hs" > "$1/.submit"
 cd "$1"
 $acc submit -s -- -y
 

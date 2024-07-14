@@ -1,19 +1,9 @@
-#!/usr/bin/env -S bash -x
+#!/usr/bin/env -S bash +x
 
-# script:
+# stack script:
 # oj t -N --directory "$1/test-cases" -c "./$1/Main.hs"
-# oj t -N --directory "$1/test-cases" -c "cabal run $1/Main.hs"
 
-problem="$1"
-shift 1
-
-if [ $# -eq 0 ] ; then
-    oj t -M diff-all -N --directory "$problem/test-cases" -c "$problem/Main.hs"
-else
-    oj t -M diff-all -N --directory "$problem/test-cases" -c "$problem/Main.hs" # "$problem/test-cases/$i"
-fi
-
-# compile:
-# cabal build "$1-exe" # --ghc-options -DDEBUG
-# oj t -N --directory "$1/test-cases" -c "cabal run $1-exe"
+# cabal:
+cabal build "$1-exe" # --ghc-options -DDEBUG
+oj t -N --directory "$1/test-cases" -c "cabal run $1-exe"
 

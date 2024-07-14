@@ -1,0 +1,3 @@
+packages:
+  ./_acc.cabal
+  ~/dev/hs/toy-lib/toy-lib.cabal

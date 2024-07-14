@@ -3,6 +3,6 @@
         "program": [
             "Main.hs"
         ],
-        "submit": "Main.hs"
+        "submit": ".submit.hs"
     }
 }
