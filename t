@@ -1,4 +1,5 @@
 #!/usr/bin/env -S bash +x
+# test
 
 # stack script:
 # oj t -N --directory "$1/test-cases" -c "./$1/Main.hs"
