@@ -25,15 +25,35 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
-count :: Int -> Int
-count n = 
+dnForDigit :: Int -> Int
+dnForDigit n = 9 * 10 ^ ((n - 1) `div` 2)
+
+calc :: Int -> (Int, Int)
+calc n = inner 1 n
+  where
+    inner !nDigit !nRest
+      | nRest <= dn = (nDigit, nRest)
+      | otherwise = inner (nDigit + 1) (nRest - dn)
+      where
+        dn = dnForDigit nDigit
+
+--  - - - - -
+--  <--->
+--  m := (n + 1) `div` 2
+--  10^(m-1) + nRest - 2   .. left half
+resolve :: Int -> Int -> String
+resolve nDigits nRest
+  | odd nDigits = leftHalf ++ tail (reverse leftHalf)
+  | otherwise = leftHalf ++ reverse leftHalf
+  where
+    m = (nDigits + 1) `div` 2
+    leftHalf = show $ 10 ^ (m - 1) + nRest - 2
 
 solve :: StateT BS.ByteString IO ()
 solve = do
   !n <- int'
-  !xs <- intsU'
-
-  printBSB "TODO"
+  let (!nDigits, !nRest) = note n $ calc n
+  printBSB $ resolve nDigits nRest
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc363/tasks/abc363_d
 main :: IO ()
