@@ -50,7 +50,7 @@ solve = do
   !q <- int'
   qs <- U.replicateM q ints11'
 
-  let tpsByPerson_ = V.map swap . U.convert $ U.modify (VAI.sortBy (comparing fst)) tps :: V.Vector (Int, Int)
+  let tpsByPerson_ = V.map swap . U.convert $ tps :: V.Vector (Int, Int)
   let !tpsByPerson = V.map U.fromList . V.accumulate (flip (:)) (V.replicate n ([] :: [Int])) $ tpsByPerson_ :: V.Vector (U.Vector Int)
 
   let !intervals = (`V.imap` tpsByPerson) $ \iPerson ts ->
