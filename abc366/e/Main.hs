@@ -14,7 +14,7 @@ import ToyLib.Contest.Bisect
 -- import Data.Core.SemigroupAction
 -- import Data.ModInt
 -- import Data.PowMod
-import Data.MultiSet
+import Data.IntMap
 
 -- }}} toy-lib import
 {-# RULES "Force inline VAI.sort" VAI.sort = VAI.sortBy compare #-}
@@ -25,44 +25,44 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
+-- FIXME: duplicate code
 calc :: Int -> U.Vector Int -> U.Vector Int
 calc d xs = dxSumDist
   where
     !n = G.length xs
     !midX = U.head $ U.drop (n `div` 2) xs
-    !ms = fromListMS $ U.toList xs
-    !dxSumDist = U.zipWith (+) toL toR
+    !im = IM.fromListWith (+) $ U.toList $ U.map (, 1 :: Int) xs
+    !dxSumDist = dbgId $ U.zipWith (+) toL toR
       where
         atOrigin = U.sum $ U.map (abs . subtract midX) xs
-        nl0 = U.sum $ U.takeWhile (<= midX) xs
+        nl0 = U.length $ U.takeWhile (<= midX) xs
         toL = U.create $ do
           dist <- UM.replicate (d + 1) (0 :: Int)
-          when (atOrigin <= d) $ do
-            GM.modify dist succ atOrigin
           U.foldM'
             ( \(!acc, !nl) i -> do
-                let !x = i + midX
-                    !nl' = nl + fromMaybe 0 (lookupMS (x + 1) ms)
-                    !nr = G.length xs - nl
+                -- FIXME: double counting at origin
+                when (acc <= d && i /= 0) $ do
+                  GM.modify dist succ acc
+                let !x = midX + i
+                    !nr = n - nl
                     !acc' = acc + nl - nr
-                when (acc' <= d) $ do
-                  GM.modify dist succ acc'
+                    !nl' = nl + fromMaybe 0 (IM.lookup (x + 1) im)
                 return (acc', nl')
             )
             (atOrigin, nl0)
             (U.generate (d + 1) id)
           return dist
-        nr0 = U.sum $ U.dropWhile (< midX) xs
+        nr0 = U.length $ U.dropWhile (< midX) xs
         toR = U.create $ do
           dist <- GM.replicate (d + 1) (0 :: Int)
           U.foldM'
             ( \(!acc, !nr) i -> do
+                when (acc <= d) $ do
+                  GM.modify dist succ acc
                 let !x = midX - i
-                    !nr' = nr + fromMaybe 0 (lookupMS (x - 1) ms)
-                    !nl = G.length xs - nr
+                    !nl = n - nr
                     !acc' = acc + nr - nl
-                when (acc' <= d) $ do
-                  GM.modify dist succ acc'
+                    !nr' = nr + fromMaybe 0 (IM.lookup (x - 1) im)
                 return (acc', nr')
             )
             (atOrigin, nr0)
@@ -82,7 +82,7 @@ solve = do
   let !ys' = calc d ys
   let !ysSum = csum1D ys'
 
-  let !res = U.sum . (`U.imap` xs') $ \i nx -> nx * ysSum +! (0, d - nx)
+  let !res = U.sum . (`U.imap` xs') $ \i nx -> nx * ysSum +! (0, d - i)
   printBSB res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc366/tasks/abc366_e
