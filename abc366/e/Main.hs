@@ -14,7 +14,6 @@ import ToyLib.Contest.Bisect
 -- import Data.Core.SemigroupAction
 -- import Data.ModInt
 -- import Data.PowMod
-import Data.IntMap
 
 -- }}} toy-lib import
 {-# RULES "Force inline VAI.sort" VAI.sort = VAI.sortBy compare #-}
@@ -25,49 +24,53 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
--- FIXME: duplicate code
+-- TODO: deduplicate code
 calc :: Int -> U.Vector Int -> U.Vector Int
 calc d xs = dxSumDist
   where
     !n = G.length xs
     !midX = U.head $ U.drop (n `div` 2) xs
-    !im = IM.fromListWith (+) $ U.toList $ U.map (, 1 :: Int) xs
-    !dxSumDist = dbgId $ U.zipWith (+) toL toR
+    !im = IM.fromListWith (+) $ U.toList $ U.map (,1 :: Int) xs
+    !dxSumDist = U.create $ do
+      dist <- UM.replicate (d + 1) (0 :: Int)
+
+      -- origin
+      when (atOrigin <= d) $ do
+        GM.modify dist succ atOrigin
+
+      -- to right
+      U.foldM'
+        ( \(!acc, !nl) i -> do
+            let !x = midX + i
+                !nr = n - nl
+                !acc' = acc + nl - nr
+                !nl' = nl + fromMaybe 0 (IM.lookup (x + 1) im)
+            when (acc' <= d) $ do
+              GM.modify dist succ acc'
+            return (acc', nl')
+        )
+        (atOrigin, nl0)
+        (U.generate d id)
+
+      -- to left
+      U.foldM'
+        ( \(!acc, !nr) i -> do
+            let !x = midX - i
+                !nl = n - nr
+                !acc' = acc + nr - nl
+                !nr' = nr + fromMaybe 0 (IM.lookup (x - 1) im)
+            when (acc' <= d) $ do
+              GM.modify dist succ acc'
+            return (acc', nr')
+        )
+        (atOrigin, nr0)
+        (U.generate d id)
+
+      return dist
       where
         atOrigin = U.sum $ U.map (abs . subtract midX) xs
         nl0 = U.length $ U.takeWhile (<= midX) xs
-        toL = U.create $ do
-          dist <- UM.replicate (d + 1) (0 :: Int)
-          U.foldM'
-            ( \(!acc, !nl) i -> do
-                -- FIXME: double counting at origin
-                when (acc <= d && i /= 0) $ do
-                  GM.modify dist succ acc
-                let !x = midX + i
-                    !nr = n - nl
-                    !acc' = acc + nl - nr
-                    !nl' = nl + fromMaybe 0 (IM.lookup (x + 1) im)
-                return (acc', nl')
-            )
-            (atOrigin, nl0)
-            (U.generate (d + 1) id)
-          return dist
         nr0 = U.length $ U.dropWhile (< midX) xs
-        toR = U.create $ do
-          dist <- GM.replicate (d + 1) (0 :: Int)
-          U.foldM'
-            ( \(!acc, !nr) i -> do
-                when (acc <= d) $ do
-                  GM.modify dist succ acc
-                let !x = midX - i
-                    !nl = n - nr
-                    !acc' = acc + nr - nl
-                    !nr' = nr + fromMaybe 0 (IM.lookup (x - 1) im)
-                return (acc', nr')
-            )
-            (atOrigin, nr0)
-            (U.generate (d + 1) id)
-          return dist
 
 solve :: StateT BS.ByteString IO ()
 solve = do
