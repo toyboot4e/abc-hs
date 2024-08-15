@@ -7,22 +7,21 @@ $acc new "$1" --template haskell --choice all
 # mkdir "$1"
 
 # For HLS
-cat _acc/hie.yaml     | sed "s;_acc;$1;g" > "$1/hie.yaml"
+# cat _acc/hie.yaml | sed "s;_acc;$1;g" > "$1/hie.yaml"
 
 # stack
 package_name="$(printf '%s' "$1" | sed 's/_/-/g')"
-cat _acc/package.yaml | sed "s;^name:.*;name: $package_name;g" > "$1/package.yaml"
-cat _acc/stack.yaml > "$1/stack.yaml"
 
 # cabal
 cat _acc/_acc.cabal | sed "s;_acc;$1;g" > "$1/$1.cabal"
+cat _acc/cabal.project | sed "s;_acc;$1;g" > "$1/cabal.project"
 
 cd "$1"
 
 # Emacs
 : > ".projectile"
 
-# verifycation-helper contest IDs
+# patch source files to embed `verifycation-helper` contest IDs:
 for f in $(command ls */*.hs) ; do
   # Example: <<url>> -> https://atcoder.jp/contests/abc294/tasks/abc294_b
   contest="$1"

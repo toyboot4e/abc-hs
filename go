@@ -10,6 +10,7 @@ sleep 3
 
 cd "$1"
 tmux send-keys -t "$pane" "cd ${1}" Enter
-tmux send-keys -t "$pane" "../test a"
+tmux send-keys -t "$pane" "time cabal build" Enter
+tmux send-keys -t "$pane" "../t a"
 em a/Main.hs
 
