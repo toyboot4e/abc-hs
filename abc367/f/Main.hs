@@ -15,6 +15,8 @@ import ToyLib.Contest.Prelude
 -- import Data.ModInt
 -- import Data.PowMod
 -- import Data.Primes
+import Data.Algorithm.Mo
+import Data.SignedMultiSet
 
 -- }}} toy-lib import
 {-# RULES "Force inline VAI.sort" VAI.sort = VAI.sortBy compare #-}
@@ -27,8 +29,12 @@ debug :: Bool ; debug = False
 
 solve :: StateT BS.ByteString IO ()
 solve = do
-  !n <- int'
+  (!n, !q) <- ints2'
   !xs <- intsU'
+  !ys <- intsU'
+  !qs <- UM.replicate q ints4'
+
+  -- res < runMo (U.zip xs ys) 
 
   printBSB "TODO"
 

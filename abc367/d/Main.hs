@@ -33,28 +33,13 @@ solve = do
   !ds <- intsU'
 
   let !sumMod = U.sum ds `mod` m
-
   let !pos = U.init $ U.scanl' (addMod m) (0 :: Int) ds
-  let !dist = U.accumulate (+) (U.replicate m (0 :: Int)) $ U.map (,1) pos
+  !dist <- U.unsafeThaw $ U.accumulate (+) (U.replicate m (0 :: Int)) $ U.map (,1) pos
 
-  nL <- UM.replicate m (0 :: Int)
-  nR <- UM.replicate m (0 :: Int)
-  U.forM_ pos $ \x -> do
-    UM.modify nR succ x
-
-  res <- (`execStateT` (0 :: Int)) $ U.forM_ pos $ \x -> do
-    GM.modify nR pred x
-
-    -- xL + (sumMod - x) = 0 (mod m)
-    -- xL = x - sumModd
-    dnL <- GM.read nL $ (x - sumMod) `mod` m
-    dnR <- GM.read nR x
-    let !_ = dbg (x, (dnL, dnR))
-    modify' (+ (dnL + dnR))
-
-    GM.modify nL succ x
-
-  printBSB res
+  printBSB <=< (`execStateT` (0 :: Int)) $ U.forM_ pos $ \x -> do
+    GM.modify dist pred x
+    modify' . (+) =<< GM.read dist x
+    GM.modify dist succ (addMod m x sumMod)
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc367/tasks/abc367_d
 main :: IO ()

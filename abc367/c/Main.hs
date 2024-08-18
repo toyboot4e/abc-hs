@@ -29,22 +29,19 @@ debug :: Bool ; debug = False
 solve :: StateT BS.ByteString IO ()
 solve = do
   (!n, !k) <- ints2'
-  !constraints <- U.reverse <$> intsU'
+  constraints <- intsU'
 
-  let minX = 6 ^ (n - 1) :: Int
-  let maxX = 6 ^ n - 1 :: Int
-  let !_ = dbg (n, k, minX, maxX)
-
-  let candidates = U.generate (maxX + 1 - minX) (+ minX)
-  let res = U.filter p candidates
+  let candidates :: [[Int]]
+      candidates = inner 0 $ U.toList constraints
         where
-          p x
-            | U.sum digits `mod` k /= 0 = False
-            | otherwise = U.and $ U.zipWith (\d c -> inRange (1, c) d) digits constraints
-            where
-              digits = toDigitsU 6 x
+          inner !acc []
+            | acc `mod` k == 0 = [[]]
+            | otherwise = []
+          inner !acc (a : as) = do
+            d <- [1 .. a]
+            (d :) <$> inner (acc + d) as
 
-  U.forM_ res $ printBSB . unwordsBSB . U.reverse . toDigitsU 6
+  printBSB . foldMap ((<> endlBSB) . unwordsBSB . U.fromList) $ candidates
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc367/tasks/abc367_c
 main :: IO ()

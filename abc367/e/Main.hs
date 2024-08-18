@@ -16,6 +16,8 @@ import ToyLib.Contest.Prelude
 -- import Data.PowMod
 -- import Data.Primes
 import Data.BinaryLifting
+import Data.Core.SemigroupAction
+import Math.Stimes
 
 -- }}} toy-lib import
 {-# RULES "Force inline VAI.sort" VAI.sort = VAI.sortBy compare #-}
@@ -32,12 +34,7 @@ solve = do
   (!n, !k) <- ints2'
   !perm <- U.map pred <$> intsU'
   !xs <- intsU'
-
-  let !perm1 = TransitionalSemigroup $ U.map (,()) perm
-  let !permBL = cacheBLV perm1
-  let !res = U.generate n $ sactBL permBL k . (,())
-
-  printVec $ U.backpermute xs $ U.map fst res
+  printVec $ sactTimes k (Permutation perm) xs
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc367/tasks/abc367_e
 main :: IO ()
