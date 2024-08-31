@@ -16,14 +16,30 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+calc :: Int -> Int -> U.Vector Int -> Bool
+calc lower upper = inner 0
+  where
+    inner acc xs = case U.uncons xs of
+      Nothing -> let !_ = dbg ("done with" ++ show acc) in acc == 0 || acc >= lower
+      Just (!x, !xs')
+        -- merge it
+        | acc + x < upper -> inner (acc + x) xs'
+        -- merge it and split
+        | acc + x == upper -> inner 0 xs'
+        -- incompatible
+        | acc + x > upper && acc < lower -> False
+        -- split here
+        | otherwise -> inner 0 xs
+        where
+          !_ = dbg ((lower, upper), acc, x, xs')
+
 solve :: StateT BS.ByteString IO ()
 solve = do
-  !n <- int'
+  (!n, !l) <- ints2'
   !xs <- intsU'
-
-  printBSB "TODO"
+  let !res = fromMaybe 0 $ bisectR 1 l $ \lower -> not $ calc lower l xs
+  printBSB res
 
 -- verification-helper: PROBLEM <<url>>
 main :: IO ()
 main = runIO solve
-

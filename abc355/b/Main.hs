@@ -21,8 +21,8 @@ solve = do
   _ <- line'
   !xs <- U.map (,True) <$> intsU'
   !ys <- U.map (,False) <$> intsU'
-  let !zs = U.modify (VAI.sortBy (comparing fst)) $ xs U.++ ys
-  let !res = U.or $ U.zipWith (\(!_, !b1) (!_, !b2) -> b1 && b2) zs (U.tail zs)
+  let !zs = U.map snd $ U.modify (VAI.sortBy (comparing fst)) $ xs U.++ ys
+  let !res = U.or $ U.zipWith (&&) zs (U.tail zs)
   printYn res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc355/tasks/abc355_b

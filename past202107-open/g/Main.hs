@@ -16,21 +16,27 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+printList' :: (ShowBSB a, U.Unbox a) => [a] -> IO ()
+printList' = putLnBSB . unwordsBSB . U.fromList
+
+-- Can't come up with it..
 solve :: Int -> [Int]
-solve = U.fol
+solve = inner 1
   where
-    inner 0 = []
-    inner x
-      -- TODO: move to pre work
-      | r == 1 =
-      | r == 2 =
-      | otherwise = 
+    inner c 1 = [c]
+    inner c 2 = [3 * c, - c]
+    inner c n = case r of
+      0 -> inner (3 * c) q
+      1 -> c : inner (3 * c) q
+      2 -> (-c) : inner (3 * c) (q + 1)
+      _ -> error "unreachable"
       where
-        (!q, !r) = x `divMod` 3
+        (!q, !r) = n `divMod` 3
 
 main :: IO ()
 main = do
   !n <- ints1
-  let !res = solve n
+  let !res = dbgId $ solve n
+  let !_ = dbgAssert (sum res == n) $ show (sum res)
   print $ length res
-  putStrLn . unwords $ map show res
+  printList' res

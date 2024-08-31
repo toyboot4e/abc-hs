@@ -4,6 +4,7 @@ dependencies:
    - QuickCheck
    - array
    - attoparsec
+   - bitvec
    - bytestring
    - containers
    - deepseq

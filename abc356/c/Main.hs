@@ -18,6 +18,7 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 
 solve :: StateT BS.ByteString IO ()
 solve = do
+  let !_ = (U.fromList [0 :: Int]) G.! 5
   (!n, !m, !k) <- ints3'
   tests <- U.replicateM m $ do
     c <- int'

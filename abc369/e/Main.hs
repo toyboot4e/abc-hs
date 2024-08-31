@@ -37,53 +37,24 @@ solve = do
     k <- int'
     U.map pred <$> intsU'
 
-  let !undef = 10 ^ 16 :: Int
+  -- oh no, it's smart enough to ignore heavy edges
+  let !dists = distsNN n (-1) $ swapDupeW es
 
-  -- use min weight edges
-  let !es' =
-        U.fromList
-          . map U.head
-          . U.groupBy ((==) `on` (\(!u, !v, !_) -> (u, v)))
-          . U.modify VAI.sort
-          $ es
-  let !dists = distsNN n undef $ swapDupeW es'
-
-  -- let resolveRoute vs = U.sum $ U.zipWith (\u v -> dists @! (u, v)) vs (U.tail vs)
-  let resolveRoute es = fromEdge + fromGr
+  let resolveRoute :: U.Vector (Vertex, Vertex, Int) -> Int
+      resolveRoute = done . U.foldl' step s0
         where
-          fromEdge = U.sum $ U.map thd3 es
-          fromGr =
-            U.sum $
-              U.zipWith
-                ( \(!_, !u, !_) (!v, !_, !_) ->
-                    -- FIXME:
-                    if u == v
-                      then 0
-                      else dists @! (u, v)
-                )
-                es
-                (U.tail es)
-
-  let solve1 iEdges = U.minimum . U.generate (bit (G.length iEdges)) $ \mask ->
-        let !es' =
-              U.imap
-                ( \i (!u, !v, !w) ->
-                    if testBit mask i
-                      then (u, v, w)
-                      else (v, u, w)
-                )
-                edges
-            -- FIXME:
-            !perms = dbgId $ lexPerms (U.generate (G.length iEdges) id)
-            -- !perms = V.fromList $ map U.fromList $ permutations [0 .. G.length iEdges - 1]
-            !candidates = V.map (resolveRoute . buildRoute es') perms
-         in V.minimum candidates
-        where
-          edges = U.backpermute es iEdges
-          buildRoute es is = vs
+          s0 :: [(Vertex, Int)]
+          s0 = [(0, 0)]
+          done = minimum . map (\(!v, !acc) -> acc + dists @! (v, n - 1))
+          step candidates (!u, !v, !w) = [toU, toV]
             where
-              !vs = (`U.snoc` (n - 1, n - 1, 0)) . U.cons (0, 0, 0) $ U.backpermute es is
+              !toU = (u,) $! toNext v
+              !toV = (v,) $! toNext u
+              toNext v1 = minimum $ do
+                (!v0, !acc) <- candidates
+                return $! acc + dists @! (v0, v1) + w
 
+  let solve1 = V.minimum . V.map (resolveRoute . U.backpermute es) . lexPerms
   let res = V.map solve1 qs
   printBSB $ unlinesBSB res
 

@@ -79,7 +79,7 @@ solve = do
 
   let !xs = U.modify VAI.sort $ U.map fst xys
   let !xs' = calc d xs
-  let !xsSum = csum1D xs'
+  -- let !xsSum = csum1D xs'
 
   let !ys = U.modify VAI.sort $ U.map snd xys
   let !ys' = calc d ys

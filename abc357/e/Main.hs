@@ -42,6 +42,7 @@ solve = do
         return vec
 
   printBSB $ U.sum res
+  printBSB $ U.sum res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc357/tasks/abc357_e
 main :: IO ()

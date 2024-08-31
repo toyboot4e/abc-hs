@@ -19,7 +19,7 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 solve :: StateT BS.ByteString IO ()
 solve = do
   !n <- int'
-  !ss0 <- dbgId . V.modify VAI.sort <$> V.replicateM n word'
+  !ss0 <- V.modify VAI.sort <$> V.replicateM n word'
 
   let headMayBS bs
         | BS.null bs = '-'
@@ -30,7 +30,7 @@ solve = do
         | BS.null bs = bs
         | otherwise = BS.tail bs
   let resolve ss =
-        let !groups = dbgId $ V.fromList . map (V.map safeTailBS) $ grp $ V.filter (not . BS.null) ss
+        let !groups = V.fromList . map (V.map safeTailBS) $ grp $ V.filter (not . BS.null) ss
             !delta = V.sum $ V.map (\xs -> G.length xs * (G.length xs - 1) `div` 2) groups
             -- !groups' = bool groups (V.tail groups) $ BS.null $ V.head (V.head groups)
          in (delta +) . V.sum $ V.map resolve groups

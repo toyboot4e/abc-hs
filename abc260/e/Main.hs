@@ -18,8 +18,28 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 
 main :: IO ()
 main = do
-  !n <- ints1
-  !xs <- intsU
+  (!nConstraints, !m) <- ints2
+  !lrs0 <- U.modify VAI.sort <$> U.replicateM nConstraints (both pred <$> ints2)
 
-  putStrLn "TODO"
+  csum <- UM.replicate (m + 1) (0 :: Int)
 
+  let f ms l lrs = case U.uncons lrs of
+        Just ((!l', !r'), lrs')
+          | l' < l -> f ((incMS r' . decMS l') ms) l lrs'
+        -- no more
+        _ | l > lmost -> return ()
+        _ -> do
+          let minLen = (rmost + 1) - l
+          let maxLen = m - l
+          UM.modify csum succ (minLen - 1)
+          UM.modify csum pred maxLen
+          f ms (l + 1) lrs
+        where
+          Just (!lmost, !_) = IM.lookupMin (innerMS ms)
+          Just (!rmost, !_) = IM.lookupMax (innerMS ms)
+
+  let ms0 = fromListMS . U.toList $ U.map fst lrs0
+  f ms0 0 lrs0
+
+  res <- U.scanl1' (+) <$> U.unsafeFreeze csum
+  printVec $ U.init res

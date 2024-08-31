@@ -16,45 +16,48 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+-- calc :: U.Vector Int -> U.Vector Int
+-- calc xs =
+--   let (Max !maxCnt, !counts) = runST $ do
+--         -- phase 1. count
+-- 
+--         -- value -> max count
+--         stree <- newSTree @(Max Int) n
+-- 
+--         -- position -> count
+--         counts <- UM.unsafeNew n
+-- 
+--         U.forM_ (U.reverse (U.indexed xs)) $ \(!i, !x) -> do
+--           cnt <- succ . maybe 0 (\x -> if x == mempty then 0 else getMax x) <$> foldMaySTree stree (x + 1) (n - 1)
+--           modifySTree stree (Max cnt <>) x
+--           UM.write counts i cnt
+-- 
+--         -- dbgSTree stree
+--         dbgVec counts
+--         (,) <$> foldAllSTree stree <*> U.unsafeFreeze counts
+--    in runST $ do
+--         -- phase 2. restore
+--         !res <- newBufferAsQueue n
+-- 
+--         -- count -> min value. because count is one-based, be sure to plus one.
+--         !countToValue <- UM.replicate (n + 2) (maxBound @Int)
+-- 
+--         -- guard
+--         UM.write countToValue (maxCnt + 1) (-1)
+-- 
+--         U.iforM_ (U.zip xs counts) $ \i (!x, !cnt) -> do
+--           x' <- UM.read countToValue (cnt + 1)
+--           when (x' < x) $ do
+--             -- reachable from the sink
+--             UM.modify countToValue (min x) cnt
+--             pushBack res i
+-- 
+--         unsafeFreezeBuffer res
+--   where
+--     !n = G.length xs
+
 calc :: U.Vector Int -> U.Vector Int
-calc xs =
-  let (Max !maxCnt, !counts) = runST $ do
-        -- phase 1. count
-
-        -- value -> max count
-        stree <- newSTree @(Max Int) n
-
-        -- position -> count
-        counts <- UM.unsafeNew n
-
-        U.forM_ (U.reverse (U.indexed xs)) $ \(!i, !x) -> do
-          cnt <- succ . maybe 0 (\x -> if x == mempty then 0 else getMax x) <$> foldMaySTree stree (x + 1) (n - 1)
-          modifySTree stree (Max cnt <>) x
-          UM.write counts i cnt
-
-        -- dbgSTree stree
-        dbgVec counts
-        (,) <$> foldAllSTree stree <*> U.unsafeFreeze counts
-   in runST $ do
-        -- phase 2. restore
-        !res <- newBufferAsQueue n
-
-        -- count -> min value. because count is one-based, be sure to plus one.
-        !countToValue <- UM.replicate (n + 2) (maxBound @Int)
-
-        -- guard
-        UM.write countToValue (maxCnt + 1) (-1)
-
-        U.iforM_ (U.zip xs counts) $ \i (!x, !cnt) -> do
-          x' <- UM.read countToValue (cnt + 1)
-          when (x' < x) $ do
-            -- reachable from the sink
-            UM.modify countToValue (min x) cnt
-            pushBack res i
-
-        unsafeFreezeBuffer res
-  where
-    !n = G.length xs
+calc xs = _
 
 solve :: StateT BS.ByteString IO ()
 solve = do

@@ -18,24 +18,34 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 
 solve :: StateT BS.ByteString IO ()
 solve = do
+  liftIO $ putStrLn "a"
+  liftIO $ putStrLn "b"
+  liftIO $ putStrLn "c"
   !n <- int'
   !xs <- intsU'
 
-  let !csum =
-        U.foldl'
-          ( \(!xMax, !maxSum) x ->
-              let !xMax' = max xMax x
-               in (xMax', xMax' + maxSum)
-          )
-          (minBound @Int, 0 :: zint)
-          xs
+  let !cnts = U.accumulate (+) (U.replicate (10 ^ 6 + 1) (0 :: Int)) $ U.map (,1 :: Int) xs
+  let !csum = U.scanl' (+) (0 :: Int) cnts
+  let !lim = 10 ^ 6 :: Int
 
-  let !res = (`evalState` (0 :: Int)) $ U.mapM (state . step) xs
-  where
-    -- step :: x -> acc -> (x', acc')
-    step x acc = (acc, x)
+  -- We have three variables y, q and d:
+  --     y = q * d + r
+  --     y `div` q = d
+  -- 1. loop through d (the division result)
+  -- 2. loop through q
+  -- 3. y = y in [q * d .. q * (d + 1) - 1]
+  let !res = U.sum $ U.generate lim (f . succ)
+        where
+          f d = subtract xx . U.sum $ U.map (g d) $ U.generate (qMax - qMin + 1) (+ 1)
+            where
+              qMax = lim `div` d
+              qMin = 1
+              -- what??
+              xx = let !nd = cnts U.! d in nd * succ nd `div` 2
+          -- q * nd * ny
+          g d q = d * (cnts U.! q) * (csum +! (q * d, min lim $ q * (d + 1) - 1))
 
-  printBSB "TODO"
+  printBSB res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc356/tasks/abc356_e
 main :: IO ()

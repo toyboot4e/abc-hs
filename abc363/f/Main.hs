@@ -30,6 +30,8 @@ solve = do
   !n <- int'
   !xs <- intsU'
 
+  let ys = U.unfoldrEx
+
   printBSB "TODO"
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc363/tasks/abc363_f

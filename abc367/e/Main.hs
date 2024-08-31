@@ -28,7 +28,6 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
--- TODO: faster
 solve :: StateT BS.ByteString IO ()
 solve = do
   (!n, !k) <- ints2'
@@ -39,3 +38,19 @@ solve = do
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc367/tasks/abc367_e
 main :: IO ()
 main = runIO solve
+
+
+propQC :: QC.Property
+propQC = do
+  -- 1 <= N <= maxN
+  n <- QCM.run $ QC.choose (1, maxN)
+  -- [x | 1 <= x <= 5,000]
+  xs <- QCM.run $ U.fromList <$> QC.vectorOf n (QC.choose (1, 5000))
+  -- solveAC n xs QC.=== solveWA n xs
+  return $ True QC.=== True
+  where
+    maxN = 1000
+
+runQC :: IO ()
+runQC = QC.quickCheck (QC.withMaxSuccess 100 propQC)
+

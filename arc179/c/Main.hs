@@ -16,9 +16,18 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+testFunction :: HasCallStack => IO ()
+testFunction = do
+  let !_ = 123
+  let !_ = testBit (3 :: Int) (-1 :: Int)
+  return ()
+
+test2 :: HasCallStack => IO ()
+test2 = testFunction
+
 solve :: StateT BS.ByteString IO ()
 solve = do
-  testBit (3 :: Int) (-1 :: Int)
+  liftIO test2
   !n <- int'
   !xs <- intsU'
 

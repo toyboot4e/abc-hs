@@ -18,12 +18,29 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 
 solve :: StateT BS.ByteString IO ()
 solve = do
-  !n <- int'
-  !xs <- intsU'
+  !gr <- getGrid' 4 4
 
-  printBSB "TODO"
+  let !bnd = zero2 4 4
+  let !grBitset = dbgId $ U.foldl' (setBit) (0 :: Int) $ U.findIndices (== '#') (vecIV gr)
+  let !res = U.constructN (grBitset + 1) $ \sofar -> case popCount (G.length sofar) of
+        0 -> 0.0
+        1 -> 5.0
+        _ -> U.minimum $ U.generate 16 $ f sofar
+      f sofar i
+        | nHops == 0 = 10 ^ 9 :: Double
+        | otherwise = (intToDouble 5.0 + sumHops) / intToDouble nHops
+        where
+          !set = U.length sofar
+          (!y, !x) = i `divMod` 4
+          adj5 = U.filter (inRange bnd) $ U.cons (y, x) $ U.map (add2 (y, x)) ortho4
+          !hops = U.filter (testBit set) $ U.map (index bnd) adj5
+          !nHops = G.length hops
+          !sumHops = U.sum $ U.backpermute sofar $ U.map (clearBit set) hops
 
--- verification-helper: PROBLEM <<url>>
+  let !_ = dbg (res)
+  printBSB $ U.last res
+
+-- verification-helper: PROBLEM https://atcoder.jp/contests/past202012-open/tasks/past202012_k
+-- verification-helper: ERROR 0.000001
 main :: IO ()
 main = runIO solve
-

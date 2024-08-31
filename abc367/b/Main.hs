@@ -1,1 +1,1 @@
-import Data.List;main=interact$max"0".dropWhileEnd(`elem`"0.\n")
+import Data.List;main=interact$dropWhileEnd(=='0').dropWhileEnd(=='0')

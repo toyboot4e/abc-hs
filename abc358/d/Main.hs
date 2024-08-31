@@ -22,15 +22,14 @@ solve = do
   !input <- fromListMS . U.toList <$> intsU'
   !constraints <- U.modify VAI.sort <$> intsU'
 
-  let (!isOk, !res, !_) = U.foldl' step s0 constraints
+  let res = maybe (-1) fst $ U.foldM' step s0 constraints
         where
-          s0 = (True, 0 :: Int, input)
-          step a@(False, !_, !_) _ = a
-          step (True, !acc, !ms) x = case IM.lookupGE x (innerMS ms) of
-            Nothing -> (False, 0, ms)
-            Just (!k, !_) -> (True, acc + k, decMS k ms)
+          s0 = (0 :: Int, input)
+          step (!acc, !ms) x = do
+            (!k, !_) <- IM.lookupGE x (innerMS ms)
+            return (acc + k, decMS k ms)
 
-  printBSB $ bool (-1) res isOk
+  printBSB res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc358/tasks/abc358_d
 main :: IO ()

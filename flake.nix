@@ -4,16 +4,12 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    nixpkgs-oj.url = "github:NixOS/nixpkgs/3f316d2a50699a78afe5e77ca486ad553169061e";
   };
 
-  outputs = { nixpkgs, flake-utils, nixpkgs-oj, ... }:
+  outputs = { nixpkgs, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
-        pkgs-oj = import nixpkgs-oj {
-          inherit system;
-        };
       in
       {
         devShells.default = with pkgs; mkShell {
@@ -29,11 +25,10 @@
           packages = [
             # atcoder-cli is from npm
 
-            # online-judge-tools
-            pkgs-oj.online-judge-tools
-            # python311Packages.selenium
-            # python311Packages.pyaml
-            # python311Packages.importlab
+            online-judge-tools
+            python311Packages.selenium
+            python311Packages.pyaml
+            python311Packages.importlab
             # python311Packagesz.sxsdiff # for oj side-by-side diff
             nodejs
 

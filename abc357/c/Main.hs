@@ -30,6 +30,7 @@ draw gr y0 x0 w h = do
 solve :: StateT BS.ByteString IO ()
 solve = do
   !n <- int'
+  let !_ = testF
 
   when (n == 0) $ do
     printBSB "#"

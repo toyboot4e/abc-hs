@@ -18,8 +18,8 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 
 solve :: StateT BS.ByteString IO ()
 solve = do
-  !n <- int'
-  !xs <- intsU'
+  (!n, !q) <- ints2'
+  !lrs <- U.replicateM (n - 1) ints2'
 
   printBSB "TODO"
 

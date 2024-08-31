@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -17,7 +17,8 @@ executable a-exe
       QuickCheck
     , array
     , attoparsec
-    , base >=4.7 && <5
+    , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -48,7 +49,7 @@ executable a-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable b-exe
   main-is: Main.hs
@@ -59,7 +60,8 @@ executable b-exe
       QuickCheck
     , array
     , attoparsec
-    , base >=4.7 && <5
+    , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -90,7 +92,7 @@ executable b-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable c-exe
   main-is: Main.hs
@@ -101,7 +103,8 @@ executable c-exe
       QuickCheck
     , array
     , attoparsec
-    , base >=4.7 && <5
+    , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -132,7 +135,7 @@ executable c-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable d-exe
   main-is: Main.hs
@@ -143,7 +146,8 @@ executable d-exe
       QuickCheck
     , array
     , attoparsec
-    , base >=4.7 && <5
+    , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -174,7 +178,7 @@ executable d-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable e-exe
   main-is: Main.hs
@@ -185,7 +189,8 @@ executable e-exe
       QuickCheck
     , array
     , attoparsec
-    , base >=4.7 && <5
+    , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -216,7 +221,7 @@ executable e-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable ex-exe
   main-is: Main.hs
@@ -227,7 +232,8 @@ executable ex-exe
       QuickCheck
     , array
     , attoparsec
-    , base >=4.7 && <5
+    , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -258,7 +264,7 @@ executable ex-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable f-exe
   main-is: Main.hs
@@ -269,7 +275,8 @@ executable f-exe
       QuickCheck
     , array
     , attoparsec
-    , base >=4.7 && <5
+    , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -300,7 +307,7 @@ executable f-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021
 
 executable g-exe
   main-is: Main.hs
@@ -311,7 +318,8 @@ executable g-exe
       QuickCheck
     , array
     , attoparsec
-    , base >=4.7 && <5
+    , base
+    , bitvec
     , bytestring
     , containers
     , deepseq
@@ -342,4 +350,4 @@ executable g-exe
     , vector
     , vector-algorithms
     , vector-th-unbox
-  default-language: Haskell2010
+  default-language: GHC2021

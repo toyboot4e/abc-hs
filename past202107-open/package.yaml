@@ -87,3 +87,43 @@ executables:
     source-dirs: "g"
     main:                Main.hs
 
+  h-exe:
+    <<: *exe-defaults
+    source-dirs: "h"
+    main:                Main.hs
+
+  i-exe:
+    <<: *exe-defaults
+    source-dirs: "i"
+    main:                Main.hs
+
+  j-exe:
+    <<: *exe-defaults
+    source-dirs: "j"
+    main:                Main.hs
+
+  k-exe:
+    <<: *exe-defaults
+    source-dirs: "k"
+    main:                Main.hs
+
+  l-exe:
+    <<: *exe-defaults
+    source-dirs: "l"
+    main:                Main.hs
+
+  m-exe:
+    <<: *exe-defaults
+    source-dirs: "m"
+    main:                Main.hs
+
+  n-exe:
+    <<: *exe-defaults
+    source-dirs: "n"
+    main:                Main.hs
+
+  o-exe:
+    <<: *exe-defaults
+    source-dirs: "o"
+    main:                Main.hs
+

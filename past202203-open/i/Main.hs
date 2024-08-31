@@ -16,10 +16,28 @@ type SparseUnionFind = IM.IntMap Int;newSUF :: SparseUnionFind;newSUF = IM.empty
 {- ORMOLU_ENABLE -}
 -- }}}
 
+isCompatible :: U.Vector (Int, Int) -> U.Vector (Int, Int) -> Bool
+isCompatible xys1 xys2 = U.and (U.zipWith (==) xs1 xs2) && U.length (U.uniq (U.zipWith (+) ys1 ys2)) == 1
+  where
+    xs1 = U.map fst xys1
+    xs2 = U.map fst xys2
+    ys1 = U.map snd xys1
+    ys2 = U.map snd xys2
+
+-- | TODO: Easier answer?
 main :: IO ()
 main = do
   !n <- ints1
-  !xs <- intsU
+  !xys1 <- U.replicateM n ints2
+  !xys2 <- U.replicateM n ints2
+  let !xys1' = U.map swap xys1
+  let !xys2' = U.map swap xys2
 
-  putStrLn "TODO"
+  let res0 = U.modify VAI.sort xys1 == U.modify VAI.sort xys2
+  let res1 = isCompatible (U.modify (VAI.sortBy (comparing id)) xys1) (U.modify (VAI.sortBy (comparing id)) xys2)
+  let res2 = isCompatible (U.modify (VAI.sortBy (comparing (second Down))) xys1) (U.modify (VAI.sortBy (comparing id)) xys2)
+  let res3 = isCompatible (U.modify (VAI.sortBy (comparing id)) xys1') (U.modify (VAI.sortBy (comparing id)) xys2')
+  let res4 = isCompatible (U.modify (VAI.sortBy (comparing (second Down))) xys1') (U.modify (VAI.sortBy (comparing id)) xys2')
+
+  printYn $ res0 || res1 || res2 || res3 || res4
 

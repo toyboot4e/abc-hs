@@ -23,6 +23,8 @@ solve = do
   !q <- int'
   !lrxs' <- U.replicateM q ints3'
 
+  let !_ = dbg $ mapAccumL' (\x lastX -> (x - lastX, lastX)) (0 :: Int) [1 :: Int, 3, 6]
+
   let !dict = U.uniq $ U.modify VAI.sort xs
 
   -- let !blockLenSqrd = isqrt n + 1

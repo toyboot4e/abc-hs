@@ -94,12 +94,10 @@ solve = do
 
       let !i = bindex dict x
       !il <- do
-        !i' <- fmap (fromMaybe i) <$> bsearchSTreeR conTree' 0 i $ \(Acc' (!_, !l, !r)) -> not $ inRange (l, r) x
-        Acc (!_, !l, !_) <- foldSTree conTree i' i
+        Acc' (!_, !l, !_) <- foldSTree conTree' 0 i
         return $ bindex dict l
       !ir <- do
-        !i' <- fmap (fromMaybe i) <$> bsearchSTreeL conTree i (len - 1) $ \(Acc (!_, !l, !r)) -> inRange (l, r) x
-        Acc (!_, !_, !r) <- foldSTree conTree i i'
+        Acc (!_, !_, !r) <- foldSTree conTree i (len - 1)
         return $ bindex dict r
 
       let !_ = dbg (x, il, ir)

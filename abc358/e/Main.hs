@@ -21,12 +21,30 @@ type MyModulo = (998244353 :: Nat) -- (1_000_000_007 :: Nat)
 type MyModInt = ModInt MyModulo ; myMod :: Int ; myMod = fromInteger $ natVal' @MyModulo proxy# ; {-# INLINE modInt #-} ; modInt :: Int -> MyModInt ; modInt = ModInt . (`rem` myMod) ; type RH' = RH HashInt MyModulo ;
 {- ORMOLU_ENABLE -}
 
+facts :: U.Vector MyModInt
+facts = U.scanl' (*) (ModInt 1) $ U.generate 1000 (ModInt . (+ 1))
+
+invFacts :: U.Vector MyModInt
+invFacts = U.scanl' (/) (ModInt 1) $ U.generate 1000 (ModInt . (+ 1))
+
+ncr :: Int -> Int -> MyModInt
+ncr n r = (facts U.! n) * (invFacts U.! r) * (invFacts U.! (n - r))
+
 solve :: StateT BS.ByteString IO ()
 solve = do
   !k <- int'
-  !cs <- U.filter (/= 0) . U.modify VAI.sort <$> intsU'
+  !cs <- U.filter (/= 0) <$> intsU'
 
-  printBSB "TODO"
+  let !len = k + 1
+  let !res = U.foldl' step s0 cs
+        where
+          s0 = U.generate len $ ModInt . bool 0 1 . (== 0)
+          step sofar c = U.generate len f
+            where
+              f i = U.sum . U.generate (min i c + 1) $ \di ->
+                sofar U.! (i - di) * ncr i (i - di)
+
+  printBSB $ U.sum $ U.tail res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc358/tasks/abc358_e
 main :: IO ()

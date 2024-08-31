@@ -33,7 +33,7 @@ data HLD = HLD
 lcaHLD :: HLD -> Vertex -> Vertex -> Vertex
 lcaHLD HLD {..} = inner
   where
-    inner x (-1) = 0 -- root
+    -- inner x (-1) = 0 -- root
     inner !x !y
       -- sort for easier processing
       -- TODO: @case compare ix iy@ would be easier for me to understand
@@ -132,7 +132,7 @@ hldOf tree = runST $ do
     n = nVertsSG tree
     !root = 0 :: Vertex
 
--- https://atcoder.jp/contests/abc133/submissions/34716233
+-- Thanks: https://atcoder.jp/contests/abc133/submissions/34716233
 solve :: StateT BS.ByteString IO ()
 solve = do
   (!n, !q) <- ints2'
@@ -186,8 +186,9 @@ solve = do
         UM.modify cnt (subtract 1) c
 
   !res <- U.unsafeFreeze ans
-  printVec res
+  printBSB $ unlinesBSB res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc133/tasks/abc133_f
+-- #HLD (lcaHLD)
 main :: IO ()
 main = runIO solve

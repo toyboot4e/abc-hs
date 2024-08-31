@@ -1,9 +1,12 @@
+name: abc039
+
 dependencies:
    - base
 
    - QuickCheck
    - array
    - attoparsec
+   - bitvec
    - bytestring
    - containers
    - deepseq
@@ -27,6 +30,7 @@ dependencies:
    - template-haskell
    - text
    - tf-random
+   - time
    - transformers
    - unboxing-vector
    - unordered-containers
@@ -47,6 +51,8 @@ _exe-defs: &exe-defaults
     - -rtsopts
     - -with-rtsopts=-N
     - -Wall # all warnings
+  cpp-options:
+    - -DDEBUG # debug flag
   other-modules: []
 
 # REMARK: See `README` for the langauge server support.
@@ -86,8 +92,43 @@ executables:
     source-dirs: "g"
     main:                Main.hs
 
-  ex-exe:
+  h-exe:
     <<: *exe-defaults
-    source-dirs: "ex"
+    source-dirs: "h"
+    main:                Main.hs
+
+  i-exe:
+    <<: *exe-defaults
+    source-dirs: "i"
+    main:                Main.hs
+
+  j-exe:
+    <<: *exe-defaults
+    source-dirs: "j"
+    main:                Main.hs
+
+  k-exe:
+    <<: *exe-defaults
+    source-dirs: "k"
+    main:                Main.hs
+
+  l-exe:
+    <<: *exe-defaults
+    source-dirs: "l"
+    main:                Main.hs
+
+  m-exe:
+    <<: *exe-defaults
+    source-dirs: "m"
+    main:                Main.hs
+
+  n-exe:
+    <<: *exe-defaults
+    source-dirs: "n"
+    main:                Main.hs
+
+  o-exe:
+    <<: *exe-defaults
+    source-dirs: "o"
     main:                Main.hs
 
