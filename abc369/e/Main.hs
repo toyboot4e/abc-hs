@@ -40,19 +40,20 @@ solve = do
   -- oh no, it's smart enough to ignore heavy edges
   let !dists = distsNN n (-1) $ swapDupeW es
 
+  -- I wonder why my code is not fast enough
   let resolveRoute :: U.Vector (Vertex, Vertex, Int) -> Int
       resolveRoute = done . U.foldl' step s0
         where
-          s0 :: [(Vertex, Int)]
-          s0 = [(0, 0)]
-          done = minimum . map (\(!v, !acc) -> acc + dists @! (v, n - 1))
-          step candidates (!u, !v, !w) = [toU, toV]
+          s0 = U.singleton (0, 0)
+          done = U.minimum . U.map (\(!v, !acc) -> acc + dists @! (v, n - 1))
+          step sofar (!u, !v, !w) = U.fromListN 2 [toU, toV]
             where
               !toU = (u,) $! toNext v
               !toV = (v,) $! toNext u
-              toNext v1 = minimum $ do
-                (!v0, !acc) <- candidates
-                return $! acc + dists @! (v0, v1) + w
+              toNext v1 =
+                U.minimum
+                  . U.map (\(!v0, !acc) -> acc + dists @! (v0, v1) + w)
+                  $ sofar
 
   let solve1 = V.minimum . V.map (resolveRoute . U.backpermute es) . lexPerms
   let res = V.map solve1 qs

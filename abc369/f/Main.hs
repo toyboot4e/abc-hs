@@ -17,6 +17,7 @@ import ToyLib.Contest.Prelude
 -- import Data.Primes
 import ToyLib.Debug.STree
 import Data.SegmentTree.Strict
+import Data.Graph.Generic
 
 -- }}} toy-lib import
 {-# RULES "Force inline VAI.sort" VAI.sort = VAI.sortBy compare #-}
@@ -32,41 +33,30 @@ solve = do
   (!h, !w, n) <- ints3'
   !yxs <- U.replicateM n ints2'
 
-  let !yxs' = dbgId $ U.modify VAI.sort yxs
-
   stree <- newSTree @(Max (Int, (Int, Int))) (w + 1)
   writeSTree stree 0 (Max (0, (1, 1)))
 
+  -- LIS + path restoration
+  let !yxs' = dbgId $ U.modify VAI.sort yxs
   restore <- (`execStateT` M.empty) $ U.forM_ (U.snoc yxs' (h, w)) $ \(!y, !x) -> do
     Max (!i, (!y0, !x0)) <- foldSTree stree 0 x
-    let !_ = dbg i
-
     a <- readSTree stree x
     let !ins = Max (i + 1, (y, x))
     when (a < ins) $ do
       writeSTree stree x ins
       modify' $ M.insert (y, x) (y0, x0)
 
+  -- restore the path
   Max (!res, (!yEnd, !xEnd)) <- dbgId <$> foldAllSTree stree
-  let (!result :: U.Vector (Int, Int)) = U.reverse $ U.unfoldr f (yEnd, xEnd)
-        where
-          f !v
-            | v == (-1, -1) = Nothing
-            | v == (1, 1) = Just ((1, 1), (-1, -1))
-            | otherwise = Just (v, v')
-            where
-              -- !_ = dbg v
-              v' = restore M.! v
+  let !result = restoreAnyPath (restore M.!?) (yEnd, xEnd)
 
   printBSB (res - 1)
-  let !_ = dbg result
 
   let !path =
-        V.foldMap
-          ( \(((!y1, !x1) :: (Int, Int)), ((!y2, !x2) :: (Int, Int))) ->
-              showBSB (replicate (y2 - y1) 'D') <> showBSB (replicate (x2 - x1) 'R')
+        U.foldMap
+          ( \((!y1, !x1), (!y2, !x2)) ->
+              showBSB (BS.replicate (y2 - y1) 'D') <> showBSB (BS.replicate (x2 - x1) 'R')
           )
-          . U.convert
           $ U.zip result (U.tail result)
   printBSB path
 
