@@ -43,27 +43,20 @@ solve = do
   let check i
         | i < 0 || i >= n = return 0
         | otherwise = do
-            -- isABC <- evalMaybeT $ do
-            --   a <- UM.readMaybe s i
-            --   b <- UM.readMaybe s $ i + 1
-            --   c <- UM.readMaybe s $ i + 2
-            --   return $ [a, b, c] == "ABC"
-            a_ <- UM.readMaybe s i
-            b_ <- UM.readMaybe s $ i + 1
-            c_ <- UM.readMaybe s $ i + 2
-            let !isABC = a_ == Just 'A' && b_ == Just 'B' && c_ == Just 'C'
+            isABC <- fmap (fromMaybe False) . runMaybeT $ do
+              -- MaybeT flattens `m (Maybe a)`
+              a <- MaybeT $ UM.readMaybe s i
+              b <- MaybeT $ UM.readMaybe s $ i + 1
+              c <- MaybeT $ UM.readMaybe s $ i + 2
+              return $ [a, b, c] == "ABC"
 
             old <- GM.exchange b i isABC
-            let !_ = dbg ("check", i, old, isABC, a_, b_, c_)
             return $ case compare old isABC of
               LT -> 1
               GT -> (-1)
               EQ -> 0
 
   res <- (`evalStateT` n0) $ U.forM ixs $ \(!i, !x) -> do
-    -- s' <- U.unsafeFreeze s
-    -- let !_ = dbg s'
-
     GM.write s i x
     dn' <-
       U.foldM'
@@ -73,10 +66,9 @@ solve = do
         )
         (0 :: Int)
         (U.generate 3 (subtract 2))
-    let !_ = dbg (i, x, dn')
+
     modify' (+ dn')
-    n' <- get
-    return n'
+    get
 
   printBSB $ unlinesBSB res
 

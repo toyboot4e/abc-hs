@@ -37,16 +37,13 @@ solve = do
     (1, subtract 1 -> !u, subtract 1 -> !v) -> do
       -- unify
       r1 <- rootMUF uf u
-      s1 <- GM.read sets r1
+      s1 <- GM.exchange sets r1 S.empty
       r2 <- rootMUF uf v
-      s2 <- GM.read sets r2
-      GM.write sets r1 S.empty
-      GM.write sets r2 S.empty
+      s2 <- GM.exchange sets r2 S.empty
 
       unifyMUF_ uf u v
-      r <- rootMUF uf u
-
-      GM.write sets r $! S.union (S.take 10 s1) (S.take 10 s2)
+      r' <- rootMUF uf u
+      GM.write sets r' $! S.union (S.take 10 s1) (S.take 10 s2)
 
       return Nothing
     (2, subtract 1 -> !v, subtract 1 -> !k) -> do
@@ -54,7 +51,6 @@ solve = do
       r <- rootMUF uf v
       s <- GM.read sets r
       let !size = S.size s
-      let !_ = dbg (k, size - 1 - k)
       let !x = if size > k then getDown $ S.elemAt k s + 1 else (-1)
       return $ Just x
 

@@ -56,58 +56,6 @@ eval n xDict xys = do
   buf' <- unsafeFreezeBuffer buf
   return (cost, buf')
 
-withRandomPoints :: Int -> U.Vector Int -> U.Vector Int -> S.Set (Int, Int) -> IO (S.Set (Int, Int))
-withRandomPoints n xDict yDict set0 = do
-  let inner :: S.Set (Int, Int) -> Int -> Int -> IO (S.Set (Int, Int))
-      inner set 0 abort = return set
-      inner set _ abort | abort >= 50 = return set
-      inner set nRest abort = do
-        x <- (xDict G.!) <$> randomRIO (0, G.length xDict - 1)
-        y <- (yDict G.!) <$> randomRIO (0, G.length yDict - 1)
-        if S.notMember (x, y) set
-          then inner (S.insert (x, y) set) (nRest - 1) 0
-          else inner set nRest (abort + 1)
-
-  inner set0 (min (4 * n) (G.length xDict * G.length yDict - n)) 0
-
-nStep :: Int
-nStep = 10
-
-addPoint :: Int -> U.Vector Int -> U.Vector Int -> S.Set (Int, Int) -> IO (S.Set (Int, Int))
-addPoint n xDict yDict set0 = do
-  let add :: S.Set (Int, Int) -> Int -> Int -> IO (S.Set (Int, Int))
-      add set 0 abort = return set
-      add set _ abort | abort >= 200 = return set
-      add set nRest abort = do
-        x <- (xDict G.!) <$> randomRIO (0, G.length xDict - 1)
-        y <- (yDict G.!) <$> randomRIO (0, G.length yDict - 1)
-        if S.notMember (x, y) set
-          then add (S.insert (x, y) set) (nRest - 1) 0
-          else add set nRest (abort + 1)
-
-  add set0 nStep 0
-
--- withTimeLimit :: (MonadIO m) => a -> (m a -> m a) -> m ()
--- withTimeLimit s0 f = do
---   !time0 <- liftIO getCurrentTime
---   let loop f = do
---         !time <- liftIO getCurrentTime
---         let !diffSecs = nominalDiffTimeToSeconds $ diffUTCTime time time0
---         when (diffSecs < 1800) $ do
---           f loop
---   f loop
-
-addSeqPoint :: Seq.Seq (Int, Int) -> IO ([(Int, Int)], Seq.Seq (Int, Int))
-addSeqPoint seq0 = do
-  let add !acc !seq 0 = return (acc, seq)
-      add !acc !seq !nRest = do
-        i <- randomRIO (0, Seq.length seq - 1)
-        let (!x, !y) = Seq.index seq i
-        let !seq' = Seq.deleteAt i seq
-        add ((x, y) : acc) seq' (nRest - 1)
-
-  add [] seq0 nStep
-
 solve :: StateT BS.ByteString IO ()
 solve = do
   !time0 <- liftIO getCurrentTime
@@ -119,67 +67,32 @@ solve = do
   let !w = G.length xDict
   let !h = G.length yDict
 
-  let !set0 = S.fromList $ U.toList xsOrg
-  let !row =
-        V.accumulate (flip IS.insert) (V.replicate h IS.empty)
-          . U.convert
-          $ U.map (\(!x, !y) -> (bindex yDict y, x)) xsOrg
-  let !col =
-        V.accumulate (flip IS.insert) (V.replicate h IS.empty)
-          . U.convert
-          $ U.map (\(!x, !y) -> (bindex xDict x, y)) xsOrg
-
-  let p ix iy x y = isJust $ do
-        !x' <- IS.lookupGT x (row G.! iy)
-        !y' <- IS.lookupGT y (col G.! ix)
-        let !dx = x' - x
-        let !dy = y' - y
-        -- guard $ dx <= 100000 && dy <= 100000
-        Just ()
-
-  let !candidates = Seq.fromList
-        . U.toList
-        . (`U.mapMaybe` U.generate (G.length xDict * G.length yDict) id)
-        $ \i ->
-          let (!ix, !iy) = i `divMod` G.length yDict
-              !x = xDict G.! ix
-              !y = yDict G.! iy
-           in if S.notMember (x, y) set0 && p ix iy x y
-                then Just (x, y)
-                else Nothing
-
-  let !_ = dbg ("n cands", Seq.length candidates)
-
   let !xys = U.modify (VAI.sortBy (comparing swap)) xsOrg
   (!cost0, !commands0) <- eval n xDict xys
 
   xysBuf <- newBuffer (5 * n)
   pushBacks xysBuf xys
 
-  let run nSofar cost cmd seq = do
-        !time <- liftIO getCurrentTime
-        let !diffSecs = nominalDiffTimeToSeconds $ diffUTCTime time time0
-        if diffSecs > 1.92 || nSofar + nStep > 5 * n || Seq.length seq < nStep
-          then return cmd
-          else do
-            (!adds, !seq') <- liftIO $ addSeqPoint seq
-            pushBacks xysBuf $ U.fromList adds
-            !xys' <- unsafeFreezeBuffer xysBuf
-            (!cost', !cmds') <- eval n xDict $ U.modify (VAI.sortBy (comparing swap)) xys'
-            if True || cost' < cost
-              then do
-                -- let !_ = dbg ("got!!", cost')
-                run (nSofar + nStep) cost' cmds' seq'
-              else do
-                -- let !_ = dbg ("failed", cost')
-                popBackN_ xysBuf nStep
-                run nSofar cost cmd seq
+  let !froms = M.fromListWith (flip (++))
+         . V.toList
+         . V.map (\(!x, !y, !x', !y') -> ((x, y), [(x', y')]))
+         $ U.convert commands0
 
-  commands <- run n cost0 commands0 candidates
+  let !as = M.assocs froms
+  forM_ as $ \((!xf, !yf), !nexts) -> do
+    let !_ = dbg nexts
+    when (length nexts > 1) $ do
+      let !xMid = (`div` length nexts) . sum $ map fst nexts
+      let !yMid = (`div` length nexts) . sum $ map snd nexts
+      pushBack xysBuf (xMid, yMid)
+
+  xys' <- unsafeFreezeBuffer xysBuf
+  let !xDict' = U.uniq $ U.modify VAI.sort $ U.map fst xys'
+  (!_, !commands) <- eval n xDict' xys
 
   printBSB $ G.length commands
   putBSB $ unlinesBSB commands
-  let !_ = dbg ("done", G.length xsOrg, G.length commands)
+  let !_ = dbg ("done", G.length xys', G.length commands)
   return ()
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/ahc037/tasks/ahc037_a

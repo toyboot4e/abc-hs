@@ -29,9 +29,9 @@ eat :: Int -> [Int] -> [Int]
 eat = inner
   where
     inner 0 _ = []
-    inner x (i : ys)
-      | y > x = inner x ys
-      | otherwise = replicate q i ++ inner r ys
+    inner x (i : is)
+      | y > x = inner x is
+      | otherwise = replicate q i ++ inner r is
       where
         !y = 3 ^ i :: Int
         (!q, !r) = x `divMod` y
@@ -40,8 +40,7 @@ eat = inner
 solve :: StateT BS.ByteString IO ()
 solve = do
   !m <- int'
-  let !threes = reverse [0 .. 10] :: [Int]
-  let !res = eat m threes
+  let !res = eat m $ revese [0 .. 10]
   printBSB $ length res
   printList res
 

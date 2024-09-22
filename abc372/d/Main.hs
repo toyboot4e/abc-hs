@@ -42,6 +42,7 @@ solve = do
       let !l = r - di
       Max x <- foldSTree stree l r
       return $ x <= xr
+
     let !_ = dbg (r, (l, r))
     -- +1 to [l .. r)
     let !l' = max 0 $ l - 1
