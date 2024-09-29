@@ -30,17 +30,20 @@ solve :: StateT BS.ByteString IO ()
 solve = do
   (!n, !m) <- ints2'
   !uvws <- U.replicateM m ints110'
-  let !gr = buildWSG n uvws
+  let !gr = buildWSG n $ (uvws U.++) $ U.map (\(!u, !v, !dw) -> (v, u, -dw)) uvws
 
-  uf <- newPUF n
-  U.forM_ uvws $ \(!u, !v, !dw) -> do
-    unifyPUF uf v u $ Sum dw
-
-  res <- U.generateM n $ \v -> do
-    r <- rootPUF uf v
-    getSum <$> diffPUF uf v r
-
-  printVec res
+  printVec $ U.create $ do
+    res <- UM.replicate n (0 :: Int)
+    done <- UM.replicate n False
+    forM_ [0 .. n - 1] $ \u0 -> do
+      flip fix u0 $ \dfs u -> do
+        unlessM (GM.exchange done u True) $ do
+          w0 <- GM.read res u
+          U.forM_ (gr `adjW` u) $ \(!v, !dw) -> do
+            let !w' = w0 + dw
+            GM.write res v w'
+            dfs v
+    return res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc373/tasks/abc373_d
 main :: IO ()

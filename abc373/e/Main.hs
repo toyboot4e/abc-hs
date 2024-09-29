@@ -35,38 +35,30 @@ solve = do
     printVec $ U.replicate n (0 :: Int)
     liftIO exitSuccess
 
-  let !sumSofar = U.sum xs
-  let !res = k - sumSofar
-
   -- (original index, x)
   let sorted = U.modify (VAI.sortBy (comparing (Down . snd))) $ U.indexed xs
-  let sumTopM1 = U.sum . U.map snd . U.take (m + 1) $ sorted
 
   -- original index -> topM index
-  let !isTopM = IM.fromList . U.toList . U.take m $ sorted
+  let !topMIS = IS.fromList . U.toList . U.map fst . U.take m $ sorted
 
   let !topM1 = U.map snd . U.reverse $ U.take (m + 1) sorted
   let !csumTopM1 = csum1D topM1
 
-  let calc originalI
-        | IM.notMember originalI isTopM =
-            let !x = xs G.! originalI
-             in fromMaybe (-1) . bisectL 0 k $ \dx ->
-                  let !l = 1
-                      !r = fromMaybe (-1) $ bisectL 1 m $ \i -> topM1 G.! i < x + dx
-                      !sumLR = if l <= r then csumTopM1 +! (l, r) else (-1)
-                   in sumLR >= 0 && (r + 1 - l) * (x + dx + 1) > (k - sumLR)
-        | otherwise =
-            let !x = xs G.! originalI
-                -- !i' = fromJust $ IM.lookup originalI isTopM
-             in fromMaybe (-1) . bisectL 0 k $ \dx ->
-                  let !l = 0
-                      !r = fromMaybe (-1) $ bisectL 0 m $ \i -> topM1 G.! i < x + dx
-                      !sumLR = if l <= r then csumTopM1 +! (l, r) else (-1) - x
-                   in sumLR >= 0 && (r {-+ 1-} - l) * (x + dx + 1) > (k - sumLR)
+  let calc originalI x
+        | IS.notMember originalI topMIS = fromMaybe (-1) . bisectR 0 k $ \dx ->
+            let !l = 1
+                !r = fromMaybe (-1) $ bisectL 1 m $ \i -> topM1 G.! i < x + dx
+                !sumLR = if l <= r then csumTopM1 +! (l, r) else (-1)
+                !_ = dbg (originalI, dx, (r + 1 - l) * (x + dx))
+             in sumLR >= 0 && (r + 1 - l) * (x + dx)  - sumLR < k
+        | otherwise = fromMaybe (-1) . bisectR 0 k $ \dx ->
+            let !l = 0
+                !r = fromMaybe (-1) $ bisectL 0 m $ \i -> topM1 G.! i < x + dx
+                !sumLR = if l <= r then csumTopM1 +! (l, r) - x {- remove self! -} else (-1)
+                !_ = dbg (originalI, dx, (r {-+ 1-} - l) * (x + dx))
+             in sumLR >= 0 && (r {-+ 1-} - l) * (x + dx)  - sumLR < k
 
-  let !res = U.generate n calc
-  printVec res
+  printVec $ U.imap calc xs
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc373/tasks/abc373_e
 main :: IO ()
