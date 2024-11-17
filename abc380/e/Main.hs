@@ -15,7 +15,7 @@ import ToyLib.Contest.Prelude
 -- import Data.ModInt
 -- import Data.PowMod
 -- import Data.Primes
-import Data.IntervalMap
+import Data.DenseIntervalMap
 
 -- }}} toy-lib import
 {-# RULES "Force inline VAI.sort" VAI.sort = VAI.sortBy compare #-}
@@ -26,12 +26,6 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
-{-# INLINE modifyM #-}
-modifyM :: (Monad m) => (s -> m s) -> StateT s m ()
-modifyM f = StateT $ \s -> do
-  s' <- f s
-  return ((), s')
-
 solve :: StateT BS.ByteString IO ()
 solve = do
   (!n, !q) <- ints2'
@@ -41,24 +35,21 @@ solve = do
       2 -> (2,,-1) <$> int1'
 
   cnt <- UM.replicate n (1 :: Int)
-  let im0 = fromVecIM $ U.generate n id
+  dm <- fromVecDM (U.generate n id)
 
   let {-# INLINE onAdd #-}
       onAdd l r c = do
-        let !_ = dbg ("add", l, r, c)
         let dn = r + 1 - l
         GM.modify cnt (+ dn) c
 
   let {-# INLINE onDel #-}
       onDel l r c = do
-        let !_ = dbg ("del", l, r, c)
         let dn = r + 1 - l
         GM.modify cnt (subtract dn) c
 
-  -- FIXME: StateT is not so handy
-  res <- (`evalStateT` im0) $ (`U.mapMaybeM` qs) $ \case
+  res <- (`U.mapMaybeM` qs) $ \case
     (1, !i, !c) -> do
-      modifyM $ writeMIM i i c onAdd onDel
+      writeMDM dm i i c onAdd onDel
       return Nothing
     (2, !c, !_) -> do
       Just <$> GM.read cnt c
