@@ -43,12 +43,14 @@ solve = do
   cnt <- UM.replicate n (1 :: Int)
   let im0 = fromVecIM $ U.generate n id
 
-  let onAdd l r c = do
-        -- TODO: inclusive range, right?
+  let {-# INLINE onAdd #-}
+      onAdd l r c = do
         let !_ = dbg ("add", l, r, c)
         let dn = r + 1 - l
         GM.modify cnt (+ dn) c
-  let onDel l r c = do
+
+  let {-# INLINE onDel #-}
+      onDel l r c = do
         let !_ = dbg ("del", l, r, c)
         let dn = r + 1 - l
         GM.modify cnt (subtract dn) c
@@ -56,13 +58,12 @@ solve = do
   -- FIXME: StateT is not so handy
   res <- (`evalStateT` im0) $ (`U.mapMaybeM` qs) $ \case
     (1, !i, !c) -> do
-      Just (!l, !r, !_) <- gets $ lookupIM i i
-      modifyM $ insertMIM l r c onAdd onDel
+      modifyM $ writeMIM i i c onAdd onDel
       return Nothing
     (2, !c, !_) -> do
       Just <$> GM.read cnt c
 
-  printVec res
+  putBSB $ unlinesBSB res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc380/tasks/abc380_e
 main :: IO ()

@@ -29,13 +29,13 @@ solve :: StateT BS.ByteString IO ()
 solve = do
   (!n, !k) <- ints2'
   !s <- line'
-  let rle = U.fromList . map (\s -> (head s, length s)) . group $ BS.unpack s
-  let signs = U.scanl1' (+) $ U.map (\(!c, !_ ) -> if c == '1' then 1 else 0 :: Int) rle
-  let ik = dbgId . fromJust $ U.findIndex (== k) signs
-  let is = dbgId . U.fromList $ [0 .. ik - 2] ++ [ik, ik - 1] ++ [ik + 1 .. U.length rle - 1]
+  let spans = V.fromList $ BS.group s
+  let nSpans = V.length spans
+  let csum = U.scanl1' (+) . U.convert $ V.map (subtract (ord '0') . ord . BS.head) spans
+  let ik = fromJust $ U.elemIndex k csum
+  let is = U.generate nSpans id U.// [(ik - 1, ik), (ik, ik - 1)]
 
-  U.forM_ (U.backpermute rle is) $ \(!c, !len) -> do
-    putBSB . showBSB $ replicate len c
+  putBSB . V.foldMap showBSB . V.backpermute spans $ U.convert is
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc380/tasks/abc380_c
 main :: IO ()

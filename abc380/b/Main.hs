@@ -28,8 +28,7 @@ debug :: Bool ; debug = False
 solve :: StateT BS.ByteString IO ()
 solve = do
   !s <- line'
-  let res = map length . filter ((/= '|') . head) . group $ BS.unpack s
-  printVec $ U.fromList res
+  printVec . U.fromList . map snd . filter ((== '-') . fst) $ rleOf s
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc380/tasks/abc380_b
 main :: IO ()
