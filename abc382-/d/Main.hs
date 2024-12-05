@@ -11,7 +11,6 @@ import ToyLib.Contest.Prelude
 -- import ToyLib.Contest.Tree
 
 -- import Data.BitSet
-import Data.DenseHashSet
 -- import Data.Core.SemigroupAction
 -- import Data.ModInt
 -- import Data.PowMod
@@ -26,30 +25,78 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
+gen :: Int -> Int -> [[Int]]
+gen nDigits nFree = inner [] nFree 0
+  where
+    inner acc nRest i
+      | i == nDigits = [[]]
+    inner acc nRest i = do
+      d <- [0 .. nRest]
+      (d :) <$> inner acc (nRest - d) (i + 1)
+
 solve :: StateT BS.ByteString IO ()
 solve = do
   (!n, !m) <- ints2'
-  !yxs <- U.replicateM m ints11'
 
-  hs <- newHS (6 * m)
-  let !bnd = zero2 n n
-  let safeInsert hs (!y, !x) = do
-        when (inRange bnd (y, x)) $ do
-          writeHS hs $ index bnd (y, x)
+  -- let minCase = U.fromList . force . take n $ iterate (+ 10) (1 :: Int)
+  -- let !_ = dbg minCase
 
-  U.forM_ yxs $ \(i, j) -> do
-    safeInsert hs (i, j)
-    safeInsert hs (i + 2, j + 1)
-    safeInsert hs (i + 1, j + 2)
-    safeInsert hs (i - 1, j + 2)
-    safeInsert hs (i - 2, j + 1)
-    safeInsert hs (i - 2, j - 1)
-    safeInsert hs (i - 1, j - 2)
-    safeInsert hs (i + 1, j - 2)
-    safeInsert hs (i + 2, j - 1)
+  let nFree = m - 1 - 10 * (n - 1)
+  let nDiffs = n - 1
+  -- ds <- UM.replicate nDiffs (0 :: Int)
 
-  printBSB . ((n * n) -) =<< sizeHS hs
+  let !res = dbgId $ gen n (nFree - 1)
+  let res' = V.modify VAI.sort $ V.map U.fromList $ V.fromList res
+  printBSB $ G.length res'
+  G.forM_ res' $ \ds -> do
+    let vec = U.scanl' (\acc dx -> acc + 10 + dx) (1 :: Int) $ U.reverse ds
+    printVec vec
 
--- verification-helper: PROBLEM https://atcoder.jp/contests/abc377/tasks/abc377_c
+-- bsb <- newMutVar mempty
+-- nBsb <- UM.replicate 1 (0 :: Int)
+
+-- let printDs = do
+--       ds' <- U.unsafeFreeze ds
+--       -- TODO: scanr'
+--       let res = U.scanl' (\acc dx -> acc + 10 + dx) (0 :: Int) $ U.reverse ds'
+--       modifyMutVar bsb (<> (unwordsBSB res <> endlBSB))
+--       UM.modify nBsb (+ 1) 0
+
+-- let findDigit = do
+--       ds' <- U.unsafeFreeze ds
+--       pure . fromJust $ U.findIndex (/= 0) ds'
+
+-- let incDigit dRest i = do
+--       if dRest > 0
+--         then do
+--           GM.modify ds (+ 1) i
+--           printDs
+--           pure $ dRest - 1
+--         else do
+--           if i >= nDiffs - 1
+--             then do
+--               -- end
+--               pure (-1)
+--             else do
+--               d <- GM.read ds i
+--               GM.modify ds (+ 1) (i + 1)
+--               pure $ dRest + d - 1
+
+-- printDs
+-- when (nFree > 0) $ do
+--   d' <- incDigit nFree 0
+--   when (d' /= -1) $ do
+--     flip fix d' $ \loop dRest -> do
+--       i <- findDigit
+--       dRest' <- incDigit d' i
+--       unless (dRest' == -1) $ do
+--         loop dRest'
+
+-- nRes <- U.head <$> U.unsafeFreeze nRes
+-- printBSB nRes
+-- printBSB =<< readMutVar bsb
+-- pure ()
+
+-- verification-helper: PROBLEM https://atcoder.jp/contests/abc382/tasks/abc382_d
 main :: IO ()
 main = runIO solve

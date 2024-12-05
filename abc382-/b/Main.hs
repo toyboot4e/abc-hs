@@ -11,7 +11,6 @@ import ToyLib.Contest.Prelude
 -- import ToyLib.Contest.Tree
 
 -- import Data.BitSet
-import Data.DenseHashSet
 -- import Data.Core.SemigroupAction
 -- import Data.ModInt
 -- import Data.PowMod
@@ -28,28 +27,14 @@ debug :: Bool ; debug = False
 
 solve :: StateT BS.ByteString IO ()
 solve = do
-  (!n, !m) <- ints2'
-  !yxs <- U.replicateM m ints11'
+  (!n, !d) <- ints2'
+  !s <- line'
+  let !s' = U.fromListN n $ BS.unpack s
+  let dots = U.elemIndices '@' s'
+  let dots' = U.take d $ U.reverse dots
+  let res = U.accumulate (\a b -> b) (U.map (== '@') s') $ U.map (, False) dots'
+  printBSB . U.toList $ U.map (\case True -> '@' ; False -> '.') res
 
-  hs <- newHS (6 * m)
-  let !bnd = zero2 n n
-  let safeInsert hs (!y, !x) = do
-        when (inRange bnd (y, x)) $ do
-          writeHS hs $ index bnd (y, x)
-
-  U.forM_ yxs $ \(i, j) -> do
-    safeInsert hs (i, j)
-    safeInsert hs (i + 2, j + 1)
-    safeInsert hs (i + 1, j + 2)
-    safeInsert hs (i - 1, j + 2)
-    safeInsert hs (i - 2, j + 1)
-    safeInsert hs (i - 2, j - 1)
-    safeInsert hs (i - 1, j - 2)
-    safeInsert hs (i + 1, j - 2)
-    safeInsert hs (i + 2, j - 1)
-
-  printBSB . ((n * n) -) =<< sizeHS hs
-
--- verification-helper: PROBLEM https://atcoder.jp/contests/abc377/tasks/abc377_c
+-- verification-helper: PROBLEM https://atcoder.jp/contests/abc382/tasks/abc382_b
 main :: IO ()
 main = runIO solve

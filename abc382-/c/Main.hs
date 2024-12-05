@@ -5,17 +5,17 @@
 import Control.Applicative;import Control.DeepSeq;import Control.Exception (assert);import Control.Monad;import Control.Monad.Fix;import Control.Monad.IO.Class;import Control.Monad.Primitive;import Control.Monad.ST;import Control.Monad.State.Class;import Control.Monad.Trans (MonadTrans, lift);import Control.Monad.Trans.Cont;import Control.Monad.Trans.Maybe;import Control.Monad.Trans.State.Strict (State, StateT(..), evalState, evalStateT, execState, execStateT, runState, runStateT);import Data.Bifunctor;import Data.Bits;import Data.Bool (bool);import Data.Char;import Data.Coerce;import Data.Either;import Data.Foldable;import Data.Function (on);import Data.Functor;import Data.Functor.Identity;import Data.IORef;import Data.Kind;import Data.List.Extra hiding (nubOn);import Data.Maybe;import Data.Ord;import Data.Primitive.MutVar;import Data.Proxy;import Data.STRef;import Data.Semigroup;import Data.Word;import Debug.Trace;import GHC.Exts (proxy#);import GHC.Float (int2Float);import GHC.Ix (unsafeIndex);import GHC.Stack (HasCallStack);import GHC.TypeLits;import System.Exit (exitSuccess);import System.IO;import System.Random;import System.Random.Stateful;import Text.Printf;import Data.Ratio;import Data.Array.IArray;import Data.Array.IO;import Data.Array.MArray;import Data.Array.ST;import Data.Array.Unboxed (UArray);import Data.Array.Unsafe;import qualified Data.Array as A;import Data.Bit;import qualified Data.ByteString.Builder as BSB;import qualified Data.ByteString.Char8 as BS;import qualified Data.ByteString.Unsafe as BSU;import Control.Monad.Extra hiding (loop);import Data.IORef.Extra;import Data.List.Extra hiding (merge);import Data.Tuple.Extra hiding (first, second);import Numeric.Extra;import Data.Bool.HT;import qualified Data.Ix.Enum as HT;import qualified Data.List.HT as HT;import qualified Data.Vector.Fusion.Bundle as FB;import qualified Data.Vector.Generic as G;import qualified Data.Vector.Generic.Mutable as GM;import qualified Data.Vector.Primitive as P;import qualified Data.Vector.Unboxed as U;import qualified Data.Vector.Unboxed.Base as U;import qualified Data.Vector.Unboxed.Mutable as UM;import qualified Data.Vector as V;import qualified Data.Vector.Mutable as VM;import qualified Data.Vector.Fusion.Bundle.Monadic as MB;import qualified Data.Vector.Fusion.Bundle.Size as MB;import qualified Data.Vector.Fusion.Stream.Monadic as MS;import qualified Data.Vector.Algorithms.Merge as VAM;import qualified Data.Vector.Algorithms.Intro as VAI;import qualified Data.Vector.Algorithms.Radix as VAR;import qualified Data.Vector.Algorithms.Search as VAS;import qualified Data.IntMap.Strict as IM;import qualified Data.Map.Strict as M;import qualified Data.IntSet as IS;import qualified Data.Set as S;import qualified Data.Sequence as Seq;import qualified Data.Heap as H;import Data.Hashable;import qualified Data.HashMap.Strict as HM;import qualified Data.HashSet as HS;import qualified Test.QuickCheck as QC;import Unsafe.Coerce;
 -- {{{ toy-lib import
 import ToyLib.Contest.Prelude
--- import ToyLib.Contest.Bisect
+import ToyLib.Contest.Bisect
 -- import ToyLib.Contest.Graph
 -- import ToyLib.Contest.Grid
 -- import ToyLib.Contest.Tree
 
 -- import Data.BitSet
-import Data.DenseHashSet
 -- import Data.Core.SemigroupAction
 -- import Data.ModInt
 -- import Data.PowMod
 -- import Data.Primes
+import Data.SegmentTree.Strict
 
 -- }}} toy-lib import
 {-# RULES "Force inline VAI.sort" VAI.sort = VAI.sortBy compare #-}
@@ -26,30 +26,49 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
+-- solve :: StateT BS.ByteString IO ()
+-- solve = do
+--   (!n, !m) <- ints2'
+--   !xs <- intsU'
+--   !ys <- intsU'
+--   -- x_i <= y_j をマッチさせる
+--   -- セグ木で 2 分探索
+
+--   stree <- buildSTree $ U.map Max ys
+--   res <- UM.replicate m (-2 :: Int)
+--   -- x_i <= y_i となる y_i の最小インデクスを求める
+--   U.iforM_ xs $ \i x -> do
+--     j_ <- bsearchSTreeR stree 0 (m - 1) $ \(Max yi) -> x > yi
+--     whenJust j_ $ \j -> do
+--       let !_ = dbg(i, x, j)
+--       GM.write res j i
+--       writeSTree stree j mempty
+
+--   res' <- U.unsafeFreeze res
+--   printVec $ U.map succ res'
+
 solve :: StateT BS.ByteString IO ()
 solve = do
   (!n, !m) <- ints2'
-  !yxs <- U.replicateM m ints11'
+  !xs <- intsU'
+  !ys <- intsU'
 
-  hs <- newHS (6 * m)
-  let !bnd = zero2 n n
-  let safeInsert hs (!y, !x) = do
-        when (inRange bnd (y, x)) $ do
-          writeHS hs $ index bnd (y, x)
+  let len = 2 * 10 ^ 5 + 1
+  let vec = U.accumulate (<>) (U.replicate len mempty) $ U.imap (\i x -> (x, Min i)) xs
+  stree <- buildSTree vec
 
-  U.forM_ yxs $ \(i, j) -> do
-    safeInsert hs (i, j)
-    safeInsert hs (i + 2, j + 1)
-    safeInsert hs (i + 1, j + 2)
-    safeInsert hs (i - 1, j + 2)
-    safeInsert hs (i - 2, j + 1)
-    safeInsert hs (i - 2, j - 1)
-    safeInsert hs (i - 1, j - 2)
-    safeInsert hs (i + 1, j - 2)
-    safeInsert hs (i + 2, j - 1)
+  res <-
+    U.mapM
+      ( \y -> do
+          m@(Min i) <- foldSTree stree 0 y
+          if m == mempty
+            then pure (-1)
+            else pure (i + 1)
+      )
+      ys
 
-  printBSB . ((n * n) -) =<< sizeHS hs
+  printBSB $ unlinesBSB res
 
--- verification-helper: PROBLEM https://atcoder.jp/contests/abc377/tasks/abc377_c
+-- verification-helper: PROBLEM https://atcoder.jp/contests/abc382/tasks/abc382_c
 main :: IO ()
 main = runIO solve
