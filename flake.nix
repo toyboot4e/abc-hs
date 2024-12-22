@@ -13,7 +13,7 @@
       in
       {
         devShells.default = with pkgs; mkShell {
-          nativeBuildInputs = [
+          buildInputs = [
             pkg-config
             stack
             cabal-install
