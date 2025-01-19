@@ -1,0 +1,6 @@
+#!/usr/bin/env -S bash -euE
+
+cabal build a-exe
+cat in | cabal run a-exe | tee out
+cat out | clip
+

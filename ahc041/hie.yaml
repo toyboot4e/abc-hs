@@ -1,0 +1,43 @@
+cradle:
+  cabal:
+    - path: "./a/Main.hs"
+      component: "ahc041:exe:a-exe"
+
+    - path: "./b/Main.hs"
+      component: "ahc041:exe:b-exe"
+
+    - path: "./c/Main.hs"
+      component: "ahc041:exe:c-exe"
+
+    - path: "./d/Main.hs"
+      component: "ahc041:exe:d-exe"
+
+    - path: "./e/Main.hs"
+      component: "ahc041:exe:e-exe"
+
+    - path: "./f/Main.hs"
+      component: "ahc041:exe:f-exe"
+
+    - path: "./g/Main.hs"
+      component: "ahc041:exe:g-exe"
+
+    - path: "./h/Main.hs"
+      component: "ahc041:exe:h-exe"
+
+    - path: "./i/Main.hs"
+      component: "ahc041:exe:i-exe"
+
+    - path: "./j/Main.hs"
+      component: "ahc041:exe:j-exe"
+
+    - path: "./k/Main.hs"
+      component: "ahc041:exe:k-exe"
+
+    - path: "./l/Main.hs"
+      component: "ahc041:exe:l-exe"
+
+    - path: "./m/Main.hs"
+      component: "ahc041:exe:m-exe"
+
+    - path: "./n/Main.hs"
+      component: "ahc041:exe:n-exe"
