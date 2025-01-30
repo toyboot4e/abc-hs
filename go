@@ -6,7 +6,7 @@ pane="$(tmux split-window -v -c  "#{pane_current_path}" -l 4 -P -F "#{pane_id}")
 tmux select-pane -U
 
 ./new "$1" > /dev/null 2>&1 &
-sleep 3
+sleep 8
 
 cd "$1"
 tmux send-keys -t "$pane" "cd ${1}" Enter

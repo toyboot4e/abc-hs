@@ -32,3 +32,5 @@ for f in $(command ls */*.hs) ; do
   printf '%s' "$res" > "$f"
 done
 
+gen-hie > hie.yaml
+

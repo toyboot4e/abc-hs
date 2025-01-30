@@ -14,11 +14,19 @@ test problem:
 [private]
 alias t := test
 
+# runs the executable
+[no-cd]
+run problem:
+    @cabal run "{{problem}}-exe" # --ghc-options -DDEBUG
+
+[private]
+alias r := run
+
 # submits the code
 [no-cd]
 submit problem:
     @toy-lib -e "{{problem}}/Main.hs" > "{{problem}}/.submit.hs"
-    @cd "{{problem}}" && npx acc submit -s -- -y
+    @cd "{{problem}}" && acc submit -s -- -y
 
 [private]
 alias s := submit
