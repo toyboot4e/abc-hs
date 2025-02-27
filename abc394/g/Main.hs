@@ -6,15 +6,17 @@ import Control.Applicative;import Control.DeepSeq;import Control.Exception (asse
 -- {{{ toy-lib import
 import ToyLib.Contest.Prelude
 -- import ToyLib.Contest.Bisect
--- import ToyLib.Contest.Graph
--- import ToyLib.Contest.Grid
+import ToyLib.Contest.Graph
+import ToyLib.Contest.Grid
 -- import ToyLib.Contest.Tree
 
+import Data.Graph.Tree.Hld
 -- import Data.BitSet
 -- import Data.Core.SemigroupAction
 -- import Data.ModInt
 -- import Data.PowMod
 -- import Data.Primes
+import Data.UnionFind.Mutable
 
 -- }}} toy-lib import
 {-# RULES "Force inline VAI.sort" VAI.sort = VAI.sortBy compare #-}
@@ -25,12 +27,52 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
+collectMST' :: (Ord w, U.Unbox w) => Int -> U.Vector (Vertex, Vertex, w) -> U.Vector (Vertex, Vertex, w)
+collectMST' nVerts sortedEdges = runST $ do
+  uf <- newMUF nVerts
+  flip U.filterM sortedEdges $ \(!v1, !v2, !_) -> do
+    unifyMUF uf v1 v2
+
 solve :: StateT BS.ByteString IO ()
 solve = do
-  !n <- int'
-  !xs <- intsU'
+  (!h, !w) <- ints2'
+  gr <- getMat' h w
+  q <- int'
+  qs <- U.replicateM q ints6'
 
-  printBSB "TODO"
+    -- answer = u_i - min(hs) + v_i - min(hs)
+  --
+  -- We're only interested in the minimum height between two vertices and
+  -- we can make use of a maximum spanning tree. genious answer:
+  -- https://atcoder.jp/contests/abc394/editorial/12276
+
+  let bnd = zero2 h w
+  let es =
+        U.concatMap
+          ( \(!i, !h1) ->
+              let (!y, !x) = i `divMod` w
+               in if odd (y + x)
+                    then U.empty
+                    else
+                      U.map (\(!y', !x') -> (i, index bnd (y', x'), Min (min h1 (gr @! (y', x')))))
+                        . U.filter (inRange bnd)
+                        $ U.map (add2 (y, x)) ortho4
+          )
+          $ U.indexed (vecIV gr)
+  let es' = U.modify (VAI.sortBy (comparing (Down . thd3))) es
+  let es'' = collectMST' (h * w) es'
+  let hld = hldOf $ buildWSG (h * w) $ swapDupeW es''
+  tm <- buildEdgeTM hld True $ edgeVertsHLD hld es''
+
+  res <- U.forM qs $ \(dbgId -> (!a, !b, !y, !c, !d, !z)) -> do
+    Min h <- foldTM tm (index bnd (a - 1, b - 1)) (index bnd (c - 1, d - 1))
+    let !_ = dbg h
+    pure $
+      if h >= min y z || Min h == mempty
+        then abs (y - z)
+        else abs (y - h) + abs (z - h)
+
+  printBSB $ unlinesBSB res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc394/tasks/abc394_g
 main :: IO ()

@@ -6,7 +6,7 @@ import Control.Applicative;import Control.DeepSeq;import Control.Exception (asse
 -- {{{ toy-lib import
 import ToyLib.Contest.Prelude
 -- import ToyLib.Contest.Bisect
--- import ToyLib.Contest.Graph
+import ToyLib.Contest.Graph
 import ToyLib.Contest.Grid
 -- import ToyLib.Contest.Tree
 
@@ -16,7 +16,6 @@ import Data.Buffer
 -- import Data.ModInt
 -- import Data.PowMod
 -- import Data.Primes
-import Data.Hashable
 
 -- }}} toy-lib import
 {-# RULES "Force inline VAI.sort" VAI.sort = VAI.sortBy compare #-}
@@ -32,31 +31,33 @@ solve = do
   !n <- int'
   !gr <- getGrid' n n
 
-  -- let sortedRows = V.unfoldExactN n (U.splitAt n) $ vecIV gr
+  -- Consider a graph of two-dimensional vertices (u, v). We run a bread-first search, but starting
+  -- from the middle of palindromes; it's either nothing or an edge. Note also that the initial
+  -- weights are either zero or one and differential weights are two.
+  --
+  -- TODO: vertex dimension should be handled in the BFS framework.
+  let res = genericBfsWithList grF (n * n) (-1 :: Int) $ vs0 U.++ vs1
+        where
+          bounds = zero2 n n
+          vs0 = U.generate n (\i -> (i + n * i, 0))
+          vs1 = U.mapMaybe f $ U.generate (n * n) id
+            where
+              f i
+                | gr @! (u, v) == '-' = Nothing
+                | otherwise = Just (i, 1 :: Int)
+                where
+                  (!u, !v) = i `divMod` n
+          grF :: Vertex -> Int -> [(Int, Int)]
+          grF i _ = do
+            let (!u, !v) = i `divMod` n
+            u' <- [0 .. n - 1]
+            -- REMARK: u' -> u -> middle -> v -> v'
+            guard $ gr @! (u', u) /= '-'
+            v' <- [0 .. n - 1]
+            guard $ gr @! (v, v') /= '-' && gr @! (u', u) == gr @! (v, v')
+            pure (index bounds (u', v'), 2)
 
-  let myAdj u v =
-        -- FIXME: too slow
-        let rowU = U.take n . U.drop (n * u) $ vecIV gr
-            rowV = U.take n . U.drop (n * v) $ vecIV gr
-            f (!i, '-') = U.empty
-            f (!i, !c) = U.map (\(!j, !_) -> (i, j)) . U.filter ((== c) . snd) $ U.indexed rowV
-         in U.concatMap f $ U.indexed rowU
-  let adjs = V.generate (n * n) $ \i ->
-        let (!u, !v) = i `divMod` n
-         in myAdj u v
-
-  vis <- UM.unsafeNew (n * n)
-  buf <- newBuffer (10 ^ 6 :: Int)
-  -- let solve2 v1 v2 = do
-  --       UM.set vis $ Bit False
-  --       let inner
-  --             -- FIXME: too slow
-  --             | i >= 100 * 100 = pure (-1)
-  --             | otherwise = do
-  --                 whenJustM (popBack buf) $ \(!d, !u, !v)
-  --       inner v1 v2
-
-  printBSB "TODO"
+  printMat $ IxVector (zero2 n n) res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc394/tasks/abc394_e
 main :: IO ()
