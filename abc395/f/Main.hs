@@ -28,16 +28,24 @@ debug :: Bool ; debug = False
 solve :: StateT BS.ByteString IO ()
 solve = do
   (!n, !constraint) <- ints2'
-  !xs <- intsU'
-  !ys <- intsU'
-  let minHeight = U.minimum $ U.zipWith min xs ys
+  !xys <- U.replicateM n ints2'
+  let minHeight = U.minimum $ U.map (\(!a, !b) -> a + b) xys
 
   let f :: Int -> Bool
-      f h = fromMaybe False $ bisectL 0 (xs G.! h) (g h)
-      g h h0 =
+      f h = fst3 $ U.foldl' step s0 xys
+        where
+          s0 = (True, 0, h)
+          step x@(False, !_, !_) _ = x
+          step (True, !l, !r) (!x, !y) = (intersects, max fromL toL, min fromR toR)
+            where
+              fromL = max 0 $ l - constraint
+              fromR = min h $ r + constraint
+              toL = max 0 $ h - y
+              toR = min h x
+              intersects = not $ fromR < toL || toR < fromL
 
-  let res = fromJust $ bisectL 0 minHeight f
-  printBSB $ U.sum xs + U.sum ys - n * res
+  let res = dbgId . fromJust $ bisectL 0 minHeight f
+  printBSB $ U.sum (U.map (\(!a, !b) -> a + b) xys) - n * res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc395/tasks/abc395_f
 main :: IO ()
