@@ -22,6 +22,14 @@ run problem:
 [private]
 alias r := run
 
+# builds the executable
+[no-cd]
+build problem:
+    @cabal build "{{problem}}-exe" # --ghc-options -DDEBUG
+
+[private]
+alias b := build
+
 # submits the code
 [no-cd]
 submit problem:
