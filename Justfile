@@ -46,7 +46,7 @@ test-and-submit problem: && (test problem) (submit problem)
 [private]
 alias ts := test-and-submit
 
-# copy the bundled file
+# test and copy the bundled file
 [no-cd]
 copy problem:
     # TODO: allow any OS

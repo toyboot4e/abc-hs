@@ -76,10 +76,10 @@
               # nodejs
 
               hlint
-              haskell.compiler.ghc946
-              (haskell-language-server.override { supportedGhcVersions = [ "946" ]; })
-              haskell.packages.ghc946.cabal-fmt
-              haskell.packages.ghc946.doctest
+              haskell.compiler.ghc947
+              (haskell-language-server.override { supportedGhcVersions = [ "947" ]; })
+              haskell.packages.ghc947.cabal-fmt
+              haskell.packages.ghc947.doctest
               haskellPackages.hoogle
               haskellPackages.ghcid
               haskellPackages.ghcide

@@ -34,37 +34,32 @@ solve = do
     pure $ U.imap (\i c -> if c == '?' && Just 'o' `elem` [s G.!? (i - 1), s G.!? (i + 1)] then '.' else c) s
 
   let !nKnownO = U.length $ U.filter (== 'o') s
-  let !nUnknown = U.length $ U.filter (== '?') s
-  let !restO = k - nKnownO
-  let !restDots = nUnknown - restO
-
-  when (restO == 0) $ do
+  when (nKnownO == k) $ do
     -- rest '?' are '.'
     printBSB . U.toList $ U.map (\c -> if c == '?' then '.' else c) s
     liftIO exitSuccess
 
-  when (restDots == 0) $ do
-    -- rest '?' are 'o'
-    printBSB . U.toList $ U.map (\c -> if c == '?' then 'o' else c) s
-    liftIO exitSuccess
-
-  -- エリア毎に配置方法を考える
-  let rle = map (\vec -> (U.head vec, U.length vec)) $ U.groupBy ((==) `on` snd) $ U.indexed s
-  let oRles = filter (\(!c, !len) -> c == 'o') rle
-
-  let nPuts = sort $ map ((`div` 2) . succ . snd) oRles
-  let nSumPut = sum nPuts
+  let rle = map (\vec -> (U.head vec, U.length vec)) $ U.group s
+  let unknownRles = filter (\(!c, !len) -> c == '?') rle
+  let nPuts = sum $ map ((`div` 2) . succ . snd) unknownRles
 
   s' <- U.thaw s
-  when (length nPuts == 0) $ do
-    let !a = oRles
-    when 
 
-  -- let minLen = 
+  when (nKnownO + nPuts == k) $ do
+    void $
+      foldM_
+        ( \offset (!c, !len) -> do
+            when (c == '?' && odd len) $ do
+              for_ [0  .. len - 1] $ \dx -> do
+                GM.write s' (offset + dx) $ bool '.' 'o' $ even dx
+            pure $ offset + len
+        )
+        0
+        rle
 
-  -- FIXME: use final result
   printBSB . U.toList =<< U.unsafeFreeze s'
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc401/tasks/abc401_d
 main :: IO ()
 main = runIO solve
+
