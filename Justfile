@@ -46,3 +46,19 @@ test-and-submit problem: && (test problem) (submit problem)
 [private]
 alias ts := test-and-submit
 
+# copy the bundled file
+[no-cd]
+copy problem:
+    # TODO: allow any OS
+    @toy-lib -e "{{problem}}/Main.hs" | xclip -sel clip
+
+[private]
+alias c := copy
+
+# copy the bundled file
+[no-cd]
+test-and-copy problem: && (test problem) (copy problem)
+
+[private]
+alias tc := test-and-copy
+
