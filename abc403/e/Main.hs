@@ -15,9 +15,6 @@ import ToyLib.Contest.Prelude
 -- import Data.ModInt
 -- import Data.PowMod
 -- import Data.Primes
-import Data.Buffer
-import Data.MultiSet
-import Data.RollingHash
 
 -- }}} toy-lib import
 {-# RULES "Force inline VAI.sort" VAI.sort = VAI.sortBy compare #-}
@@ -26,62 +23,162 @@ debug :: Bool ; debug = False
 
 {- ORMOLU_ENABLE -}
 
-rh :: Int -> RH 100 2305843009213693951
-rh = rh1
+data Trie k v = Trie
+  { -- keyT :: {-# UNPACK #-} Int,
+    payloadT :: !v,
+    childrenT :: !(M.Map k (Trie k v))
+  }
+  deriving (Show, Eq)
 
-ins :: Int -> Int -> IM.IntMap IS.IntSet -> IM.IntMap IS.IntSet
-ins k v im = case IM.lookup k im of
-  Nothing -> IM.insert k (IS.singleton v) im
-  Just is -> IM.insert k (IS.insert v is) im
+-- | \(O(1)\)
+rootT :: (Ord k) => v -> Trie k v
+rootT x = Trie x M.empty
+
+-- | \(O(k \log w)\)
+lookupT :: forall k v. (Ord k) => [k] -> Trie k v -> Maybe v
+lookupT = inner
+  where
+    inner :: [k] -> Trie k v -> Maybe v
+    inner [] !trie = Just $ payloadT trie
+    inner (k : keys) !trie = do
+      child <- M.lookup k $ childrenT trie
+      inner keys child
+
+-- | \(O(k \log w)\)
+memberT :: forall k v. (Ord k) => [k] -> Trie k v -> Bool
+memberT ks = isJust . lookupT ks
+
+-- | \(O(k \log w)\) Does nothing if no such vertex exist.
+modifyT :: forall k v. (Ord k) => (v -> v) -> [k] -> Trie k v -> Trie k v
+modifyT f = modifyNodeT (\(Trie p v) -> Trie (f p) v)
+
+-- | \(O(k \log w)\) Does nothing if no such vertex exist.
+modifyNodeT :: forall k v. (Ord k) => (Trie k v -> Trie k v) -> [k] -> Trie k v -> Trie k v
+modifyNodeT f = inner
+  where
+    inner :: [k] -> Trie k v -> Trie k v
+    inner [] trie = f trie
+    inner (k : keys) trie = trie {childrenT = M.adjust (inner keys) k (childrenT trie)}
+
+-- TODO: deduplicate the implementations of alloc*
+
+-- | \(O(k \log w)\) Non-existing nodes in the path will have the same payload.
+allocPathT :: forall k v. (Ord k) => [k] -> v -> v -> Trie k v -> Trie k v
+allocPathT keys0 vParent vLeaf = inner keys0
+  where
+    inner :: [k] -> Trie k v -> Trie k v
+    inner [] trie = trie
+    inner (k : keys) (Trie payload children) =
+      -- TODO: fix it to one-pass
+      case M.lookup k children of
+        Just child -> Trie payload $! M.insert k (inner keys child) children
+        Nothing -> Trie payload $! M.insert k (allocPath keys) children
+    allocPath :: [k] -> Trie k v
+    allocPath [] = Trie vLeaf M.empty
+    allocPath (k : keys) = Trie vParent $! M.singleton k (allocPath keys)
+
+-- | \(O(k \log w)\) Allocates a path from the root to a node and modifies the payload of the
+-- target node.
+allocModifyT :: forall k v. (Ord k) => (v -> v) -> [k] -> v -> Trie k v -> Trie k v
+allocModifyT f keys0 vDefault = inner keys0
+  where
+    inner :: [k] -> Trie k v -> Trie k v
+    inner [] trie = trie { payloadT = f (payloadT trie) }
+    inner (k : keys) (Trie payload children) =
+      -- TODO: fix it to one-pass
+      case M.lookup k children of
+        Just child -> Trie payload $! M.insert k (inner keys child) children
+        Nothing -> Trie payload $! M.insert k (allocPath keys) children
+    allocPath :: [k] -> Trie k v
+    allocPath [] = Trie (f vDefault) M.empty
+    allocPath (k : keys) = Trie vDefault $! M.singleton k (allocPath keys)
+
+-- | \(O(k \log w)\) Allocates a path from the root to a node and modifies the payload of the node
+-- in the path.
+allocModifyPathT :: forall k v. (Ord k) => (v -> v) -> [k] -> v -> Trie k v -> Trie k v
+allocModifyPathT f keys0 vDefault = inner keys0
+  where
+    !fv = f vDefault
+    inner :: [k] -> Trie k v -> Trie k v
+    inner [] trie = trie { payloadT = f (payloadT trie) }
+    inner (k : keys) (Trie payload children) =
+      case M.lookup k children of
+        Just child -> Trie payload' $! M.insert k (inner keys child) children
+        Nothing -> Trie payload' $! M.insert k (allocPath keys) children
+      where
+        !payload' = f payload
+    allocPath :: [k] -> Trie k v
+    allocPath [] = Trie fv M.empty
+    allocPath (k : keys) = Trie fv $! M.singleton k (allocPath keys)
+
+-- | \(O(k \log w)\) Modifies payload of a node and their parents.
+--
+-- ==== Constraints
+-- - The key must be in the map.
+modifyPathT :: forall k v. (Ord k) => (v -> v) -> [k] -> Trie k v -> Trie k v
+modifyPathT f = inner
+  where
+    inner :: [k] -> Trie k v -> Trie k v
+    inner [] !trie = trie {payloadT = f (payloadT trie)}
+    inner (k : keys) !trie = Trie (f (payloadT trie)) (M.adjust (inner keys) k (childrenT trie))
+
+-- | \(O(k \log w)\) Returns prefix payloads, excluding the root.
+pathT :: forall k v. (Ord k) => [k] -> Trie k v -> [v]
+pathT = inner
+  where
+    inner :: [k] -> Trie k v -> [v]
+    inner [] !trie = []
+    inner (k : keys) !trie = do
+      -- TODO: write monadic code
+      case M.lookup k (childrenT trie) of
+        Just child -> (payloadT child :) $ inner keys child
+        Nothing -> []
+
+data Payload = Payload
+  { -- | Represents whether the prefix is acceptable.
+    acceptableP :: !Bool,
+    -- | Query indices that match to the prefix.
+    matchesP :: !IS.IntSet
+  }
+  deriving (Show, Eq)
+
+insertP :: Int -> Payload -> Payload
+insertP k (Payload b is) = Payload b $! IS.insert k is
 
 -- | Rolling hash answer
 solve :: StateT BS.ByteString IO ()
 solve = do
   !q <- int'
-  !ts <- V.replicateM q $ (,) <$> int' <*> word'
+  !qs <- V.replicateM q $ (,) <$> int' <*> word'
 
-  -- prefix hashes for matching
-  prefixHashes <- newMutVar IS.empty
+  let !res = V.tail $ V.iscanl' step s0 qs
+        where
+          !s0 = (rootT @Char @Payload (Payload False IS.empty), IS.empty)
+          !p0 = Payload False IS.empty
+          !p1 = Payload True IS.empty
 
-  -- prefix hash -> query indices
-  targetPrefixes <- newMutVar (IM.empty @IS.IntSet)
+          -- add prefix
+          step :: Int -> (Trie Char Payload, IS.IntSet) -> (Int, BS.ByteString) -> (Trie Char Payload, IS.IntSet)
+          step iQuery (!trie, !rest) (1, !s) = (trie', rest')
+            where
+              !trie' = allocModifyT (const p1) (BS.unpack s) (Payload False IS.empty) trie
+              !rest' = fromMaybe rest $ do
+                payload <- lookupT (BS.unpack s) trie
+                pure $! IS.difference rest $ matchesP payload
 
-  -- query indices
-  restQueries <- newMutVar S.empty
+          -- add target
+          step iQuery (!trie, !rest) (2, !s) = (trie', rest')
+            where
+              !anyMatch = any acceptableP $ pathT (BS.unpack s) trie
+              !trie'
+                | anyMatch = trie
+                | otherwise = allocModifyPathT (insertP iQuery) (BS.unpack s) p0 trie
+              !rest'
+                | anyMatch = rest
+                | otherwise = IS.insert iQuery rest
+          step _ _ _ = error "unreachable"
 
-  res <- V.iforM ts $ \iQuery query -> do
-    case query of
-      (1, !s) -> do
-        -- add prefix
-        let !h = hashRH . U.foldl' (<>) mempty . U.map (rh . ord) . U.fromList $ BS.unpack s
-        modifyMutVar prefixHashes $ IS.insert h
-
-        im <- readMutVar targetPrefixes
-        whenJust (IM.lookup h im) $ \set -> do
-          -- delete matching queries
-          for_ (IS.toList set) $ \x -> do
-            modifyMutVar restQueries (S.delete x)
-          -- remove query indices
-          -- TODO: I think this is not enough?
-          modifyMutVar targetPrefixes $ IM.delete h
-        modifyMutVar prefixHashes $ IS.insert h
-      (2, !s) -> do
-        -- add target prefixes
-        let hashes =
-              U.map hashRH
-                . U.postscanl' (\acc x -> acc <> rh x) mempty
-                . U.map ord
-                $ U.fromList (BS.unpack s)
-        matchers <- readMutVar prefixHashes
-        when (U.all (`IS.notMember` matchers) hashes) $ do
-          modifyMutVar restQueries $ S.insert iQuery
-          modifyMutVar targetPrefixes $ \im0 ->
-            U.foldl' (\im h -> ins h iQuery im) im0 hashes
-      _ -> error "unreachable"
-
-    S.size <$> readMutVar restQueries
-
-  printBSB $ unlinesBSB res
+  printBSB $ unlinesBSB $ V.imap (\i (!_, !rest) -> IS.size rest) res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc403/tasks/abc403_e
 main :: IO ()
