@@ -49,8 +49,13 @@ alias ts := test-and-submit
 # test and copy the bundled file
 [no-cd]
 copy problem:
-    # TODO: allow any OS
-    @toy-lib -e "{{problem}}/Main.hs" | xclip -sel clip
+    #!/usr/bin/env bash
+    if [ {{os()}} == "macos" ] ; then
+        toy-lib -e "{{problem}}/Main.hs" | pbcopy
+    else
+        # X Window System
+        toy-lib -e "{{problem}}/Main.hs" | xclip -sel clip
+    fi
 
 [private]
 alias c := copy
@@ -61,4 +66,3 @@ test-and-copy problem: && (test problem) (copy problem)
 
 [private]
 alias tc := test-and-copy
-
