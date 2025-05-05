@@ -27,67 +27,19 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
--- | [l, r) version
-(+!+) :: (HasCallStack) => U.Vector Int -> (Int, Int) -> Int
-(+!+) csum (!l, !r)
-  | l >= r = 0
-  | otherwise = csum +! (l, r - 1)
-  -- where
-  --   !_ = dbg ("+!", l, r - 1)
-
--- eval :: (HasCallStack) => U.Vector Int -> U.Vector Int -> Int -> Int -> Int
--- eval xs csum lenL lenR = fromR + fromL
---   where
---     n = G.length xs
---     len = lenL + lenR
---     -- !_ = dbg ((0, lenL), (n - lenR, n))
---     s = csum +!+ (0, lenL) + csum +!+ (n - lenR, n)
---     avg = s `div` len
---     fromR = (n -) . fromMaybe n $ bisectR (n - lenR) (n - 1) $ \i -> xs G.! i <= avg
---     fromL = (lenL -) . fromMaybe lenL $ bisectR 0 (lenL - 1) $ \i -> xs G.! i <= avg
---     !_ = dbg (s, avg, (lenL, lenR), fromL, fromR, fromL + fromR)
-
--- test :: U.Vector Int -> U.Vector Int -> Int -> Int -> Bool
--- test xs csum lenL lenR = eval xs csum lenL lenR == lenR
-
--- solve1 :: StateT BS.ByteString IO ()
--- solve1 = do
---   n <- int'
---   xs <- U.modify VAI.sort <$> intsU'
---   let !_ = dbg ("test", xs)
---
---   let !csum = csum1D xs
---   let !tests = dbg [(lenL, lenR, eval xs csum lenL lenR) | lenL <- [1 .. n - 1], lenR <- [1 .. n - lenL]]
---
---   let res = fromMaybe 0 $ bisectL 1 n $ \lenR -> any (\lenL -> test xs csum lenL lenR) [1 .. n - lenR - 1]
---   printBSB res
-
--- | O(n)
-evalMax :: U.Vector Int -> U.Vector Int -> Int -> Int
-evalMax xs csum lenL = safeMax . map f $ twoPointers (n - lenL) p
-  where
-    n = G.length xs
-    safeMax [] = 0
-    safeMax ys = maximum ys
-    f :: (Int, Int) -> Int
-    f (!l, !r) = r + 1 - l
-    p l_ r_ = xs G.! l > avg
-      where
-        l = l_ + lenL
-        r = r_ + lenL
-        dLen = r + 1 - l
-        s = csum +! (0, lenL - 1) + csum +! (l, r)
-        avg = s `div` (lenL + dLen)
-
 -- | O(n^2)
 solve1 :: StateT BS.ByteString IO ()
 solve1 = do
   n <- int'
   xs <- U.modify VAI.sort <$> intsU'
   let !csum = csum1D xs
-  let !_ = dbg ("test", xs)
-  printBSB $ maximum [evalMax xs csum lenL | lenL <- [0 .. n `div` 2]]
+  let eval len = (len -) . fromMaybe len $ bisectR 0 (len - 1) $ \i -> xs G.! i <= avg
+        where
+          s = csum G.! len
+          avg = s `div` len
+  printBSB $ maximum [eval len | len <- [1 .. n]]
 
+-- | ソートして小さい順に K 個取って評価する。 TODO: 解説を読んで理解する
 solve :: StateT BS.ByteString IO ()
 solve = do
   !t <- int'

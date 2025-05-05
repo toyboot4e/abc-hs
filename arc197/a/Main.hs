@@ -29,62 +29,43 @@ debug :: Bool ; debug = False
 solve1 :: StateT BS.ByteString IO ()
 solve1 = do
   (!h, !w) <- ints2'
-  !s <- line'
-  let nD = BS.length $ BS.filter (== 'D') s
-  let nR = BS.length $ BS.filter (== 'R') s
+  !s <- U.fromList . BS.unpack <$> line'
+  let nD = U.length $ U.filter (== 'D') s
+  let nR = U.length $ U.filter (== 'R') s
   let nFreeD = h - 1 - nD
   let nFreeR = w - 1 - nR
 
-  gr <- IxVector (zero2 h w) <$> UM.replicate (h * w) (Bit False)
-  writeIV gr (0, 0) $ Bit True
+  -- TODO: mapAccumL alternative
 
-  bufA <- newBuffer $ h * w
-  bufB <- newBuffer $ h * w
-  pushBack bufA ((0, 0), (0, 0))
+  -- down first
+  let pathD = U.map fst $ U.scanl' step s0 s
+        where
+          s0 = ((0, 0), 0) :: ((Int, Int), Int)
+          step ((!y, !x), !nExp) c = case c of
+            'D' -> ((y + 1, x), nExp)
+            'R' -> ((y, x + 1), nExp)
+            '?'
+              | nExp < nFreeD -> ((y + 1, x), nExp + 1)
+              | otherwise -> ((y, x + 1), nExp)
 
-  for_ (zip [0 :: Int ..] (BS.unpack s)) $ \(!i, !c) -> do
-    let buf1 = if even i then bufA else bufB
-    let buf2 = if even i then bufB else bufA
-    clearBuffer buf2
-    let !cands = case c of
-          'D' -> U.fromListN 1 [((1, 0), (0, 0))]
-          'R' -> U.fromListN 1 [((0, 1), (0, 0))]
-          '?' -> U.fromListN 2 [((1, 0), (1, 0)), ((0, 1), (0, 1))]
-    froms <- unsafeFreezeBuffer buf1
-    U.forM_ froms $ \((!y, !x), (!yRest, !xRest)) -> do
-      U.forM_ cands $ \((!dy, !dx), (!dyRest, !dxRest)) -> do
-        let !yRest' = yRest + dyRest
-        let !xRest' = xRest + dxRest
-        unless (yRest' > nFreeD || xRest' > nFreeR) $ do
-          Bit b <- exchangeIV gr (y + dy, x + dx) $ Bit True
-          unless b $ do
-            pushBack buf2 ((y + dy, x + dx), (yRest', xRest'))
+  -- right first
+  let pathR = U.map fst $ U.scanl' step s0 s
+        where
+          s0 = ((0, 0), 0) :: ((Int, Int), Int)
+          step ((!y, !x), !nExp) c = case c of
+            'D' -> ((y + 1, x), nExp)
+            'R' -> ((y, x + 1), nExp)
+            '?'
+              | nExp < nFreeR -> ((y, x + 1), nExp + 1)
+              | otherwise -> ((y + 1, x), nExp)
 
-  -- foldM_
-  --   (\ !posMap c -> do
-  --       let !cands = case c of
-  --             'D' -> U.fromListN 1 [((1, 0), (0, 0))]
-  --             'R' -> U.fromListN 1 [((0, 1), (0, 0))]
-  --             '?' -> U.fromListN 2 [((1, 0), (1, 0)), ((0, 1), (0, 1))]
-  --       -- we need concatMapM and iconcatMap
-  --       let !nexts = (U.concat <$>) . (\kvs -> mapMaybeM (f kvs) cands) posMap
-  --             where
-  --               f :: ((Int, Int), (Int, Int)) -> ((Int, Int), (Int, Int)) -> Maybe ((Int, Int), (Int, Int))
-  --               f ((!y, !x), (!yRest, !xRest)) ((!dy, !dx), (!dyRest, !dxRest))
-  --                 | yRest' > nFreeD || xRest' > nFreeR = Nothing
-  --                 | otherwise = Just ((y + dy, x + dx), (yRest', xRest'))
-  --                 where
-  --                   yRest' = yRest + dyRest
-  --                   xRest' = xRest + dxRest
-  --       for_ (M.keys nexts) $ \(!y, !x) -> do
-  --         writeIV gr (y, x) $ Bit True
-  --       pure nexts
-  --       )
-  --   (U.singleton ((0, 0), (0, 0)) :: U.Vector ((Int, Int), (Int, Int)))
-  --   $ BS.unpack s
+  -- check row by row
+  let rows1 = U.accumulate min (U.replicate h maxBound) pathD
+  let rows2 = U.accumulate max (U.replicate h (-1)) pathR
 
-  printBSB . U.length . U.filter unBit  =<< U.unsafeFreeze (vecIV gr)
+  printBSB . U.sum $ U.zipWith (\a b -> b + 1 - a) rows1 rows2
 
+-- | R を優先して選択した path, D を優先して選択した path の間を全て塗ることができる
 solve :: StateT BS.ByteString IO ()
 solve = do
   !t <- int'
