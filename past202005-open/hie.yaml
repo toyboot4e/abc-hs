@@ -1,0 +1,43 @@
+cradle:
+  cabal:
+    - path: "./a/Main.hs"
+      component: "past202005-open:exe:a-exe"
+
+    - path: "./b/Main.hs"
+      component: "past202005-open:exe:b-exe"
+
+    - path: "./c/Main.hs"
+      component: "past202005-open:exe:c-exe"
+
+    - path: "./d/Main.hs"
+      component: "past202005-open:exe:d-exe"
+
+    - path: "./e/Main.hs"
+      component: "past202005-open:exe:e-exe"
+
+    - path: "./f/Main.hs"
+      component: "past202005-open:exe:f-exe"
+
+    - path: "./g/Main.hs"
+      component: "past202005-open:exe:g-exe"
+
+    - path: "./h/Main.hs"
+      component: "past202005-open:exe:h-exe"
+
+    - path: "./i/Main.hs"
+      component: "past202005-open:exe:i-exe"
+
+    - path: "./j/Main.hs"
+      component: "past202005-open:exe:j-exe"
+
+    - path: "./k/Main.hs"
+      component: "past202005-open:exe:k-exe"
+
+    - path: "./l/Main.hs"
+      component: "past202005-open:exe:l-exe"
+
+    - path: "./m/Main.hs"
+      component: "past202005-open:exe:m-exe"
+
+    - path: "./n/Main.hs"
+      component: "past202005-open:exe:n-exe"
