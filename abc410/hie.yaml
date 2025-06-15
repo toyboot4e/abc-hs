@@ -1,0 +1,43 @@
+cradle:
+  cabal:
+    - path: "./a/Main.hs"
+      component: "abc408:exe:a-exe"
+
+    - path: "./b/Main.hs"
+      component: "abc408:exe:b-exe"
+
+    - path: "./c/Main.hs"
+      component: "abc408:exe:c-exe"
+
+    - path: "./d/Main.hs"
+      component: "abc408:exe:d-exe"
+
+    - path: "./e/Main.hs"
+      component: "abc408:exe:e-exe"
+
+    - path: "./f/Main.hs"
+      component: "abc408:exe:f-exe"
+
+    - path: "./g/Main.hs"
+      component: "abc408:exe:g-exe"
+
+    - path: "./h/Main.hs"
+      component: "abc408:exe:h-exe"
+
+    - path: "./i/Main.hs"
+      component: "abc408:exe:i-exe"
+
+    - path: "./j/Main.hs"
+      component: "abc408:exe:j-exe"
+
+    - path: "./k/Main.hs"
+      component: "abc408:exe:k-exe"
+
+    - path: "./l/Main.hs"
+      component: "abc408:exe:l-exe"
+
+    - path: "./m/Main.hs"
+      component: "abc408:exe:m-exe"
+
+    - path: "./n/Main.hs"
+      component: "abc408:exe:n-exe"
