@@ -34,26 +34,18 @@ solve = do
   !uvws <- U.replicateM m ints110'
 
   let !gr = buildWSG n uvws
+  let !bnd = zero2 n (bit 10)
 
-  let !bnd = zero2 n 1024
-  res <- IxVector bnd <$> UM.replicate (1024 * n) (Bit False)
+  let !res = genericBfs''' (.|.) grF (rangeSize bnd) (Bit False) $ U.singleton (index bnd (0, 0), Bit True)
+        where
+          grF i (Bit True) = U.map (\(!v, !dw) -> (index bnd (v, xor w dw), Bit True)) $ gr `adjW` u
+            where
+              (!u, !w) = i `divMod` bit 10
+          grF i (Bit False) = error "unreachable"
 
-  buf <- newBuffer (bit 10 * n)
-  writeIV res (0, 0) (Bit True)
-  pushBack buf (0, 0)
-
-  fix $ \loop -> do
-    whenJustM (popFront buf) $ \(!u, !iBit) -> do
-      U.forM_ (gr `adjW` u) $ \(!v, !dw) -> do
-        let !w' = iBit `xor` dw
-        Bit old <- exchangeIV res (v, w') $ Bit True
-        unless old $ do
-          pushBack buf (v, w')
-      loop
-
-  res' <- minimumOr (-1) <$> U.filterM (\i -> unBit <$> readIV res (n - 1, i)) (U.generate 1024 id)
+  let !res' = fromMaybe (-1) . U.findIndex unBit $ U.drop ((n - 1) * bit 10) res
   printBSB res'
 
--- verification-helper: PROBLEM https://atcoder.jp/contests/abc408/tasks/abc408_d
+-- verification-helper: PROBLEM https://atcoder.jp/contests/410/tasks/410_d
 main :: IO ()
 main = runIO solve
