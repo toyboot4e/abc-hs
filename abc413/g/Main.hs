@@ -61,11 +61,13 @@ solveSlow :: Int -> Int -> Int -> U.Vector (Int, Int) -> Bool
 solveSlow h w k blocks = G.last dist /= -1
   where
     dist = genericBfs grF (h * w) 0 (-1 :: Int)
+    !_ = dbg dist
     bnd = zero2 h w
     blocks' = S.fromList $ U.toList blocks
     grF i =
       let (!y, !x) = i `divMod` w
-       in G.filter (inRange bnd)
+       in G.map (\(!y, !x) -> (index bnd (y, x), 1))
+            . G.filter (inRange bnd)
             . G.filter (`S.notMember` blocks')
             $ G.map (add2 (y, x)) ortho4
 
@@ -143,7 +145,7 @@ propQC = do
   h <- QC.choose (1, 4)
   w <- QC.choose (1, 4)
   k <- QC.choose (0, h * w)
-  blocks <- (U.uniq . U.modify VAI.sort . U.fromList <$>) $ QC.vectorOf k do
+  blocks <- (U.uniq . U.modify VAI.sort . U.filter (`notElem` [(0, 0), (h - 1, w - 1)]) . U.fromList <$>) $ QC.vectorOf k do
     y <- QC.chooseInt (0, h - 1)
     x <- QC.chooseInt (0, w - 1)
     pure (y, x)
