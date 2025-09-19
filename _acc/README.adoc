@@ -52,6 +52,10 @@ $ # Test directories are named as `test-cases`
 $ acc config default-test-dirname-format test-cases
 ----
 
+== Login to AtCoder
+
+`oj` and `atcoder-cli` needs to login to AtCoder. Use https://github.com/key-moon/aclogin[aclogin].
+
 == Language server support
 
 You do need the language server support! If it's not working, check out the following steps.
