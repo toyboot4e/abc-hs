@@ -6,11 +6,15 @@
 :ghcup: https://www.haskell.org/ghcup/[GHCup]
 :implicit-hie: https://hackage.haskell.org/package/implicit-hie[implicit-hie]
 
-The configuration files are located at `npx acc config-dir`.
-
 == Installation
 
-Install {acc} and {oj}:
+=== Via Nix
+
+Just run `direnv allow`.
+
+=== Via `npm`
+
+Install `atcoder-cli` and `online-judge-tools` with `npm`. Note that `acc` must be run with `npx acc`, while this repository uses `acc`.
 
 [source,sh]
 ----
@@ -19,27 +23,33 @@ $ npm install atcoder-cli
 $ python3 -m pip install online-judge-tools
 ----
 
-== Configuration
+== Setting up `atcoder-cli`
 
-Set up `config.yaml`:
+The configuration file is located at `acc config-dir`.
+
+=== Template
+
+[source,sh]
+----
+$ ln -s "$(realpath haskell)" "$(acc config-dir )"
+$ acc templates
+search template directories in /Users/mp/Library/Preferences/atcoder-cli-nodejs
+NAME     SUBMIT-PROGRAM
+haskell  .submit.hs
+
+$ # Use `haskell` template as default
+$ acc config default-template haskell
+----
+
+=== Other settings
 
 [source,sh]
 ----
 $ # Download all problems by default
-$ npx acc config default-task-choice all
+$ acc config default-task-choice all
 
 $ # Test directories are named as `test-cases`
-$ npx acc config default-test-dirname-format test-cases
-
-$ # Use `haskell` template as default
-$ npx acc config default-template haskell
-----
-
-Add `haskell` template:
-
-[source,sh]
-----
-$ bash -c 'ln -s "$(pwd)/haskell" "$(npx acc config-dir)"'
+$ acc config default-test-dirname-format test-cases
 ----
 
 == Language server support
