@@ -1,6 +1,6 @@
 #!/usr/bin/env -S bash -euE
 
-figlet -f univers "$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')" -w 1000
+figlet -f univers -w 1000 "$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')"
 
 pane="$(tmux split-window -v -c  "#{pane_current_path}" -l 4 -P -F "#{pane_id}")"
 tmux select-pane -U

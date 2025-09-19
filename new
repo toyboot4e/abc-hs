@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euE
 
-acc='npx acc'
+acc='acc' # 'npx acc'
 
 $acc new "$1" --template haskell --choice all
 # mkdir "$1"
