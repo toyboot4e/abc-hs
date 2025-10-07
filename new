@@ -3,20 +3,18 @@ set -euE
 
 acc='acc' # 'npx acc'
 
-$acc new "$1" --template haskell --choice all
+$acc new "$1" --template ${2:-haskell} --choice all
 # mkdir "$1"
 
-# For HLS
-# cat _acc/hie.yaml | sed "s;_acc;$1;g" > "$1/hie.yaml"
-
-# stack
-package_name="$(printf '%s' "$1" | sed 's/_/-/g')"
+# NOTE: Package name can include up to one `-`, so delete `_` all
+contest="$1"
+package="$(printf '%s' "$contest" | sed 's/_//g')"
 
 # cabal
-cat _acc/_acc.cabal | sed "s;_acc;$1;g" > "$1/$1.cabal"
-cat _acc/cabal.project | sed "s;_acc;$1;g" > "$1/cabal.project"
+cat _acc/_acc.cabal | sed "s;_acc;$package;g" > "$contest/$package.cabal"
+cat _acc/cabal.project | sed "s;_acc;$package;g" > "$contest/cabal.project"
 
-cd "$1"
+cd "$contest"
 
 # Emacs
 : > ".projectile"
@@ -24,7 +22,6 @@ cd "$1"
 # patch source files to embed `verifycation-helper` contest IDs:
 for f in $(command ls */*.hs) ; do
   # Example: <<url>> -> https://atcoder.jp/contests/abc294/tasks/abc294_b
-  contest="$1"
   problem="$(dirname "$(printf '%s' "$f")")"
   echo "patching $contest, $problem .." 2>&1
   # cat "$f" | sed "s@<<url>>@https://atcoder.jp/contests/$contest/tasks/${contest}_$problem@g" | tee "$f" > /dev/null

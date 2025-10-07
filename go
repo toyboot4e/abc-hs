@@ -5,7 +5,7 @@ figlet -f univers -w 1000 "$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')"
 pane="$(tmux split-window -v -c  "#{pane_current_path}" -l 4 -P -F "#{pane_id}")"
 tmux select-pane -U
 
-./new "$1" > /dev/null 2>&1 &
+./new "$1" haskell > /dev/null 2>&1 &
 sleep 8
 
 cd "$1"

@@ -66,3 +66,9 @@ test-and-copy problem: && (test problem) (copy problem)
 
 [private]
 alias tc := test-and-copy
+
+# starts repl
+[no-cd]
+repl problem:
+    cabal repl {{problem}}-exe
+
