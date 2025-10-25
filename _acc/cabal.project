@@ -3,4 +3,25 @@ packages:
   ~/dev/hs/toy-lib/toy-lib.cabal
 
 constraints:
-  toy-lib +debug
+  -- clock +llvm,
+  toy-lib +debug,
+  bitvec +libgmp,
+  text +simdutf
+
+-- vector-algorithms +llvm
+-- optimization: 2
+package *
+  compiler: ghc
+  -- ghc-options: -fllvm -Wall
+  ghc-options: -Wall
+
+allow-newer:
+  witherable:containers,
+  semialign:containers,
+  scientific:containers,
+  parallel:containers,
+  megaparsec:containers,
+  foldl:containers,
+  linear-generics:containers,
+  indexed-traversable:containers,
+  hashable:containers

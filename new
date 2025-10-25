@@ -4,13 +4,13 @@ set -euE
 acc='acc' # 'npx acc'
 
 $acc new "$1" --template ${2:-haskell} --choice all
-# mkdir "$1"
 
 # NOTE: Package name can include up to one `-`, so delete `_` all
 contest="$1"
 package="$(printf '%s' "$contest" | sed 's/_//g')"
 
 # cabal
+mkdir "$contest"
 cat _acc/_acc.cabal | sed "s;_acc;$package;g" > "$contest/$package.cabal"
 cat _acc/cabal.project | sed "s;_acc;$package;g" > "$contest/cabal.project"
 
