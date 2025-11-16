@@ -28,7 +28,7 @@ debug :: Bool ; debug = False
 
 solve :: StateT BS.ByteString IO ()
 solve = do
-  !n <- int'
+  (!n, !q) <- ints2'
   !xs <- intsU'
 
   printBSB "TODO"

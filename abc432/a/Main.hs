@@ -28,8 +28,8 @@ debug :: Bool ; debug = False
 
 solve :: StateT BS.ByteString IO ()
 solve = do
-  !xs <- intsU'
-  printBSB . concatMap show . U.toList $ U.modify (VAI.sortBy (comparing Down)) xs
+  !xs <- U.toList <$> intsU'
+  printBSB . concatMap show $ sortBy (comparing Down) xs
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc432/tasks/abc432_a
 main :: IO ()

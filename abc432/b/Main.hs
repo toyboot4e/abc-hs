@@ -28,13 +28,8 @@ debug :: Bool ; debug = False
 
 solve :: StateT BS.ByteString IO ()
 solve = do
-  !s <- line'
-
-  let s' = BS.filter (/= '0') s
-  let (!h, !r) = fromJust . U.uncons . U.modify VAI.sort . U.fromList $ BS.unpack s'
-  let nZeros = BS.length s - BS.length s'
-
-  printBSB $ showBSB h <> showBSB (BS.replicate nZeros '0') <> showBSB (U.toList r)
+  !xs <- sort . BS.unpack <$> line'
+  printBSB . fromJust . find ((/= '0') . head) $ permutations xs
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc432/tasks/abc432_b
 main :: IO ()

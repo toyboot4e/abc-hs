@@ -39,7 +39,7 @@ solve = do
   (!n, !a, !b)<- ints3'
   !xs <- intsU'
 
-  let feats@(mods, mins, maxes) = U.unzip3 $ U.map (feat a b) xs
+  let (mods, mins, maxes) = U.unzip3 $ U.map (feat a b) xs
   let b1 = U.all (== U.head mods) mods
   let l = U.maximum mins
   let r = U.minimum maxes
