@@ -15,6 +15,8 @@ import ToyLib.Contest.Prelude
 -- import Data.ModInt
 -- import Data.PowMod
 -- import Data.Primes
+import Data.ModInt
+import Math.BitSet
 
 -- }}} toy-lib import
 {-# RULES "Force inline VAI.sort" VAI.sort = VAI.sortBy compare #-}
@@ -25,13 +27,45 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
+{- ORMOLU_DISABLE -}
+type MyModulo = (998244353 :: Nat) -- (1_000_000_007 :: Nat)
+type MyModInt = ModInt MyModulo ; myMod :: Int ; myMod = fromInteger $ natVal' @MyModulo proxy# ; {-# INLINE modInt #-} ; modInt :: Int -> MyModInt ; modInt = ModInt . (`rem` myMod) ;
+{- ORMOLU_ENABLE -}
+
 solve :: StateT BS.ByteString IO ()
 solve = do
-  !n <- int'
-  !xs <- intsU'
+  (!n, !k) <- ints2'
 
-  printBSB "TODO"
+  let !msb = msbOf n
+  let !nBits = msb + 1
+
+  let !res = done . U.foldl' step s0 $ U.generate nBits $ \i -> msb - i
+        where
+          !dn = modInt $ bool 0 n (popCount n == k)
+          done :: ((Int, MyModInt), U.Vector (Int, MyModInt)) -> MyModInt
+          done (!_, !res) = (dn +) . snd . U.last $ res
+          s0 :: ((Int, MyModInt), U.Vector (Int, MyModInt))
+          s0 = ((0 :: Int, modInt 0), U.replicate (k + 1) (0 :: Int, modInt 0))
+          step :: ((Int, MyModInt), U.Vector (Int, MyModInt)) -> Int -> ((Int, MyModInt), U.Vector (Int, MyModInt))
+          step ((!highPopCount, !highSum), !sofar) iBit = ((highPopCount', highSum'), sofar')
+            where
+              !highPopCount' = highPopCount + bool 0 1 (testBit n iBit)
+              !highSum' = highSum + bool 0 (modInt (bit iBit)) (testBit n iBit)
+              !sofar' = U.imap f sofar
+              f iPopCount (!nAcc, !sumAcc) =
+                let (!nFrom, !sumFrom)
+                      | iPopCount == 0 = (0, modInt 0)
+                      | otherwise = sofar G.! (iPopCount - 1)
+                    -- choose `0` bit and come down from the largest number
+                    !cntHigh
+                      | highPopCount <= k && testBit n iBit && iPopCount == highPopCount = 1
+                      | otherwise = 0
+                 in (nFrom + nAcc + cntHigh, sumAcc + sumFrom + modInt nFrom * modInt (bit iBit) + modInt cntHigh * highSum)
+
+  printBSB res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc406/tasks/abc406_e
 main :: IO ()
-main = runIO solve
+main = runIO $ do
+  t <- int'
+  replicateM_ t solve

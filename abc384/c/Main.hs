@@ -27,45 +27,17 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
--- solve :: StateT BS.ByteString IO ()
--- solve = do
---   !xs_ <- intsU'
--- 
---   let !xs = dbgId $ U.modify (VAI.sortBy (comparing Down)) xs_
---   let !cs = dbgId $ U.map (chr . (+ ord 'A') . fst) . U.modify (VAI.sortBy (comparing (Down . snd))) $ U.indexed xs_
--- 
---   -- FIXME: size
---   -- heap <- newMaxBH (U.sum xs, 6 * 32 :: Int)
---   heap <- newMaxBH (10 ^ 6 :: Int)
--- 
---   buf <- newBuffer 31
---   insertBH heap (U.sum xs, 10 ^ 6 :: Int)
---   (`evalStateT` IS.empty) $ fix $ \loop -> do
---     len <- lengthBuffer buf
---     unless (len == 31) $ do
---       (!score, !set) <- fromJust <$> deleteMaybeBH heap
---       unlessM (gets (IS.member set)) $ do
---         pushBack buf (score, set)
---         modify' $ IS.insert set
---         let is = U.filter (testBit set) $ U.generate 5 id
---         let nexts = U.map (\i -> (score - xs G.! i, clearBit set i)) is
---         U.forM_ nexts $ insertBH heap
---       loop
--- 
---   -- TODO: sort by (score, name)
---   res1 <- unsafeFreezeBuffer buf
---   let !res2 = U.map (second (U.backpermute cs)) res1
---   -- FIXME: is it dictinoary name comparison?
---   let !res3 = U.map snd $ U.modify (VAI.sortBy (comparing (first Down))) res2
---   printBSB $ unlinesBSB res3
-
 solve :: StateT BS.ByteString IO ()
 solve = do
   !xs <- intsU'
   let !cs = U.fromListN 5 "ABCDE"
-  let sets = U.generate (bit 5) $ \set -> (U.sum (U.backpermute xs (U.filter (testBit set) (U.generate 5 id))), set)
-  let res1 = V.modify (VAI.sortBy (comparing (first Down))) $ G.map (second (U.toList . U.backpermute cs . (\set -> U.filter (testBit set) (U.generate 5 id)))) $ U.convert sets
-  printBSB $ unlinesBSB . G.map snd $ G.take 31 res1
+  let sets = U.generate (bit 5) $ \set ->
+        (U.sum (U.backpermute xs (U.filter (testBit set) (U.generate 5 id))), set)
+  let res =
+        V.modify (VAI.sortBy (comparing (first Down)))
+          . G.map (second (U.toList . U.backpermute cs . (\set -> U.filter (testBit set) (U.generate 5 id))))
+          $ U.convert sets
+  printBSB . unlinesBSB $ G.map snd res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc384/tasks/abc384_c
 main :: IO ()

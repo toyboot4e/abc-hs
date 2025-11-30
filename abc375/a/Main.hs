@@ -28,14 +28,8 @@ debug :: Bool ; debug = False
 solve :: StateT BS.ByteString IO ()
 solve = do
   !n <- int'
-  !s <- U.fromList . BS.unpack <$> line'
-
-  when (n < 3) $ do
-    printBSB '0'
-    liftIO exitSuccess
-
-  let res = U.length . U.filter id $ U.zipWith3 (\a b c -> [a, b, c] == "#.#") s (U.tail s) (U.tail (U.tail s))
-  printBSB res
+  !s <- BS.unpack <$> line'
+  printBSB . length . filter (isPrefixOf "#.#") $ tails s
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc375/tasks/abc375_a
 main :: IO ()

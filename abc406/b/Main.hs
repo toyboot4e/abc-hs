@@ -30,15 +30,12 @@ solve = do
   (!n, !k) <- ints2'
   !xs <- intsU'
 
-  let !upper = 10 ^ toInteger k
+  let !upper = 10 ^ k :: Int
+  -- a * b >= U, a >= U/b
   let mul a b
-        | x < upper = x
-        | otherwise = 1
-        where
-          x = a * b
-  let !res = V.foldl' mul (toInteger 1) . V.map toInteger $ U.convert xs
-  let !_ = dbg upper
-
+        | a >= (upper + (b  -1)) `div` b = 1
+        | otherwise = a * b
+  let !res = U.foldl1' mul xs
   printBSB res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc406/tasks/abc406_b

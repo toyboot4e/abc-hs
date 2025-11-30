@@ -1,5 +1,5 @@
 cradle:
-  stack:
+  cabal:
     - path: "./a/Main.hs"
       component: "abc282:exe:a-exe"
 
@@ -15,11 +15,29 @@ cradle:
     - path: "./e/Main.hs"
       component: "abc282:exe:e-exe"
 
-    - path: "./ex/Main.hs"
-      component: "abc282:exe:ex-exe"
-
     - path: "./f/Main.hs"
       component: "abc282:exe:f-exe"
 
     - path: "./g/Main.hs"
       component: "abc282:exe:g-exe"
+
+    - path: "./h/Main.hs"
+      component: "abc282:exe:h-exe"
+
+    - path: "./i/Main.hs"
+      component: "abc282:exe:i-exe"
+
+    - path: "./j/Main.hs"
+      component: "abc282:exe:j-exe"
+
+    - path: "./k/Main.hs"
+      component: "abc282:exe:k-exe"
+
+    - path: "./l/Main.hs"
+      component: "abc282:exe:l-exe"
+
+    - path: "./m/Main.hs"
+      component: "abc282:exe:m-exe"
+
+    - path: "./n/Main.hs"
+      component: "abc282:exe:n-exe"

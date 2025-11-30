@@ -30,21 +30,10 @@ solve = do
   !n <- int'
   !xys <- U.replicateM n ints2'
 
-  -- let res = bisectRF64 (0.00000000001 :: Double) 0 (10 ^ 18) p
   let p h0 = not . U.and $ U.zipWith (canSee h0) xys (U.tail xys)
         where
-          -- -- True if can't see
-          -- s0 = (True, 0, 0)
-          -- step a@(False, !_, !_) = a
-          -- step (True, !yMax, !xMax) (!x, !y)
-          --   | canSee h (yMax, xMax) (y, x) = (True, y, x)
-          --   | otherwise = (False, -1, -1)
           canSee :: Double -> (Int, Int) -> (Int, Int) -> Bool
-          -- canSee h (!y1, !x1) (!y2, !x2) = x2 * (y1 - h) <= x1 (y2 - h)
           canSee h (!x1, !y1) (!x2, !y2) = intToDouble x2 * (intToDouble y1 - h) <= intToDouble x1 * (intToDouble y2 - h)
-            -- where
-
-  -- !_ = dbg (h, (x1, y1), (x2, y2) ,intToDouble x2 * (intToDouble y1 - h) <= intToDouble x1 * (intToDouble y2 - h))
 
   when (p 0) $ do
     printBSB "-1"

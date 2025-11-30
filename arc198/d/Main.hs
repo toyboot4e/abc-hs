@@ -17,6 +17,7 @@ import ToyLib.Contest.Grid
 -- import Data.Primes
 import Data.UnionFind.Mutable
 import Data.Graph.Tree.Hld
+import Data.RollingHash
 
 -- }}} toy-lib import
 {-# RULES "Force inline VAI.sort" VAI.sort = VAI.sortBy compare #-}
@@ -26,6 +27,8 @@ debug :: Bool ; debug = True
 debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
+
+rh = rh1 @100 @998244353
 
 solve :: StateT BS.ByteString IO ()
 solve = do
@@ -38,47 +41,40 @@ solve = do
   uf <- newMUF n
 
   let !hld = hldOf gr
-  -- TODO(perf): filter with the constraints here
-  -- let !ulvs = U.modify (VAI.sortBy (comparing thd3)) . U.generate (n * n) $ \i ->
-  let !ulvs = U.generate (n * n) $ \i ->
-        let (!u, !v) = i `divMod` n
-         in (u, v, lengthHLD hld u v)
 
-  let !_ = dbg ulvs
-  res <- IxVector (zero2 n n) <$> UM.replicate (n * n) False
-  U.forM_ ulvs $ \(!u, !v, !l) -> do
-    when (constraints @! (u, v)) $ do
-      let !nTry = (l + 1) `div` 2
-      let !_ = dbg (u, v, l, nTry)
-      flip fix 0 $ \loop iTry -> do
-        when (iTry < nTry) $ do
-          let !u' = fromJust $ jumpHLD hld u v iTry
-          let !v' = fromJust $ jumpHLD hld v u iTry
-          b <- readIV res (u', v')
-          if b
-            then do
-              -- shortcut
-              pure ()
-            else do
-              writeIV res (u', v') True
-              writeIV res (v', u') True
-              loop (iTry + 1)
+  uf <- newMUF n
+  isDone <- IxVector (zero2 n n) <$> UM.replicate (n * n) (Bit False)
 
-  -- TODO: count
-  printBSB . (n +) . U.length . U.filter id =<< U.unsafeFreeze (vecIV res)
+  let run u v = do
+        unifyMUF_ uf u v
+        let !u' = fromJust $ jumpHLD hld u v 1
+        let !v' = fromJust $ jumpHLD hld v u 1
+        unless (u' == v || v' == u || u' == v') $ do
+          Bit b <- exchangeIV isDone (u', v') $ Bit True
+          unless b $ do
+            run u' v'
 
-  -- -- postorder
-  -- let dfs start depth flag u = do
-  --       flag' <- U.foldM'_ (dfs start (depth + 1)) flag (gr `adj` u)
-  --       when (even depth && testBit flag' 0 || odd depth && testBit flag' 1) $ do
-  --         unifyMUF uf (
-  --       if constraints @! (start, u)
-  --         then do
-  --         else do
+  for_ [0 .. n - 1] $ \u -> do
+    for_ [u + 1 .. n - 1] $ \v -> do
+      when (constraints @! (u, v)) $ do
+        run u v
 
-  -- for_ [0 .. n - 1] $ \u -> do
-  --   dfs u 0 0
+  -- A. Use rolling hash. This is too slow (requires something more)
+  -- https://atcoder.jp/contests/arc198/submissions/66186167
+  -- colors <- U.generateM n ((rh <$>) . rootMUF uf)
+  -- tm <- buildVertTM hld False colors
+  -- res <- (`execStateT` n) $ do
+  --   for_ [0 .. n - 1] $ \u -> do
+  --     for_ [u + 1 .. n - 1] $ \v -> do
+  --       h1 <- foldTM tm u v
+  --       h2 <- foldTM tm v u
+  --       when (h1 == h2) $ do
+  --         modify' (+ 2)
 
+  -- B. DP
+  -- TODO
+
+  printBSB 0
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/arc198/tasks/arc198_d
 main :: IO ()

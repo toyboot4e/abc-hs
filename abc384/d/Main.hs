@@ -30,14 +30,9 @@ solve :: StateT BS.ByteString IO ()
 solve = do
   (!n, !s_) <- ints2'
   !xs <- intsU'
-
-  let !sumXs = U.sum xs
-  let !s = s_ `mod` sumXs
-
-  let !xs' = xs U.++ xs
-  let !csum = csum1D xs'
-  let !res = twoPointersU (2 * n) $ \l r -> csum +! (l, r) <= s
-
+  let !s = s_ `mod` U.sum xs
+  let csum = csum1D $ xs U.++ xs
+  let res = twoPointersU (2 * n) $ \l r -> csum +! (l, r) <= s
   printYn $ s == 0 || U.any ((== s) . (csum +!)) res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc384/tasks/abc384_d

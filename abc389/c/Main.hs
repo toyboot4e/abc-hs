@@ -37,23 +37,20 @@ solve = do
         3 -> (3 :: Int,) <$> int'
         _ -> error "unreachable"
 
-  let spawns = U.map snd $ U.filter ((== 1) . fst) qs
-  let pos = dbgId $ U.scanl' (+) (0 :: Int) spawns
+  let (!spawns, !other) = U.partition ((== 1) . fst) qs
+  let pos = dbgId $ U.scanl' (+) (0 :: Int) $ U.map snd spawns
 
-  buf <- newBuffer (q - (U.length pos - 1))
-  U.foldM'_
-    ( \nPop q -> case q of
-        (1, !_) -> pure nPop
-        (2, !_) -> pure $ nPop + 1
-        (3, pred -> k) -> do
-          let !_ = dbg (k, nPop, pos G.! k, pos G.! nPop)
-          pushBack buf $ pos G.! (k + nPop) - pos G.! nPop
-          pure nPop
-    )
-    (0 :: Int)
-    qs
+  let res = U.unfoldr f (0 :: Int, other)
+        where
+          f :: (Int, U.Vector (Int, Int)) -> Maybe (Int, (Int, U.Vector (Int, Int)))
+          f (!nPop, !qs_) = do
+            (!q, !rest) <- U.uncons qs_
+            case q of
+              (1, !_) -> f (nPop, rest)
+              (2, !_) -> f (nPop + 1, rest)
+              (3, pred -> k) -> pure (pos G.! (k + nPop) - pos G.! nPop, (nPop, rest))
 
-  printBSB . unlinesBSB =<< unsafeFreezeBuffer buf
+  printBSB $ unlinesBSB res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc389/tasks/abc389_c
 main :: IO ()

@@ -29,30 +29,23 @@ debug :: Bool ; debug = False
 dist :: Int -> Int -> Int -> Int -> Double
 dist !x1 !y1 !x2 !y2 = sqrt . intToDouble $ (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2)
 
+solveDP :: [(Int, Int, Int, Int)] -> Double
+solveDP = inner 0.0 0 0
+  where
+    inner :: Double -> Int -> Int -> [(Int, Int, Int, Int)] -> Double
+    inner !acc !_ !_ [] = acc
+    inner !acc !x1 !y1 ((!x2, !y2, !x3, !y3) : rest) =
+      let !cand1 = inner (acc + dist x1 y1 x2 y2) x3 y3 rest
+          !cand2 = inner (acc + dist x1 y1 x3 y3) x2 y2 rest
+       in min cand1 cand2
+
 solve :: StateT BS.ByteString IO ()
 solve = do
-  -- FIXME: double input??
   (!n, !speedM, !speedL) <- ints3'
   !lines <- U.replicateM n ints4'
 
   let lengthL = U.sum $ U.map (\(!x1, !y1, !x2, !y2) -> dist x1 y1 x2 y2) lines
-
-  -- TODO: DP
-  let dirs = U.generate (bit (n + 1)) id
-  let eval xs dir =
-        U.sum $
-          U.izipWith
-            ( \i (!x1, !y1, !x1', !y1') (!x2, !y2, !x2', !y2') ->
-                let x1'' = bool x1 x1' $ testBit dir $ i + 0
-                    y1'' = bool y1 y1' $ testBit dir $ i + 0
-                    x2'' = bool x2' x2 $ testBit dir $ i + 1
-                    y2'' = bool y2' y2 $ testBit dir $ i + 1
-                 in dist x1'' y1'' x2'' y2''
-            )
-            (U.cons (0, 0, 0, 0) xs)
-            xs
-
-  let lengthM = G.minimum $ G.map (\lines' -> G.minimum $ G.map (eval lines') dirs) $ lexPerms lines
+  let lengthM = G.minimum . G.map (solveDP . U.toList) $ lexPerms lines
   printBSB $ lengthM / intToDouble speedM + lengthL / intToDouble speedL
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc374/tasks/abc374_d

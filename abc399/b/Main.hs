@@ -25,25 +25,17 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
-pickMax :: U.Vector (Int, Int) -> Maybe (U.Vector (Int, Int), U.Vector (Int, Int))
-pickMax xs
-  | U.null xs = Nothing
-  | otherwise = Just $ U.partition ((== maxX) . snd) xs
-  where
-    maxX = snd $ U.maximumBy (comparing snd) xs
-
 solve :: StateT BS.ByteString IO ()
 solve = do
   !n <- int'
   !xs <- intsU'
-  let rle = V.unfoldr pickMax $ U.indexed xs
-  let res = U.create $ do
-        vec <- UM.replicate n (-1 :: Int)
-        let !cnts = V.scanl' (\acc xs -> acc + G.length xs) 0 rle
-        V.forM_ (V.zip cnts rle) $ \(!offset :: Int, !iys) -> do
-          U.forM_ iys $ \(!i, !y) -> do
-            GM.write vec i $ offset + 1
-        pure vec
+  let rle = V.fromList . U.groupBy ((==) `on` snd) . U.modify (VAI.sortBy (comparing (Down . snd))) $ U.indexed xs
+  let offsets = V.scanl' (\acc ys -> acc + U.length ys) (0 :: Int) rle
+  let res =
+        U.accumulate (const id) (U.replicate n (-1))
+          . U.concat
+          . V.toList
+          $ V.zipWith (\offset ixs -> U.map (\(!i, !_) -> (i, offset + 1)) ixs) offsets rle
   printVec res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc399/tasks/abc399_b

@@ -46,25 +46,17 @@ solve = do
   (!n, !k) <- ints2'
   !xs <- U.map pred <$> intsU'
 
-  let perm1 = Permutation xs
-
-  let gr = buildSG n $ U.imap (,) xs
-  let sccs = downSccSG gr
-
-  let res = U.create $ do
-        vec <- UM.replicate n (0 :: Int)
-        forM_ sccs $ \scc -> do
-          let !scc' = U.unfoldrExactN (length scc) (\v -> (v, U.head (gr `adj` v))) $ head scc
-          let !len = U.length scc'
-          let !is' =
-                let !is1 = Permutation $ U.generate len ((`mod` len) . succ)
-                    !k' = powModConst len 2 k
-                 in unPermutation (stimesOr' is1 k' is1)
-          U.forM_ (U.zip scc' is') $ \(!x, !i') -> do
-            GM.write vec x $ scc' G.! i'
-        return vec
-
-  printVec $ U.map succ res
+  let !gr = buildSG n $ U.imap (,) xs
+  printVec
+    . U.map succ
+    . U.update (U.generate n id)
+    . U.concat
+    . (`map` topSccSG gr)
+    $ \scc ->
+      let !scc' = U.fromList scc
+          !len = U.length scc'
+          !di = powModConst len 2 k
+       in U.zip scc' $ U.drop di (scc' U.++ scc')
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc377/tasks/abc377_e
 main :: IO ()

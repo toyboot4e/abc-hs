@@ -25,17 +25,10 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
-calc :: Int -> Int
-calc x = inner 1 1
-  where
-    inner !acc n
-     | acc == x = n
-     | otherwise = inner (acc * (n + 1)) (n + 1)
-
 solve :: StateT BS.ByteString IO ()
 solve = do
   !x <- int'
-  printBSB $ calc x
+  printBSB $ fromJust $ elemIndex x $ scanl' (*) (1 :: Int) [1..]
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc389/tasks/abc389_b
 main :: IO ()

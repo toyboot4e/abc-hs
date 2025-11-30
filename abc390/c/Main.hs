@@ -29,15 +29,11 @@ solve :: StateT BS.ByteString IO ()
 solve = do
   (!h, !w) <- ints2'
   !gr <- getGrid' h w
-
-  let ps = findIndicesIV (== '#') gr
-  -- if G.null ps
-
-  let x1 = U.minimum $ U.map snd ps
-  let x2 = U.maximum $ U.map snd ps
-  let y1 = U.minimum $ U.map fst ps
-  let y2 = U.maximum $ U.map fst ps
-
+  let (!ys, !xs) = U.unzip $ findIndicesIV (== '#') gr
+  let y1 = U.minimum ys
+  let y2 = U.maximum ys
+  let x1 = U.minimum xs
+  let x2 = U.maximum xs
   printYn $ and [gr @! (y, x) /= '.' | y <- [y1 .. y2], x <- [x1 .. x2]]
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc390/tasks/abc390_c

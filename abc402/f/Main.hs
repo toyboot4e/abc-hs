@@ -27,21 +27,23 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
-calcRoutes :: U.Vector Int -> Int -> Int -> IxUVector (Int, Int) Int -> V.Vector (U.Vector Int)
+calcRoutes :: (HasCallStack) => U.Vector Int -> Int -> Int -> IxUVector (Int, Int) Int -> V.Vector (U.Vector Int)
 calcRoutes digits n m gr = runST $ do
-  let !_ = dbg ("a", n, m, gr)
-  let !fms = U.generate n (`factMod` m)
+  let !facts = U.constructN n $ \vec ->
+        case U.length vec of
+          0 -> 1
+          i -> vec G.! (i - 1) * i
+  let chooseNM n a b = facts G.! n `div` (facts G.! a * facts G.! b)
+
+  -- TODO: use constructN instead
   bufs <- (IxVector (zero2 n n) <$>) $ do
-    let !_ = dbg ("xx", n, m, gr)
     V.generateM (n * n) $ \i -> do
       let (!y, !x) = i `divMod` n
       let !s = y + x
-      let !_ = dbg ("i", (i, s), s < n, n, m)
       if s < n
-        then newBuffer (fms G.! (n - 1) `div` (fms G.! (n - 1 - s) * fms G.! s))
+        then newBuffer $ chooseNM s y x
         else newBuffer 0
 
-  let !_ = dbg ("b", gr)
   -- mark the starting point
   pushBack (bufs @! (0, 0)) 0
 
@@ -51,7 +53,7 @@ calcRoutes digits n m gr = runST $ do
       let s = y + x
       when (s < (n - 1)) $ do
         froms <- unsafeFreezeBuffer $ bufs @! (y, x)
-        let !d = mulMod m  (digits G.! s) (gr @! (y, x))
+        let !d = mulMod m (digits G.! s) (gr @! (y, x))
         U.forM_ froms $ \from -> do
           let !next = addMod m d from
           pushBack (bufs @! (y + 1, x)) next
@@ -60,13 +62,8 @@ calcRoutes digits n m gr = runST $ do
   -- collect from right up to left down
   !bufs' <- IxVector (zero2 n n) <$> V.mapM unsafeFreezeBuffer (vecIV bufs)
 
-  let !_ = dbg ("go?", n, m)
   let !_ = dbgGrid bufs'
-    -- pure ()
-
   pure $ V.generate n $ \i -> bufs' @! (n - 1 - i, i)
-  where
-    !_ = dbg ("calc",n,m)
 
 matchMax :: Int -> U.Vector Int -> U.Vector Int -> Int
 matchMax m xs0 ys0 = U.maximum $ U.map f xs0

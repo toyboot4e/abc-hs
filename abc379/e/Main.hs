@@ -26,64 +26,32 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
--- | Add
-type OpRepr = Int
-
-instance Semigroup Op where
-  -- @new <> old@ on segment tree
-  {-# INLINE (<>) #-}
-  (Op !x1) <> (Op !x2) = Op (x1 + x2)
-
-instance Monoid Op where
-  {-# INLINE mempty #-}
-  mempty = Op 0
-
--- instance SemigroupAction Op Acc where
---   {-# INLINE sact #-}
---   sact (Op !dx) (Acc !x) = Acc (x + dx)
-
-instance SegmentAction Op Acc where
-  {-# INLINE segActWithLength #-}
-  segActWithLength len (Op !dx) (Acc !x) = Acc (len * x + dx)
-
--- | Sum
-type AccRepr = Int
-
-instance Semigroup Acc where
-  {-# INLINE (<>) #-}
-  (Acc !x1) <> (Acc !x2) = Acc (x1 + x2)
-
-instance Monoid Acc where
-  {-# INLINE mempty #-}
-  mempty = Acc minBound
-
-{- ORMOLU_DISABLE -}
-newtype Acc = Acc AccRepr deriving newtype (Eq, Ord, Show) ; unAcc :: Acc -> AccRepr ; unAcc (Acc x) = x ; newtype instance U.MVector s Acc = MV_Acc (U.MVector s AccRepr) ; newtype instance U.Vector Acc = V_Acc (U.Vector AccRepr) ; deriving instance GM.MVector UM.MVector Acc ; deriving instance G.Vector U.Vector Acc ; instance U.Unbox Acc ;
-newtype Op = Op OpRepr deriving newtype (Eq, Ord, Show) ; unOp :: Op -> OpRepr ; unOp (Op x) = x; newtype instance U.MVector s Op = MV_Op (U.MVector s OpRepr) ; newtype instance U.Vector Op = V_Op (U.Vector OpRepr) ; deriving instance GM.MVector UM.MVector Op ; deriving instance G.Vector U.Vector Op ; instance U.Unbox Op ;
-{- ORMOLU_ENABLE -}
-
 solve :: StateT BS.ByteString IO ()
 solve = do
   !n <- int'
   !digits <- digitsU'
   let !_ = dbg digits
 
-  stree <- buildLSTree $ U.replicate n (mempty @(Sum Int))
-  VU.iforM_ digits $ \i d -> do
-    return ()
-            ( \i !unit ->
-                sactLSTere
-                -- let !_ = dbg (i, a, unit)
-                --  in toInteger a * (toInteger (i + 1) * unit)
-            )
-            (U.convert digits)
-            units
+  let resultRepr = U.scanl1' (+) $ U.create $ do
+        seeds <- UM.replicate (n + 1) (0 :: Int)
+        U.iforM_ digits $ \i d -> do
+          -- add: a * ((i + 1) * unit)
+          let !l = 0
+          let !r = n - 1 - i
+          UM.modify seeds (+ (d * (i + 1))) l
+          UM.modify seeds (subtract (d * (i + 1))) $ r + 1
+        return seeds
 
-  stree' <- unsafeFreezeLSTree stree
-  let res = (`evalState` x0) $ U.mapM (state . step) xs
+  let resultDigits = (`evalState` (0 :: Int)) $ U.mapM (state . step) resultRepr
         where
-          step x state = (state, x)
-  printBSB $ V.foldl' (<>) mempty $ V.concat res
+          -- step :: x -> state -> (x', state')
+          step x !acc =
+            let (!q, !r) = (acc + x) `quotRem` 10
+             in (r, q)
+
+  let pre = if U.last resultDigits == 0 then mempty else showBSB $ U.last resultDigits
+  let res = pre <> U.foldr (\x acc -> acc <> showBSB x) mempty (U.init resultDigits)
+  printBSB res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc379/tasks/abc379_e
 main :: IO ()

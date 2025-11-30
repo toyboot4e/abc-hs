@@ -28,9 +28,7 @@ debug :: Bool ; debug = False
 solve :: StateT BS.ByteString IO ()
 solve = do
   [!a, !_, !b] <- BS.unpack <$> line'
-  let a' :: Int = digitToInt a
-  let b' :: Int = digitToInt b
-  printBSB $ a' * b'
+  printBSB $ digitToInt a * digitToInt b
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc389/tasks/abc389_a
 main :: IO ()

@@ -7,7 +7,7 @@ import Control.Applicative;import Control.DeepSeq;import Control.Exception (asse
 import ToyLib.Contest.Prelude
 -- import ToyLib.Contest.Bisect
 -- import ToyLib.Contest.Graph
--- import ToyLib.Contest.Grid
+import ToyLib.Contest.Grid
 -- import ToyLib.Contest.Tree
 
 -- import Data.BitSet
@@ -25,12 +25,19 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
-rot90 :: Int -> (Int, Int) -> (Int, Int)
-rot90 n (!y, !x) = (n - 1 - x,)
+-- . . . . . . . .
+-- . . # . . . . .
+-- . . . . . . # .
+-- . . . . . . . .
+-- . . . . . . . .
+-- . # . . . . . .
+-- . . . . . # . .
+-- . . . . . . . .
 
-rot180 n = rot90 n . rot90 n
-
-rot270 n = rot90 n . rot90 n . rot90 n
+rot90, rot180, rot270 :: Int -> (Int, Int) -> (Int, Int)
+rot90 n (!y, !x) = (n - 1 - x, y)
+rot180 n (!y, !x) = (n - 1 - y, n - 1 - x)
+rot270 n (!y, !x) = (x, n - 1 - y)
 
 solve :: StateT BS.ByteString IO ()
 solve = do
@@ -39,7 +46,7 @@ solve = do
 
   let res = U.generate (n * n) $ \i ->
         let (!y, !x) = i `divMod` n
-            d = y `min` x `min` (n - 1 - y) `min` (n - 1 - c) `mod` 4
+            d = (y `min` x `min` (n - 1 - y) `min` (n - 1 - x) + 1) `mod` 4
          in case d of
               0 -> gr @! (y, x)
               1 -> gr @! rot90 n (y, x)

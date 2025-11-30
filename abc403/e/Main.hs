@@ -40,11 +40,17 @@ solve = do
   !q <- int'
   !qs <- V.replicateM q $ (,) <$> int' <*> word'
 
-  let !res = V.tail $ V.iscanl' step s0 qs
+  vec <- UM.unsafeNew q
+  let f = V.ifoldM'_ stepM s0 qs
         where
           !s0 = (rootT @Char @Payload (Payload False S.empty), S.empty)
           !p0 = Payload False S.empty
           !p1 = Payload True S.empty
+
+          stepM !acc iQuery q = do
+            let !acc' = step iQuery acc q
+            GM.unsafeWrite vec iQuery $ S.size (snd acc')
+            pure acc'
 
           -- add prefix
           step :: Int -> (Trie Char Payload, S.Set Int) -> (Int, BS.ByteString) -> (Trie Char Payload, S.Set Int)
@@ -67,7 +73,8 @@ solve = do
                 | otherwise = S.insert iQuery rest
           step _ _ _ = error "unreachable"
 
-  printBSB $ unlinesBSB $ V.imap (\i (!_, !rest) -> S.size rest) res
+  f
+  printBSB . unlinesBSB =<< U.unsafeFreeze vec
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc403/tasks/abc403_e
 main :: IO ()

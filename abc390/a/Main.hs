@@ -28,14 +28,10 @@ debug :: Bool ; debug = False
 solve :: StateT BS.ByteString IO ()
 solve = do
   !xs <- intsU'
-
-  let trySwap i = runST $ do
-        xs' <- U.thaw xs
-        GM.swap xs' i (i + 1)
-        xs'' <- U.unsafeFreeze xs'
-        pure $ xs'' == U.generate 5 (+ 1)
-
-  printYn $ U.any trySwap (U.generate 4 id)
+  let trySwap i =
+        let xs' = U.modify (\vec -> GM.swap vec i (i + 1)) xs
+         in xs' == U.generate 5 (+ 1)
+  printYn . U.or $ U.generate 4 trySwap
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc390/tasks/abc390_a
 main :: IO ()

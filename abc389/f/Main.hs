@@ -12,7 +12,7 @@ import ToyLib.Contest.Prelude
 
 -- import Data.BitSet
 import Data.SegmentTree.Lazy
--- import Data.Core.SemigroupAction
+import Data.Core.SegmentAction
 -- import Data.ModInt
 -- import Data.PowMod
 -- import Data.Primes
@@ -26,66 +26,30 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
--- | (l, r)
-type AccRepr = (Int, Int)
-
-instance Semigroup Acc where
-  {-# INLINE (<>) #-}
-  a1@(Acc (!l1, !r1)) <> a2@(Acc (!l2, !r2))
-    | r1 > l1 = a2
-    | r2 > l2 = a1
-    | otherwise = Acc (min l1 l2, max r1 r2)
-
-instance Monoid Acc where
-  {-# INLINE mempty #-}
-  mempty = Acc (-1, -2)
-
-{- ORMOLU_DISABLE -}
-newtype Acc = Acc AccRepr deriving newtype (Eq, Ord, Show) ; unAcc :: Acc -> AccRepr ; unAcc (Acc x) = x ; newtype instance U.MVector s Acc = MV_Acc (U.MVector s AccRepr) ; newtype instance U.Vector Acc = V_Acc (U.Vector AccRepr) ; deriving instance GM.MVector UM.MVector Acc ; deriving instance G.Vector U.Vector Acc ; instance U.Unbox Acc ;
-{- ORMOLU_ENABLE -}
-
--- | Move left
-type OpRepr = Int
-
-instance Semigroup Op where
-  -- @new <> old@ on segment tree
-  {-# INLINE (<>) #-}
-  (Op !x1) <> (Op !x2) = Op (x1 + x2)
-
-instance Monoid Op where
-  {-# INLINE mempty #-}
-  mempty = Op 0
-
--- instance SemigroupAction Op Acc where
---   {-# INLINE sact #-}
---   sact (Op !dx) (Acc !x) = Acc (x + dx)
-
-instance SegmentAction Op Acc where
-  {-# INLINE segActWithLength #-}
-  segActWithLength len (Op !dx) (Acc (!l, !r)) = Acc (l - dx, r - dx)
-
-{- ORMOLU_DISABLE -}
-newtype Op = Op OpRepr deriving newtype (Eq, Ord, Show) ; unOp :: Op -> OpRepr ; unOp (Op x) = x; newtype instance U.MVector s Op = MV_Op (U.MVector s OpRepr) ; newtype instance U.Vector Op = V_Op (U.Vector OpRepr) ; deriving instance GM.MVector UM.MVector Op ; deriving instance G.Vector U.Vector Op ; instance U.Unbox Op ;
-{- ORMOLU_ENABLE -}
+instance SegmentAction (Sum Int) (Max Int) where
+  {-# INLINE segAct #-}
+  segAct (Sum dx) (Max x) = Max $! dx + x
 
 solve :: StateT BS.ByteString IO ()
 solve = do
   !n <- int'
+  -- range add queries
   !lrs <- U.replicateM n ints2'
   q <- int'
   qs <- U.replicateM q int'
 
-  let maxLen = 5 * 10^5 + 3 * 10 ^ 5 + 3
-  seg <- generateLSTree maxLen $ \i -> Acc (i, i)
+  let maxLen = 5 * 10^5 + 1
+  seg <- generateLSTree maxLen Max
 
-  U.forM_ qs $ \(!l0, !r0) -> do
-    l <- bisectLSTree seg 0 l0 $ \i ->
-      Acc (!xl, !xr) <- readLSTree
-    sactLSTree seg l r $ Op 1
-    Acc (!target, !_) <- readLSTree seg l
-    -- find leftmost interval in [l, r]
+  U.forM_ lrs $ \(!hl, !hr) -> do
+    -- the leaves of the segtree are monotoniously increasing
+    l <- fromMaybe maxBound <$> bisectLSTreeR seg 0 (maxLen - 1) (\(Max h) -> h < hl)
+    r <- fromMaybe minBound <$> bisectLSTreeL seg 0 (maxLen - 1) (\(Max h) -> h <= hr)
+    when (l <= r) $ do
+      sactLSTree seg l r $ Sum (1 :: Int)
 
-  printBSB "TODO"
+  res <- unsafeFreezeLeavesLSTree seg
+  printBSB . unlinesBSB . U.map getMax $ U.backpermute res qs
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc389/tasks/abc389_f
 main :: IO ()

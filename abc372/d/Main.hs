@@ -10,7 +10,8 @@ import ToyLib.Contest.Prelude
 -- import ToyLib.Contest.Grid
 -- import ToyLib.Contest.Tree
 
-import Algorithm.Bisect
+-- import Algorithm.Bisect
+import Algorithm.SlideMin
 -- import Data.BitSet
 -- import Data.Core.SemigroupAction
 -- import Data.ModInt
@@ -32,25 +33,16 @@ solve = do
   !n <- int'
   !hs <- intsU'
 
-  -- stree <- buildSTree $ U.replicate (2 ^ 10 ^ 5 + 1 :: Int) (mempty @Max)
-  stree <- buildSTree $ U.map Max hs
-  imos <- UM.replicate (n + 1) (0 :: Int)
+  let !imos = U.create $ do
+         vec <- UM.replicate n (0 :: Int)
+         let !ls = lookBackHigherIndices hs
+         U.iforM_ ls $ \r l_ -> do
+           let !l = max 0 l_
+           GM.modify vec (+ 1) l
+           GM.modify vec (subtract 1) r
+         return vec
 
-  forM_ [1 .. n - 1] $  \r -> do
-    let !xr = hs G.! r
-    l <- fmap (maybe xr (r -)) $ bisectML 0 r $ \di -> do
-      let !l = r - di
-      Max x <- foldSTree stree l r
-      return $ x <= xr
-
-    let !_ = dbg (r, (l, r))
-    -- +1 to [l .. r)
-    let !l' = max 0 $ l - 1
-    UM.modify imos (+ 1) l'
-    UM.modify imos (subtract 1) r
-
-  res <- U.init . U.scanl1' (+) <$> U.unsafeFreeze imos
-  printVec res
+  printVec $ U.scanl1' (+) imos
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc372/tasks/abc372_d
 main :: IO ()

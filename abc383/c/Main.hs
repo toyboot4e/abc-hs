@@ -14,7 +14,7 @@ import ToyLib.Contest.Grid
 -- import Data.Core.SemigroupAction
 -- import Data.ModInt
 -- import Data.PowMod
-import Data.BinaryHeap
+import Data.Buffer
 import Data.Graph.Alias
 
 -- }}} toy-lib import
@@ -26,50 +26,44 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
-genericDj' :: forall w. (U.Unbox w, Num w, Ord w) => (Vertex -> U.Vector (Vertex, w)) -> Int -> Int -> w -> (U.Vector (Vertex, w)) -> U.Vector w
-genericDj' !gr !nVerts !nEdges !undef !vs0 = U.create $ do
-  !dist <- UM.replicate nVerts undef
-  !heap <- newMaxBH (nEdges + 1)
-  -- !last <- UM.replicate nVerts (-1 :: Vertex)
+-- | \(O(V+E)\) Breadth-first search. Unreachable vertices are given distance of @-1@.
+genericBfs' :: (U.Unbox w, Num w, Eq w) => (Vertex -> w -> U.Vector Vertex) -> Int -> w -> U.Vector Vertex -> U.Vector w
+genericBfs' !gr !nVerts !undefW !sources = U.create $ do
+  !dist <- UM.replicate nVerts undefW
+  !queue <- newBuffer nVerts
 
-  U.forM_ vs0 $ \(!v, !w) -> do
-    GM.write dist v w
-    insertBH heap (w, v)
+  U.forM_ sources $ \src -> do
+    pushBack queue src
+    GM.unsafeWrite dist src 0
 
-  fix $ \loop ->
-    deleteMaybeBH heap >>= \case
-      Nothing -> pure ()
-      Just (!w1, !v1) -> do
-        !newVisit <- (== w1) <$> GM.read dist v1
-        when newVisit $ do
-          U.forM_ (gr v1) $ \(!v2, !dw2) -> do
-            !w2 <- GM.read dist v2
-            let !w2' = merge w1 dw2
-            when ((w2 == undef || w2' > w2) && w2' > undef) $ do
-              GM.write dist v2 w2'
-              -- GM.write last v2 v1
-              insertBH heap (w2', v2)
-        loop
+  -- procedural programming is great
+  fix $ \loop -> do
+    whenJustM (popFront queue) $ \v1 -> do
+      !d1 <- GM.unsafeRead dist v1
+      U.forM_ (gr v1 d1) $ \v2 -> do
+        let !dw = 1
+        !lastD <- GM.unsafeRead dist v2
+        when (lastD == undefW) $ do
+          GM.unsafeWrite dist v2 $! d1 + dw
+          pushBack queue v2
+      loop
 
   pure dist
-  where
-    {-# INLINE merge #-}
-    merge :: w -> w -> w
-    merge = (-)
 
-solve :: StateT BS.ByteString IO ()
+solve :: (HasCallStack) => StateT BS.ByteString IO ()
 solve = do
   (!h, !w, !d) <- ints3'
   gr <- getGrid' h w
   let !bounds = boundsIV gr
 
   let !vs0 = U.findIndices (== 'H') $ vecIV gr
-  let res = genericDj' grF (h * w) (4 * h * w) (-1 :: Int) $ U.map (,d) vs0
+  let res = genericBfs' grF (h * w)  (-1 :: Int) vs0
         where
-          grF i = U.map (\(!y, !x) -> (y * w + x, 1)) yxs
+          grF i weight
+            | weight == d = U.empty
+            | otherwise = U.map (\(!y, !x) -> w * y + x) . U.filter ((&&) <$> inRange bounds <*> ((`elem` ".H") . (gr @!))) $ U.map (add2 (y, x)) ortho4
             where
               (!y, !x) = i `divMod` w
-              yxs = U.filter ((&&) <$> inRange bounds <*> ((`elem` ".H") . (gr @!))) $ U.map (add2 (y, x)) ortho4
 
   printBSB $ U.length $ U.filter (/= -1) res
 

@@ -30,32 +30,18 @@ solve = do
   (!n, !x) <- ints2'
   !vacs <- U.replicateM n ints3'
 
-  -- let eSort :: U.Vector (Int, Int) -> U.Vector (Int, Int)
-  --     eSort =
-  --       U.modify
-  --         . VAI.sortBy
-  --           ( \(!a1, !b1) (!a2, !b2) -> case compare (b1 * a2) (a1 * b2) of
-  --               GT -> GT
-  --               LT -> LT
-  --               -- choose bigger one
-  --               EQ | v1 < v2 -> GT
-  --               EQ -> LT
-  --           )
-
   let calc :: U.Vector (Int, Int) -> U.Vector Int
       calc = U.foldl' step s0
         where
-          -- maxW = 30
           maxW = 10 ^ 5 :: Int
           s0 = U.generate (maxW + 1) $ \case 0 -> 0; _ -> (-1 :: Int)
           -- v: value, w: weight
           step sofar (!dv, !dw) = U.imap f sofar
             where
-              f w v = max v (g (sofar G.!? (w - dw)) dv)
+              f w v = max v $ maybe (-1) (g dv) (sofar G.!? (w - dw))
                 where
-                  g Nothing _ = -1
-                  g (Just (-1)) _ = -1
-                  g (Just a) b = a + b
+                  g x (-1) = x
+                  g x y = x + y
 
   -- weight -> maximum value
   let dist1 = U.scanl' max (-1) . U.tail . calc $ U.mapMaybe (\(!v, !a, !c) -> if v == 1 then Just (a, c) else Nothing) vacs
@@ -64,9 +50,9 @@ solve = do
 
   let inf = maxBound `div` 4 :: Int
   let f v =
-        let w1 = (\case 0 -> inf; x -> x) . fromMaybe inf $ bisectR 0 (G.length dist1 - 1) $ \i -> dist1 G.! i < v
-            w2 = (\case 0 -> inf; x -> x) . fromMaybe inf $ bisectR 0 (G.length dist2 - 1) $ \i -> dist2 G.! i < v
-            w3 = (\case 0 -> inf; x -> x) . fromMaybe inf $ bisectR 0 (G.length dist3 - 1) $ \i -> dist3 G.! i < v
+        let w1 = fromMaybe inf $ bisectR 0 (G.length dist1 - 1) $ \i -> dist1 G.! i < v
+            w2 = fromMaybe inf $ bisectR 0 (G.length dist2 - 1) $ \i -> dist2 G.! i < v
+            w3 = fromMaybe inf $ bisectR 0 (G.length dist3 - 1) $ \i -> dist3 G.! i < v
             !_ = dbg (v, w1, w2, w3, w1 + w2 + w3)
          in w1 + w2 + w3 <= x
 

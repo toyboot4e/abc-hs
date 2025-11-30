@@ -25,24 +25,19 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
--- @oceajigger
-trisect :: (Int, Int) -> (Int -> Int) -> (Int, Int)
-trisect (l, r) f
-  | r - l <= 2 = (l, r)
-  | f m1 > f m2 = trisect (m1, r) f
-  | otherwise = trisect (l, m2) f
-  where
-    m1 = (l * 2 + r) `div` 3
-    m2 = (l + r * 2) `div` 3
-
 trisectF64 :: Double -> (Double, Double) -> (Double -> Double) -> (Double, Double)
-trisectF64 esp (l, r) f
-  | r - l <= esp = (l, r)
-  | f m1 > f m2 = trisectF64 esp (m1, r) f
-  | otherwise = trisectF64 esp (l, m2) f
+trisectF64 esp (l0, r0) f = inner l0 (f l0) r0 (f r0)
   where
-    m1 = (l * 2.0 + r) / 3.0
-    m2 = (l + r * 2.0) / 3.0
+    inner :: Double -> Double -> Double -> Double -> (Double, Double)
+    inner !l !fl !r !fr
+      | r - l <= esp = (l, fl)
+      | fm1 > fm2 = inner m1 fm1 r fr
+      | otherwise = inner l fl m2 fm2
+      where
+        m1 = (l * 2.0 + r) / 3.0
+        m2 = (l + r * 2.0) / 3.0
+        !fm1 = f m1
+        !fm2 = f m2
 
 len2 :: Double -> Double -> Double -> Double -> Double
 len2 x y x' y' = ((x - x') * (x - x')) + ((y - y') * (y - y'))
@@ -59,25 +54,25 @@ interpolate t sx1 sy1 sx2 sy2
 
 solve :: StateT BS.ByteString IO ()
 solve = do
-  (!sx1, !sy1, !sx2, !sy2) <- ints4'
-  (!tx1, !ty1, !tx2, !ty2) <- ints4'
+  -- FIXME: double' is exteremely low
+  (!sx1, !sy1, !sx2, !sy2) <- (,,,) <$> double' <*> double' <*> double' <*> double'
+  (!tx1, !ty1, !tx2, !ty2) <- (,,,) <$> double' <*> double' <*> double' <*> double'
 
-  let l1 = len1 (intToDouble sx1) (intToDouble sy1) (intToDouble sx2) (intToDouble sy2)
-  let l2 = len1 (intToDouble tx1) (intToDouble ty1) (intToDouble tx2) (intToDouble ty2)
-  let minL = min l1 l2
-  let maxL = max l1 l2
+  let !l1 = len1 sx1 sy1 sx2 sy2
+  let !l2 = len1 tx1 ty1 tx2 ty2
+  let !minL = min l1 l2
+  let !maxL = max l1 l2
 
   -- eval squared
   let f :: Double -> Double
       f t =
-        let (!x1, !y1) = interpolate t (intToDouble sx1) (intToDouble sy1) (intToDouble sx2) (intToDouble sy2)
-            (!x2, !y2) = interpolate t (intToDouble tx1) (intToDouble ty1) (intToDouble tx2) (intToDouble ty2)
+        let (!x1, !y1) = interpolate t sx1 sy1 sx2 sy2
+            (!x2, !y2) = interpolate t tx1 ty1 tx2 ty2
          in len1 x1 y1 x2 y2
 
-  let eps = 0.00000008 -- 10^-8
-  let p (!x, !y) = f ((x + y) / 2.0)
-  let res1 = p $ trisectF64 eps (0.0, minL) f
-  let res2 = p $ trisectF64 eps (minL, maxL) f
+  let !eps = 0.00000008 -- 10^-8
+  let !res1 = snd $ trisectF64 eps (0.0, minL) f
+  let !res2 = snd $ trisectF64 eps (minL, maxL) f
 
   printBSB $ min res1 res2
 

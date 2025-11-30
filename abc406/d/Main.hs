@@ -18,11 +18,7 @@ import ToyLib.Contest.Prelude
 
 -- }}} toy-lib import
 {-# RULES "Force inline VAI.sort" VAI.sort = VAI.sortBy compare #-}
-#ifdef DEBUG
-debug :: Bool ; debug = True
-#else
 debug :: Bool ; debug = False
-#endif
 {- ORMOLU_ENABLE -}
 
 solve :: StateT BS.ByteString IO ()
@@ -41,15 +37,7 @@ solve = do
           !rows' = M.delete y rows
           !cols' = case M.lookup y rows of
             Nothing -> cols
-            Just xs -> foldl' (\cols_ x -> M.adjust (S.delete y) x cols_) cols $ S.toList xs
-
-  let deleteCol x rows cols = (dn, rows', cols')
-        where
-          !dn = maybe 0 S.size $ M.lookup x cols
-          !cols' = M.delete x cols
-          !rows' = case M.lookup x cols of
-            Nothing -> rows
-            Just ys -> foldl' (\rows_ y -> M.adjust (S.delete x) y rows_) rows $ S.toList ys
+            Just xs -> foldl' (flip (M.adjust (S.delete y))) cols $ S.toList xs
 
   let resF = U.foldM'_ f s0 qs
         where
@@ -59,7 +47,7 @@ solve = do
             printBSB dn
             pure (rows', cols')
           f (!rows, !cols) (2, !x) = do
-            let (!dn, !rows', !cols') = deleteCol x rows cols
+            let (!dn, !cols', !rows') = deleteRow x cols rows
             printBSB dn
             pure (rows', cols')
 

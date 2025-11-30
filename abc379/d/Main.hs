@@ -16,6 +16,7 @@ import Data.SegmentTree.Strict
 -- import Data.ModInt
 -- import Data.PowMod
 -- import Data.Primes
+import Data.Buffer
 
 -- }}} toy-lib import
 {-# RULES "Force inline VAI.sort" VAI.sort = VAI.sortBy compare #-}
@@ -31,55 +32,48 @@ solve = do
   !q <- int'
   !qs <- U.replicateM q $ do
     int' >>= \case
-      1 -> return ((1, 1) :: (Int, Int))
+      1 -> return ((1, -1) :: (Int, Int))
       2 -> (2,) <$> int'
       3 -> (3,) <$> int'
       _ -> error "unreachable"
 
-  -- dense index -> original index
-  let dict = U.findIndices ((== 3) . fst) qs
-  when (U.null dict) $ liftIO exitSuccess
-
-  let hs =
-        U.postscanl'
-          ( \acc -> \case
-              (2, dx) -> acc + dx
+  let n3 = U.length $ U.findIndices ((== 3) . fst) qs
+  let csum =
+        U.scanl'
+          ( \acc q -> case q of
+              (2, !dx) -> acc + dx
               _ -> acc
           )
           (0 :: Int)
           qs
-  let heights0 = U.map (\(!dh, (!_, !h)) -> h - dh) $ U.backpermute (U.zip hs qs) dict
-  stree <- buildSTree $ U.map Min heights0
 
-  let !_ = dbg ("heights0", heights0)
-  res <- UM.replicate (U.length dict) (0 :: Int)
-  -- original index -> dense index
-  let dictMap = IM.fromList . U.toList . U.imap (\i x -> (x, i)) $ dict
-  let !_ = dbg dictMap
-  U.ifoldM'_
-    ( \dUsed i query -> case query of
-        (1, _) -> do
-          case IM.lookupGT i dictMap of
-            Nothing -> do
-              let !_ = dbg ("not found", i, dUsed)
-              return dUsed
-            Just aa@(!_, !l) -> do
-              let !_ = dbg (i, dUsed, aa)
-              i' <- bsearchSTreeR stree l (U.length dict - 1) $ \(Min x) -> do
-                let !_ = dbg ("- ", x, dUsed, x + dUsed)
-                x + dUsed > 0 -- True on invalid
-              whenJust i' $ \iContrib -> do
-                let !_ = dbg (i, "contrib", iContrib)
-                GM.modify res (+ 1) iContrib
-              return dUsed
-        (2, dx) -> return $ dUsed + dx
-        _ -> return dUsed
-    )
-    (0 :: Int)
-    qs
+  let res = U.create $ do
+        res <- UM.replicate n3 (0 :: Int)
+        buf <- newBuffer @Int q
+        U.ifoldM'_
+          ( \iWrite iq q -> case q of
+              (1, !_) -> do
+                pushBack buf iq
+                return iWrite
+              (2, !_) -> do
+                return iWrite
+              (3, !h) -> do
+                -- pop loop
+                fix $ \loop -> do
+                  whenJustM (readMaybeFront buf 0) $ \i -> do
+                    let !hPlant = csum +! (i, iq)
+                    when (hPlant >= h) $ do
+                      popFront buf
+                      UM.modify res succ iWrite
+                      loop
+                return $ iWrite + 1
+              _ -> error "unreachable"
+          )
+          (0 :: Int)
+          qs
+        return res
 
-  res' <- U.unsafeFreeze res
-  printBSB $ unlinesBSB res'
+  printBSB $ unlinesBSB res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc379/tasks/abc379_d
 main :: IO ()

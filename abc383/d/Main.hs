@@ -26,60 +26,6 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
--- testDivisors :: Int -> Int -> Bool
--- testDivisors sq n = inner 0 1
---   where
---     inner !acc i
---       | i == sq = acc == 4
---       | acc > 5 = False
---       | n `rem` i == 0 = inner (acc + 1) (i + 1)
---       | otherwise = inner acc (i + 1)
-
--- solve :: StateT BS.ByteString IO ()
--- solve = do
---   !n <- int'
---   let res =
---         [ ()
---           | i <- [1 .. isqrt n + 1],
---             i * i <= n,
---             testDivisors i (i * i)
---         ]
---   printBSB $ length res
-
--- takeP :: Int -> Int -> Int -> [Int] -> [Int]
--- takeP _ 0 !acc _ = pure acc
--- takeP _ _ _ [] = []
--- takeP !target !nRest !acc !ps = do
---   p <- ps
---   let !_ = dbg (acc, p)
---   -- guard $ acc * p ^ nRest <= target
---   guard $ all (\np -> acc * p ^ np <= target) [1 .. nRest]
---   let !ps' = takeWhile (\p' -> acc * p * (p' ^ (nRest - 1)) <= target) $ dropWhile (< p) ps
---   takeP target (nRest - 1) (acc * p) ps'
-
--- solve :: StateT BS.ByteString IO ()
--- solve = do
---   !n <- int'
---   let ps = takeWhile (\i -> i * i <= n) primes
---   let !res = takeP n 9 1 ps
---   -- let !_ = dbg "uniq?"
---   -- let !res' = U.length . U.uniq . U.modify VAI.sort . U.fromList $ res
---   -- printBSB res'
---   printBSB $ length res
-
--- solve :: StateT BS.ByteString IO ()
--- solve = do
---   !n <- int'
---   let ps = takeWhile (\i -> i * i <= n) primes
---   let res =
---         [ ()
---           | i <- ps,
---             let ps' = takeWhile (< i) ps,
---             [!p1, !p2] <- combs 2 ps',
---             i * p1 * p2 <= n
---         ]
---   printBSB $ length res
-
 solve :: (HasCallStack) => StateT BS.ByteString IO ()
 solve = do
   !n <- int'
@@ -96,8 +42,6 @@ solve = do
             -- let p1 = ps G.! i1
         ]
 
-  -- let res2 = map (\p -> p * p * p * p * p * p * p * p) $ takeWhile (\p -> p * p * p * p * p * p * p * p <= n) primes
-  -- printBSB $ U.length . U.uniq . U.modify VAI.sort . U.fromList $ res2 ++ res
   let res2 = length $ takeWhile (\p -> p * p * p * p * p * p * p * p <= n) primes
   printBSB $ sum res + res2
 

@@ -29,11 +29,8 @@ solve :: StateT BS.ByteString IO ()
 solve = do
   !n <- int'
   !xs <- intsU'
-  -- x1 : x2 = y1 : y2
-  -- x1 * y2 == x2 * y1
-  let x1 = xs G.! 0
-  let x2 = xs G.! 1
-  let test y1 y2 = y2 * x1 == x2 * y1
+  let r = xs G.! 0 % xs G.! 1
+  let test y1 y2 = y1 % y2 == r
   printYn . U.and $ U.zipWith test xs (U.tail xs)
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc390/tasks/abc390_b

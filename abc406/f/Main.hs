@@ -15,7 +15,9 @@ import ToyLib.Contest.Prelude
 -- import Data.ModInt
 -- import Data.PowMod
 -- import Data.Primes
-import Data.Graph.Tree.LCT
+import Data.Graph.Sparse
+import Data.Graph.Tree.Hld
+import Data.SegmentTree.Strict
 
 -- }}} toy-lib import
 {-# RULES "Force inline VAI.sort" VAI.sort = VAI.sortBy compare #-}
@@ -37,22 +39,20 @@ solve = do
       2 -> (2 :: Int,,-1) <$> int1'
       _ -> error "unreachable"
 
-  lct <- newWithInvOpLCT negate n
-  U.forM_  uvs $ \(!u, !v) -> do
-    linkLCT lct u v
-  for_ [0 .. n - 1] $ \i -> do
-    writeLCT lct i $ Sum 1
+  let !tree = buildSG_ n $ swapDupeU uvs
+  let !hld@HLD {..} = hldOf tree
+  tm <- buildVertTM hld True $ U.replicate n (Sum (1 :: Int))
 
   res <- (`U.mapMaybeM` qs) $ \case
     (1, !v, !dw) -> do
-      modifyLCT lct (+ Sum dw) v
+      modifyTM tm (+ Sum dw) v
       pure Nothing
     (2, !iEdge, !_) -> do
       let (!u, !v) = uvs G.! iEdge
-      cutLCT lct u v
-      x1 <- foldSubtreeLCT lct u u
-      x2 <- foldSubtreeLCT lct v v
-      linkLCT lct u v
+      let !child = if parentHLD G.! u == v then u else v
+      xWhole <- foldAllSTree (streeFTM tm)
+      x1 <- foldSubtreeVertsTM tm child
+      let !x2 = xWhole - x1
       pure . Just . getSum . abs $ x1 - x2
 
   printBSB $ unlinesBSB res

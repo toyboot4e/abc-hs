@@ -26,24 +26,17 @@ debug :: Bool ; debug = False
 {- ORMOLU_ENABLE -}
 
 dir :: Char -> Int -> (Int, Int)
--- y axis.. why, atcoder
 dir 'U' !d = (d, 0)
 dir 'D' !d = (-d, 0)
 dir 'L' !d = (0, -d)
 dir 'R' !d = (0, d)
 dir _ _ = error "unreachable"
 
--- splitIn :: Int -> Int -> IM.IntMap a -> IM.IntMap a
--- splitIn l r im =
---   let (!_, !im') = IM.split (l - 1) im
---       (!im'', !_) = IM.split (r + 1) im'
---    in im''
-
 deleteIn :: Int -> Int -> IS.IntSet -> IS.IntSet
-deleteIn l__ r__ im0 = inner im0
+deleteIn l_ r_ = inner
   where
-    !l = min l__ r__
-    !r = max l__ r__
+    !l = min l_ r_
+    !r = max l_ r_
     inner im = case IS.lookupGE l im of
       Just i | i <= r -> inner $! IS.delete i im
       _ -> im
@@ -52,22 +45,15 @@ solve :: StateT BS.ByteString IO ()
 solve = do
   (!n, !m, !x0, !y0) <- dbgId <$> ints4'
   -- (y, x) !!!!
-  !pts <- U.replicateM n (swap <$> ints2')
+  !houses <- U.replicateM n (swap <$> ints2')
   !moves <- U.replicateM m (dir <$> char' <*> int')
 
-  let toLine :: ((Int, Int), (Int, Int)) -> Either (Int, (Int, Int)) (Int, (Int, Int))
-      toLine ((!y1, !x1), (!y2, !x2))
-        -- row
-        | y1 == y2 = Left (y1, (x1, x2))
-        -- column
-        | x1 == x2 = Right (x1, (y1, y2))
-        | otherwise = error "unreachable"
+  let rs0, cs0 :: IM.IntMap IS.IntSet
+      !rs0 = IM.map IS.fromList . IM.fromListWith (++) . V.toList $ V.map (\(!y, !x) -> (y, [x])) $ U.convert houses
+      !cs0 = IM.map IS.fromList . IM.fromListWith (++) . V.toList $ V.map (\(!y, !x) -> (x, [y])) $ U.convert houses
 
-  let !rs0 :: IM.IntMap IS.IntSet = note "rs0" . IM.map IS.fromList . IM.fromListWith (++) . V.toList $ V.map (\(!y, !x) -> (y, [x])) $ U.convert pts
-  let !cs0 :: IM.IntMap IS.IntSet = note "cs0" . IM.map IS.fromList . IM.fromListWith (++) . V.toList $ V.map (\(!y, !x) -> (x, [y])) $ U.convert pts
-
-  let toLine' :: (Int, Int) -> (Int, Int) -> (Bool, Int, (Int, Int))
-      toLine' (!y1, !x1) (!y2, !x2)
+  let toLine :: (Int, Int) -> (Int, Int) -> (Bool, Int, (Int, Int))
+      toLine (!y1, !x1) (!y2, !x2)
         -- row
         | y1 == y2 = (True, y1, (x1, x2))
         -- column
@@ -75,7 +61,7 @@ solve = do
         | otherwise = error "unreachable"
 
   let points = dbgId $ U.scanl' add2 (y0, x0) moves
-  let lines = U.zipWith toLine' points $ U.tail points
+  let lines = U.zipWith toLine points $ U.tail points
   let (!rs_, !cs_) = U.foldl' step s0 lines
         where
           s0 = (rs0, cs0)
@@ -83,11 +69,9 @@ solve = do
           step (!rs, !cs) (True, !y, (!x1, !x2)) = (rs', cs)
             where
               !rs' = IM.adjust (deleteIn x1 x2) y rs
-              !_ = dbg ("delete r", y, (x1, x2))
           step (!rs, !cs) (False, !x, (!y1, !y2)) = (rs, cs')
             where
               !cs' = IM.adjust (deleteIn y1 y2) x cs
-              !_ = dbg ("delete c", x, (y1, y2))
 
   let concatIM_row :: IM.IntMap IS.IntSet -> [(Int, Int)]
       concatIM_row im = concatMap (\(!k, !line) -> map (k,) $ IS.elems line) $ IM.assocs im
@@ -96,9 +80,9 @@ solve = do
 
   let !_ = note "rs" rs_
   let !_ = note "cs" cs_
-  let cnts = dbgId . M.fromListWith (+) . map (, 1 :: Int) $ concatIM_row rs_ ++ concatIM_col cs_
+  let cnts = dbgId . M.fromListWith (+) . map (,1 :: Int) $ concatIM_row rs_ ++ concatIM_col cs_
   let (!yEnd, !xEnd) = U.last points
-  printBSB . (xEnd, yEnd,) . (n -) . length . filter (== 2) $ M.elems cnts
+  printBSB . (xEnd,yEnd,) . (n -) . length . filter (== 2) $ M.elems cnts
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc385/tasks/abc385_d
 main :: IO ()

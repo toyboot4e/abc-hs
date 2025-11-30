@@ -32,11 +32,8 @@ solve = do
   (!y0, !x0) <- ints11'
   !gr <- getMat' h w
 
-  let p (acc :: Int) (y :: Int)
-        -- | y * xxx < acc = True
-        -- | y * xxx < 0 = True -- overflow
-        -- | otherwise = False
-        | toInteger y * toInteger xxx < toInteger acc = True
+  let p acc y
+        | y < (acc + (xxx - 1)) `div` xxx = True
         | otherwise = False
 
   let !bounds = zero2 h w
@@ -55,8 +52,7 @@ solve = do
 
   res <- (`execStateT` (gr @! (y0, x0))) $ fix $ \loop -> do
     whenJustM (deleteMaybeBH heap) $ \(!dx, (!y, !x)) -> do
-      acc <- get
-      when (p acc dx) $ do
+      whenM (gets (`p` dx)) $ do
         lift $ addAdj bs heap (y, x)
         modify' (+ dx)
         loop

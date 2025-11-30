@@ -32,18 +32,10 @@ solve :: StateT BS.ByteString IO ()
 solve = do
   !n <- int'
   !xs <- intsU'
-
-  let pick = U.sum . U.backpermute xs . unBitSet n
-  hm <- newHM (10 ^ 7 :: Int)
-  let inner !acc rest
-        | rest == 0 = do
-            writeHM hm acc ()
-        | otherwise = do
-            U.forM_ (ordPowerset rest) $ \dx -> do
-              inner (acc `xor` pick dx) (rest - dx)
-
-  inner (0 :: Int) (bit n - 1)
-  printBSB . U.length . U.filter id =<< U.unsafeFreeze (usedHM hm)
+  let eval = foldl' xor 0 . map (U.sum . U.backpermute xs . unBitSet n)
+  let results = map eval $ partitionsOf (bit n - 1)
+  let count = U.length . U.uniq . U.modify (VAI.sortBy compare) $ U.fromList results
+  printBSB count
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc390/tasks/abc390_d
 main :: IO ()

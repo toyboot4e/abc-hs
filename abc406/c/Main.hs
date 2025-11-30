@@ -27,69 +27,18 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
--- solve :: StateT BS.ByteString IO ()
--- solve = do
---   !n <- int'
---   !xs <- U.map pred <$> intsU'
--- 
---   seg1 <- newSTree @(Sum Int) n
---   seg2 <- newSTree @(Sum Int) n
---   seg3 <- newSTree @(Sum Int) n
---   seg4 <- newSTree @(Sum Int) n
--- 
---   -- 連続部分列じゃねーか〜〜
---   U.forM_ xs $ \x -> do
---     writeSTree seg4 x =<< do
---       from2 <- fromMaybe (Sum 0) <$> foldMaySTree seg4 0 (x - 1)
---       from1 <- fromMaybe (Sum 0) <$> foldMaySTree seg3 0 (x - 1)
---       pure $ from1 + from2
---     writeSTree seg3 x =<< do
---       from2 <- fromMaybe (Sum 0) <$> foldMaySTree seg3 (x + 1) (n - 1)
---       from1 <- fromMaybe (Sum 0) <$> foldMaySTree seg2 (x + 1) (n - 1)
---       pure $ from1 + from2
---     writeSTree seg2 x =<< do
---       from2 <- fromMaybe (Sum 0) <$> foldMaySTree seg2 0 (x - 1)
---       from1 <- fromMaybe (Sum 0) <$> foldMaySTree seg1 0 (x - 1)
---       pure $ from1 + from2
---     writeSTree seg1 x (Sum (1 :: Int))
--- 
---     let !_ = dbg x
---     dbgSTree seg1
---     dbgSTree seg2
---     dbgSTree seg3
---     dbgSTree seg4
--- 
---   Sum res <- foldSTree seg4 0 (n - 1)
---   printBSB res
-
 solve :: StateT BS.ByteString IO ()
 solve = do
   !n <- int'
   !xs <- U.map pred <$> intsU'
-
-  seg1 <- newSTree @(Sum Int) n
-  seg2 <- newSTree @(Sum Int) n
-  seg3 <- newSTree @(Sum Int) n
-  seg4 <- newSTree @(Sum Int) n
-
-  -- 連続部分列……
-  let !xs' = U.zip (U.cons (-1) xs) xs
-  U.forM_ xs' $ \(!prev, !x) -> do
-    writeSTree seg4 x =<< do
-      from2 <- if prev /= -1 && prev < x then foldSTree seg4 prev prev else pure mempty
-      from1 <- if prev /= -1 && prev < x then foldSTree seg3 prev prev else pure mempty
-      pure $ from1 + from2
-    writeSTree seg3 x =<< do
-      from2 <- if prev /= -1 && prev > x then foldSTree seg3 prev prev else pure mempty
-      from1 <- if prev /= -1 && prev > x then foldSTree seg2 prev prev else pure mempty
-      pure $ from1 + from2
-    writeSTree seg2 x =<< do
-      from2 <- if prev /= -1 && prev < x then foldSTree seg2 prev prev else pure mempty
-      from1 <- if prev /= -1 && prev < x then foldSTree seg1 prev prev else pure mempty
-      pure $ from1 + from2
-    writeSTree seg1 x (Sum (1 :: Int))
-
-  Sum res <- foldSTree seg4 0 (n - 1)
+  let !xs' = U.zipWith (<) xs (U.tail xs)
+  let !rle = U.fromList . map (\vec -> (U.head vec, U.length vec)) $ U.group xs'
+  let !res
+        | U.length rle < 3 = 0
+        | otherwise = U.sum $ U.zipWith3 f rle (U.tail rle) (U.tail (U.tail rle))
+        where
+          f (True, !l1) (False, !_) (True, !l3) = l1 * l3
+          f _ _ _ = 0
   printBSB res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc406/tasks/abc406_c

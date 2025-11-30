@@ -31,12 +31,13 @@ solve = do
   !uvs <- U.replicateM m ints11'
 
   uf <- newMUF n
-  res <- UM.replicate 1 (0 :: Int)
-  U.forM_ uvs $ \(!u, !v) -> do
-    unlessM (unifyMUF uf u v) $ do
-      GM.modify res (+ 1) 0
+  res <-
+    U.length
+      <$> U.filterM
+        (\(!u, !v) -> not <$> unifyMUF uf u v)
+        uvs
 
-  printBSB =<< GM.read res 0
+  printBSB res
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc399/tasks/abc399_c
 main :: IO ()

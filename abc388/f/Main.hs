@@ -25,42 +25,64 @@ debug :: Bool ; debug = False
 #endif
 {- ORMOLU_ENABLE -}
 
+-- combine consecutive intervals into one
+combine :: U.Vector (Int, Int) -> U.Vector (Int, Int)
+combine = U.fromList . inner . U.toList
+  where
+    inner :: [(Int, Int)] -> [(Int, Int)]
+    inner ((!l1, !r1) : (!l2, !r2) : rest)
+      | r1 + 1 == l2 = inner ((l1, r2) : rest)
+      | otherwise = (l1, r1) : inner ((l2, r2) : rest)
+    inner xs = xs
+
 solve :: StateT BS.ByteString IO ()
 solve = do
   (!n, !m, !a, !b) <- ints4'
-  !lrs <- dbgId . (`U.snoc` (n, n)) . (`U.snoc` (n, n)) <$> U.replicateM m ints11'
+  !lrs <- dbgId . (`U.snoc` (n + 1, n + 1)) . (`U.snoc` (n, n)) . combine <$> U.replicateM m ints11'
 
-  let !res = note "result" $ U.foldl' step s0 $ U.zip lrs (U.tail lrs)
+  let invalidPoints = IS.unions . map (\(!l, !r) -> IS.fromList [l .. r]) $ U.toList lrs
+
+  -- 区間を 2 個飛ばしするケースがまずいか
+  -- . . * . * . .
+
+  let !res = note "result" . inner s0 . U.toList $ U.zip lrs (U.tail lrs)
         where
           s0 = IS.singleton 0
-          step :: IS.IntSet -> ((Int, Int), (Int, Int)) -> IS.IntSet
-          step is ((!l, !r), (!nextL, !_))
+          inner :: IS.IntSet -> [((Int, Int), (Int, Int))] -> IS.IntSet
+          inner is (((!l, !r), (!nextL, !_)) : rest)
             | IS.null is = is
             | r + 1 - l >= b = IS.empty
             | otherwise =
                 let !_ = dbg ("next", is, (l, r), nextL)
+                    -- come closer to `l`
                     !leftPoints = note "left 1" . IS.unions $ map (spread (l - 1)) (IS.toList is)
-                    !minX = IS.findMin leftPoints
-                    !leftPoints' = note "left 2" . IS.fromList $ filter (canJump leftPoints) [max minX (l - 20) .. l - 1]
-                    !rightPoints = note "right" . IS.fromList $ filter (canJump leftPoints') [r + 1 .. min (r + 20) (nextL - 1)]
-                 in if nextL == n
+                    -- fill the near left of `l`
+                    !leftPoints' = note "left 2" . dropAt (l - 1) $ fill (l - 1) leftPoints
+                    -- fill the near right of `r`
+                    !rightPoints = note "right" . dropAt (r + 1) . IS.union leftPoints' . IS.fromList $ filter (canJumpTo leftPoints') [r + 1 .. min (r + b) (nextL - 1)]
+                 in if nextL == n + 1
                       then leftPoints'
-                      else rightPoints
-          dropAt :: Int -> IS.IntSet -> IS.IntSet
-          dropAt rmost = IS.dropWhileAntitone (<= rmost - 20)
+                      else inner rightPoints rest
           spread :: Int -> Int -> IS.IntSet
           spread rmost offset
             | q == 0 = IS.singleton offset
-            | otherwise = dropAt rmost $ IS.fromList [xl .. xr]
+            | otherwise = IS.fromList $ filter (`IS.notMember` invalidPoints) [xl .. xr]
             where
               len = rmost - offset
               q = len `div` b
-              -- [xl, xr] can be visited
-              -- !_ = dbg ("spread", rmost, offset, (xl, xr))
-              xl = max (max offset (rmost - 19)) $ offset + a * q
+              -- [a * q .. b * q] are all visitable
+              xl = max (rmost - (a + b)) $ offset + a * q
               xr = offset + b * q
-          canJump :: IS.IntSet -> Int -> Bool
-          canJump is i = IS.member i is || any (`IS.member` is) [i - b .. i - a]
+          fill :: Int -> IS.IntSet -> IS.IntSet
+          fill rmost is0 = foldl' f is0 [(rmost - (a + b)) .. rmost]
+            where
+              f is i
+                | canJumpTo is i = IS.insert i is
+                | otherwise = is
+          dropAt :: Int -> IS.IntSet -> IS.IntSet
+          dropAt rmost = IS.dropWhileAntitone (< rmost - (a + b))
+          canJumpTo :: IS.IntSet -> Int -> Bool
+          canJumpTo is i = IS.member i is || IS.notMember i invalidPoints && any (`IS.member` is) [i - b .. i - a]
 
   printYn $ IS.member (n - 1) res
 

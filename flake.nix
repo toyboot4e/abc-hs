@@ -3,15 +3,18 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    nixpkgs-for-ghc.url = "github:NixOS/nixpkgs/ebe4301cbd8f81c4f8d3244b3632338bbeb6d49c";
+    # 9189ac18287c599860e878e905da550aa6dec1cd
     flake-utils.url = "github:numtide/flake-utils";
   };
 
   outputs =
-    { nixpkgs, flake-utils, ... }:
+    { nixpkgs, nixpkgs-for-ghc, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = import nixpkgs { inherit system; };
+        ghc-pkgs = import nixpkgs-for-ghc { inherit system; };
         # https://github.com/lmdexpr/contest/blob/d7d7e84034cf1ce6e54a59ffb0435e5edafa873e/flake.nix#L83C1-L95C11
         atcoder-cli = pkgs.buildNpmPackage {
           pname = "atcoder-cli";
@@ -52,10 +55,10 @@
               # nodejs
 
               hlint
-              haskell.compiler.ghc948
-              (haskell-language-server.override { supportedGhcVersions = [ "948" ]; })
-              haskell.packages.ghc948.cabal-fmt
-              haskell.packages.ghc948.doctest
+              ghc-pkgs.haskell.compiler.ghc984
+              (ghc-pkgs.haskell-language-server.override { supportedGhcVersions = [ "984" ]; })
+              ghc-pkgs.haskell.packages.ghc984.cabal-fmt
+              ghc-pkgs.haskell.packages.ghc984.doctest
               haskellPackages.hoogle
               haskellPackages.ghcid
               haskellPackages.ghcide
