@@ -1,0 +1,86 @@
+{
+  "contest": {
+    "id": "abc436",
+    "title": "AtCoder Beginner Contest 436",
+    "url": "https://atcoder.jp/contests/abc436"
+  },
+  "tasks": [
+    {
+      "id": "abc436_a",
+      "label": "A",
+      "title": "o-padding",
+      "url": "https://atcoder.jp/contests/abc436/tasks/abc436_a",
+      "directory": {
+        "path": "a",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc436_b",
+      "label": "B",
+      "title": "Magic Square",
+      "url": "https://atcoder.jp/contests/abc436/tasks/abc436_b",
+      "directory": {
+        "path": "b",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc436_c",
+      "label": "C",
+      "title": "2x2 Placing",
+      "url": "https://atcoder.jp/contests/abc436/tasks/abc436_c",
+      "directory": {
+        "path": "c",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc436_d",
+      "label": "D",
+      "title": "Teleport Maze ",
+      "url": "https://atcoder.jp/contests/abc436/tasks/abc436_d",
+      "directory": {
+        "path": "d",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc436_e",
+      "label": "E",
+      "title": "Minimum Swap",
+      "url": "https://atcoder.jp/contests/abc436/tasks/abc436_e",
+      "directory": {
+        "path": "e",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc436_f",
+      "label": "F",
+      "title": "Starry Landscape Photo",
+      "url": "https://atcoder.jp/contests/abc436/tasks/abc436_f",
+      "directory": {
+        "path": "f",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc436_g",
+      "label": "G",
+      "title": "Linear Inequation",
+      "url": "https://atcoder.jp/contests/abc436/tasks/abc436_g",
+      "directory": {
+        "path": "g",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    }
+  ]
+}
