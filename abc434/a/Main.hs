@@ -6,6 +6,7 @@ import Control.Applicative;import Control.DeepSeq;import Control.Exception (asse
 
 -- {{{ toy-lib import
 import ToyLib.Contest.Prelude
+import Data.Vector.IxVector
 -- import ToyLib.Contest.Bisect
 -- import ToyLib.Contest.Graph
 -- import ToyLib.Contest.Grid
@@ -28,8 +29,10 @@ debug :: Bool ; debug = False
 
 solve :: StateT BS.ByteString IO ()
 solve = do
-  ((* 1000) -> !w, !b) <- ints2'
+  ((* 1000) -> !w, !b) <- ints2P
   let n = (w + 1 + (b - 1)) `div` b
+  let bnd = ((0, 0), (4, 4))
+  let !_ = index bnd (-1, -1)
   printBSB n
 
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc434/tasks/abc434_a

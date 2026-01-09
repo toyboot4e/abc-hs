@@ -28,8 +28,8 @@ debug :: Bool ; debug = False
 
 solve :: StateT BS.ByteString IO ()
 solve = do
-  !n <- int'
-  !udlrs <- U.replicateM n ((,,,) <$> int1' <*> int1' <*> int1' <*> int1')
+  !n <- intP
+  !udlrs <- U.replicateM n ((,,,) <$> int1P <*> int1P <*> int1P <*> int1P)
 
   let !d = 2000
 

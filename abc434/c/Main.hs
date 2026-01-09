@@ -28,8 +28,8 @@ debug :: Bool ; debug = False
 
 solve :: StateT BS.ByteString IO ()
 solve = do
-  (!n, !h0) <- ints2'
-  !tlus <- U.replicateM n ints3'
+  (!n, !h0) <- ints2P
+  !tlus <- U.replicateM n ints3P
 
   -- Calculate possible intervals from the goal
   let none = (-1, -1, -1)
@@ -51,5 +51,5 @@ solve = do
 -- verification-helper: PROBLEM https://atcoder.jp/contests/abc434/tasks/abc434_c
 main :: IO ()
 main = runIO $ do
-  t <- int'
+  t <- intP
   replicateM_ t solve

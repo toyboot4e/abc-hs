@@ -41,11 +41,8 @@ solve = do
                 | otherwise = (r2, c2)
               yxs' = S.insert yx yxs
 
-  -- FIXME: take vector, not IxVector
-  let !resGrid = accumulateIV (\ _ x -> x) (IxVector (zero2 n n) (U.replicate (n * n) (0 :: Int))) $ IxVector (zero2 n n) $ U.cons ((0, n `div` 2), 1) res
-  -- printGrid resGrid FIXME
-  for_ [0 .. n - 1] $ \i -> do
-    printBSB . unwordsBSB . U.take n . U.drop (n * i) $ vecIV resGrid
+  let !resGrid = accumulateIV (\ _ x -> x) (IxVector (zero2 n n) (U.replicate (n * n) (0 :: Int))) $ U.cons ((0, n `div` 2), 1) res
+  printGrid resGrid
 
 {-
 マス (0,2N−1​) に
