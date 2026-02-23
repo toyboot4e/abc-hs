@@ -1,0 +1,43 @@
+cradle:
+  cabal:
+    - path: "./a/Main.hs"
+      component: "awc0009:exe:a-exe"
+
+    - path: "./b/Main.hs"
+      component: "awc0009:exe:b-exe"
+
+    - path: "./c/Main.hs"
+      component: "awc0009:exe:c-exe"
+
+    - path: "./d/Main.hs"
+      component: "awc0009:exe:d-exe"
+
+    - path: "./e/Main.hs"
+      component: "awc0009:exe:e-exe"
+
+    - path: "./f/Main.hs"
+      component: "awc0009:exe:f-exe"
+
+    - path: "./g/Main.hs"
+      component: "awc0009:exe:g-exe"
+
+    - path: "./h/Main.hs"
+      component: "awc0009:exe:h-exe"
+
+    - path: "./i/Main.hs"
+      component: "awc0009:exe:i-exe"
+
+    - path: "./j/Main.hs"
+      component: "awc0009:exe:j-exe"
+
+    - path: "./k/Main.hs"
+      component: "awc0009:exe:k-exe"
+
+    - path: "./l/Main.hs"
+      component: "awc0009:exe:l-exe"
+
+    - path: "./m/Main.hs"
+      component: "awc0009:exe:m-exe"
+
+    - path: "./n/Main.hs"
+      component: "awc0009:exe:n-exe"
