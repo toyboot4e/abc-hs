@@ -1,0 +1,86 @@
+{
+  "contest": {
+    "id": "abc459",
+    "title": "Tokio Marine & Nichido Fire Insurance Programming Contest 2026 (AtCoder Beginner Contest 459)",
+    "url": "https://atcoder.jp/contests/abc459"
+  },
+  "tasks": [
+    {
+      "id": "abc459_a",
+      "label": "A",
+      "title": "Hell, World!",
+      "url": "https://atcoder.jp/contests/abc459/tasks/abc459_a",
+      "directory": {
+        "path": "a",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc459_b",
+      "label": "B",
+      "title": "459",
+      "url": "https://atcoder.jp/contests/abc459/tasks/abc459_b",
+      "directory": {
+        "path": "b",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc459_c",
+      "label": "C",
+      "title": "Drop Blocks",
+      "url": "https://atcoder.jp/contests/abc459/tasks/abc459_c",
+      "directory": {
+        "path": "c",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc459_d",
+      "label": "D",
+      "title": "Adjacent Distinct String",
+      "url": "https://atcoder.jp/contests/abc459/tasks/abc459_d",
+      "directory": {
+        "path": "d",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc459_e",
+      "label": "E",
+      "title": "Select from Subtrees",
+      "url": "https://atcoder.jp/contests/abc459/tasks/abc459_e",
+      "directory": {
+        "path": "e",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc459_f",
+      "label": "F",
+      "title": "-1, +1",
+      "url": "https://atcoder.jp/contests/abc459/tasks/abc459_f",
+      "directory": {
+        "path": "f",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc459_g",
+      "label": "G",
+      "title": "Golf 2",
+      "url": "https://atcoder.jp/contests/abc459/tasks/abc459_g",
+      "directory": {
+        "path": "g",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    }
+  ]
+}
