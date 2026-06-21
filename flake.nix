@@ -43,6 +43,7 @@
 
             packages = [
               atcoder-cli
+              bun
               online-judge-tools
               online-judge-verify-helper
               just
