@@ -6,10 +6,14 @@
     nixpkgs-for-ghc.url = "github:NixOS/nixpkgs/ebe4301cbd8f81c4f8d3244b3632338bbeb6d49c";
     # 9189ac18287c599860e878e905da550aa6dec1cd
     flake-utils.url = "github:numtide/flake-utils";
+    atcoder-tui = {
+      url = "github:toyboot4e/atcoder-tui";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
-    { nixpkgs, nixpkgs-for-ghc, flake-utils, ... }:
+    { nixpkgs, nixpkgs-for-ghc, flake-utils, atcoder-tui, ... }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
@@ -43,6 +47,7 @@
 
             packages = [
               atcoder-cli
+              atcoder-tui.packages.${system}.default
               bun
               online-judge-tools
               online-judge-verify-helper

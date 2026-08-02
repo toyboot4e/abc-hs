@@ -1,5 +1,26 @@
 {
   "nodes": {
+    "atcoder-tui": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "treefmt-nix": "treefmt-nix"
+      },
+      "locked": {
+        "lastModified": 1785613472,
+        "narHash": "sha256-uQla0HT2qgPGzTQtyrkMC54Xhf2Bz+h2rifOBE5RuQQ=",
+        "owner": "toyboot4e",
+        "repo": "atcoder-tui",
+        "rev": "9f3f9b74a6d764ae72cacf8891c81c3c352fecf5",
+        "type": "github"
+      },
+      "original": {
+        "owner": "toyboot4e",
+        "repo": "atcoder-tui",
+        "type": "github"
+      }
+    },
     "flake-utils": {
       "inputs": {
         "systems": "systems"
@@ -52,6 +73,7 @@
     },
     "root": {
       "inputs": {
+        "atcoder-tui": "atcoder-tui",
         "flake-utils": "flake-utils",
         "nixpkgs": "nixpkgs",
         "nixpkgs-for-ghc": "nixpkgs-for-ghc"
@@ -69,6 +91,27 @@
       "original": {
         "owner": "nix-systems",
         "repo": "default",
+        "type": "github"
+      }
+    },
+    "treefmt-nix": {
+      "inputs": {
+        "nixpkgs": [
+          "atcoder-tui",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1785360170,
+        "narHash": "sha256-XE1lKgQ3eIO3E7zWryqcRsax+mYXod/5RHBn4YaR9YE=",
+        "owner": "numtide",
+        "repo": "treefmt-nix",
+        "rev": "d1187f8bc71fb8aab02395869ec3f5c1920f75c0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "treefmt-nix",
         "type": "github"
       }
     }
