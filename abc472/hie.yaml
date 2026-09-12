@@ -1,0 +1,85 @@
+cradle:
+  cabal:
+    - path: "./a/Main.hs"
+      component: "abc472:exe:a-exe"
+
+    - path: "./b/Main.hs"
+      component: "abc472:exe:b-exe"
+
+    - path: "./c/Main.hs"
+      component: "abc472:exe:c-exe"
+
+    - path: "./d/Main.hs"
+      component: "abc472:exe:d-exe"
+
+    - path: "./e/Main.hs"
+      component: "abc472:exe:e-exe"
+
+    - path: "./f/Main.hs"
+      component: "abc472:exe:f-exe"
+
+    - path: "./g/Main.hs"
+      component: "abc472:exe:g-exe"
+
+    - path: "./h/Main.hs"
+      component: "abc472:exe:h-exe"
+
+    - path: "./i/Main.hs"
+      component: "abc472:exe:i-exe"
+
+    - path: "./j/Main.hs"
+      component: "abc472:exe:j-exe"
+
+    - path: "./k/Main.hs"
+      component: "abc472:exe:k-exe"
+
+    - path: "./l/Main.hs"
+      component: "abc472:exe:l-exe"
+
+    - path: "./m/Main.hs"
+      component: "abc472:exe:m-exe"
+
+    - path: "./n/Main.hs"
+      component: "abc472:exe:n-exe"
+
+    - path: "./a/.x/Main.hs"
+      component: "abc472:exe:x-a-exe"
+
+    - path: "./b/.x/Main.hs"
+      component: "abc472:exe:x-b-exe"
+
+    - path: "./c/.x/Main.hs"
+      component: "abc472:exe:x-c-exe"
+
+    - path: "./d/.x/Main.hs"
+      component: "abc472:exe:x-d-exe"
+
+    - path: "./e/.x/Main.hs"
+      component: "abc472:exe:x-e-exe"
+
+    - path: "./f/.x/Main.hs"
+      component: "abc472:exe:x-f-exe"
+
+    - path: "./g/.x/Main.hs"
+      component: "abc472:exe:x-g-exe"
+
+    - path: "./h/.x/Main.hs"
+      component: "abc472:exe:x-h-exe"
+
+    - path: "./i/.x/Main.hs"
+      component: "abc472:exe:x-i-exe"
+
+    - path: "./j/.x/Main.hs"
+      component: "abc472:exe:x-j-exe"
+
+    - path: "./k/.x/Main.hs"
+      component: "abc472:exe:x-k-exe"
+
+    - path: "./l/.x/Main.hs"
+      component: "abc472:exe:x-l-exe"
+
+    - path: "./m/.x/Main.hs"
+      component: "abc472:exe:x-m-exe"
+
+    - path: "./n/.x/Main.hs"
+      component: "abc472:exe:x-n-exe"
