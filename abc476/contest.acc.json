@@ -1,0 +1,86 @@
+{
+  "contest": {
+    "id": "abc476",
+    "title": "JIJ Programming Contest 2026（AtCoder Beginner Contest 476）",
+    "url": "https://atcoder.jp/contests/abc476"
+  },
+  "tasks": [
+    {
+      "id": "abc476_a",
+      "label": "A",
+      "title": "Appender",
+      "url": "https://atcoder.jp/contests/abc476/tasks/abc476_a",
+      "directory": {
+        "path": "a",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc476_b",
+      "label": "B",
+      "title": "Wild Card",
+      "url": "https://atcoder.jp/contests/abc476/tasks/abc476_b",
+      "directory": {
+        "path": "b",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc476_c",
+      "label": "C",
+      "title": "Third Largest Number",
+      "url": "https://atcoder.jp/contests/abc476/tasks/abc476_c",
+      "directory": {
+        "path": "c",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc476_d",
+      "label": "D",
+      "title": "Automat",
+      "url": "https://atcoder.jp/contests/abc476/tasks/abc476_d",
+      "directory": {
+        "path": "d",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc476_e",
+      "label": "E",
+      "title": "Min-Max Swap",
+      "url": "https://atcoder.jp/contests/abc476/tasks/abc476_e",
+      "directory": {
+        "path": "e",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc476_f",
+      "label": "F",
+      "title": "Chebyshev Cafe",
+      "url": "https://atcoder.jp/contests/abc476/tasks/abc476_f",
+      "directory": {
+        "path": "f",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    },
+    {
+      "id": "abc476_g",
+      "label": "G",
+      "title": "Increasing Popcount",
+      "url": "https://atcoder.jp/contests/abc476/tasks/abc476_g",
+      "directory": {
+        "path": "g",
+        "testdir": "test-cases",
+        "submit": ".submit.hs"
+      }
+    }
+  ]
+}
